@@ -1,12 +1,12 @@
 #!/bin/sh
-# velo540-celltest - score the cellular path after an antenna or placement change.
+# velo5x0-celltest - score the cellular path after an antenna or placement change.
 #
 # Prints the four receive chains (sampled under load, which is the only time the
 # module reports all of them), the serving cell, and throughput.  Run it before
 # and after moving antennas: chains within ~3 dB of each other and SINR above
 # 10 dB is the target; today's baseline is a 10-14 dB spread and SINR near 0.
 #
-# Usage: velo540-celltest [quick]     quick = radio only, no transfers
+# Usage: velo5x0-celltest [quick]     quick = radio only, no transfers
 P=/dev/ttyUSB3
 IF=$(ubus call network.interface.wwan status 2>/dev/null | jsonfilter -e '@.l3_device')
 [ -n "$IF" ] || IF=wwan0

@@ -120,7 +120,7 @@ wan_leds() {
 # Fan: Microchip EMC2104 at 0x2f on the same bus, PWM 100% at power-on.
 # The vendor programs its RPM lookup table, but the fan here gives the chip
 # no tach signal, so the table makes it pulse; the curve now lives in
-# /usr/sbin/velo540-fand (velo540-fan service).  This only enables PWM
+# /usr/sbin/velo5x0-fand (velo5x0-fan service).  This only enables PWM
 # control: 26 kHz PWM, open-loop mode, and the PCA9557@0x1c pins.
 fan_up() {
 	[ -d /sys/bus/i2c/devices/i2c-9 ] || return 1
@@ -131,10 +131,10 @@ fan_up() {
 	E 0x2b 0x0c
 	E 0x41 0x01
 	# cut the BIOS 100%-duty boot scream: park the fan at ~30% until
-	# velo540-fan (START=20) takes over with the real curve
+	# velo5x0-fan (START=20) takes over with the real curve
 	E 0x40 0x30
 	# PCA9557@0x1c pin 6 (FORCE_PWM) low, pin 7 (FORCE_12V) high: the only
-	# combination where the fan follows the PWM duty (see velo540-fand).
+	# combination where the fan follows the PWM duty (see velo5x0-fand).
 	# Pins 0/1 are PoE control: never touch them.
 	[ -d /sys/bus/i2c/devices/9-001c ] || echo pca9557 0x1c > /sys/bus/i2c/devices/i2c-9/new_device
 	sleep 1
@@ -171,19 +171,19 @@ start() {
 	# refused on the port there are 0 resets idle and 0 under load, and the
 	# modem runs at 5 Gbps (119 Mbps down vs 104 on USB2).
 	#
-	# uci velo540.@cell[0].ss_lpm_off names the SuperSpeed port to refuse U1/U2
+	# uci velo5x0.@cell[0].ss_lpm_off names the SuperSpeed port to refuse U1/U2
 	# on, e.g. '3-0:1.0/usb3-port1'.  Set it, and leave ss_disable unset.
 	# ss_disable is still honoured as the fallback if a board turns out to need
 	# it, but note that network.wwan.device must then name the usb1 path: the
 	# modem's sysfs path changes with the bus it enumerates on.
-	sslpm=$(uci -q get velo540.@cell[0].ss_lpm_off)
+	sslpm=$(uci -q get velo5x0.@cell[0].ss_lpm_off)
 	[ -n "$sslpm" ] && [ -w "/sys/bus/usb/devices/usb3/$sslpm/usb3_lpm_permit" ] && echo 0 > "/sys/bus/usb/devices/usb3/$sslpm/usb3_lpm_permit" && echo "usb: U1/U2 refused on $sslpm (SuperSpeed stays up)"
-	ssd=$(uci -q get velo540.@cell[0].ss_disable)
+	ssd=$(uci -q get velo5x0.@cell[0].ss_disable)
 	[ -n "$ssd" ] && [ -e "/sys/bus/usb/devices/usb3/$ssd/disable" ] && echo 1 > "/sys/bus/usb/devices/usb3/$ssd/disable" && echo "usb: SuperSpeed disabled on $ssd (modem falls back to USB2)"
-	# DSA mode from /etc/config/velo540: hand the switches to mv88e6xxx now,
+	# DSA mode from /etc/config/velo5x0: hand the switches to mv88e6xxx now,
 	# so netifd finds lan1..lan8 when it brings br-lan up.
 	P=/sys/module/vc_edge5x0_dsa/parameters/dsa_mask
-	want=$(uci -q get velo540.@dsa[0].mask); want=${want:-0}
+	want=$(uci -q get velo5x0.@dsa[0].mask); want=${want:-0}
 	if [ -w "$P" ] && [ "$(cat $P)" != "$want" ]; then
 		echo "$want" > "$P" && echo "dsa_mask -> $want"
 		sleep 3

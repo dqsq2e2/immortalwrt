@@ -1,6 +1,6 @@
 #!/bin/sh
 # eth0/eth1 = switch A/B uplinks (LAN1-8), eth2/eth3 = SFP1/SFP2,
-# eth4/eth5 = GE1/GE2 (88E1514, appear once velo540-switch has reset them).
+# eth4/eth5 = GE1/GE2 (88E1514, appear once velo5x0-switch has reset them).
 # Port roles (520V 完美固件 defaults, per user):
 #   LAN = both switches (8 jacks) + GE2(eth5)
 #   WAN = GE1(eth4) primary, SFP1(eth2) / SFP2(eth3) secondary WANs

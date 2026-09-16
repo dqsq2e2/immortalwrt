@@ -73,7 +73,7 @@ static struct platform_device *vc_mdio_pdev;
  * 12 = SCL) carrying the two PCA9557 expanders: 0x18 = PCIe/switch/PHY resets,
  * RF kill, USB power; 0x1c = PoE control.  Registered as adapter i2c-9 for
  * mainline i2c-gpio; userspace instantiates the pca9557 (see
- * /etc/init.d/velo540-switch).
+ * /etc/init.d/velo5x0-switch).
  */
 #define VC_I2C_BUS_NR 9
 static struct gpiod_lookup_table vc_i2c_gpios = {

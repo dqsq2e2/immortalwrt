@@ -4,6 +4,6 @@
 # cellular path down with "couldn't find modem".
 case "$ACTION" in add) ;; *) exit 0 ;; esac
 case "$PRODUCT" in 2c7c/*) ;; *) exit 0 ;; esac
-[ -x /usr/sbin/velo540-modemdev ] || exit 0
+[ -x /usr/sbin/velo5x0-modemdev ] || exit 0
 # Let ModemManager finish probing before netifd is asked to bring it up.
-(sleep 10; /usr/sbin/velo540-modemdev -u) >/dev/null 2>&1 &
+(sleep 10; /usr/sbin/velo5x0-modemdev -u) >/dev/null 2>&1 &

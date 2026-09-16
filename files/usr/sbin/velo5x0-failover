@@ -7,10 +7,10 @@
 # mwan3 is deliberately not used: it flushes Tailscale's route table (52)
 # on every restart/stop and cut off remote access twice (2026-09-15).
 # Interface names wan/wwan also drive the blue-LED/WiFi hook.
-period=$(uci -q get velo540.@cell[0].probe_period); period=${period:-10}
-fails=$(uci -q get velo540.@cell[0].probe_fails); fails=${fails:-3}
+period=$(uci -q get velo5x0.@cell[0].probe_period); period=${period:-10}
+fails=$(uci -q get velo5x0.@cell[0].probe_fails); fails=${fails:-3}
 . /lib/functions/network.sh
-STATE=/tmp/velo540-failover.state
+STATE=/tmp/velo5x0-failover.state
 probes="1.1.1.1 8.8.8.8"
 miss=0; state=primary; echo primary > $STATE
 while :; do
@@ -22,15 +22,15 @@ while :; do
 		miss=0
 		if [ $state = failover ]; then
 			ip route replace default via $gw dev $dev metric 10; state=primary; echo primary > $STATE
-			logger -t velo540-failover "primary WAN answers again: default route restored"
-			/etc/hotplug.d/iface/90-velo540-led >/dev/null 2>&1
+			logger -t velo5x0-failover "primary WAN answers again: default route restored"
+			/etc/hotplug.d/iface/90-velo5x0-led >/dev/null 2>&1
 		fi
 	else
 		miss=$(( miss + 1 ))
 		if [ $state = primary ] && [ $miss -ge $fails ]; then
 			ip route del default via $gw dev $dev 2>/dev/null; state=failover; echo failover > $STATE
-			logger -t velo540-failover "primary WAN dead ($miss misses): default withdrawn, cellular carries traffic"
-			/etc/hotplug.d/iface/90-velo540-led >/dev/null 2>&1
+			logger -t velo5x0-failover "primary WAN dead ($miss misses): default withdrawn, cellular carries traffic"
+			/etc/hotplug.d/iface/90-velo5x0-led >/dev/null 2>&1
 		fi
 	fi
 	sleep $period

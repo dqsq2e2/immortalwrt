@@ -15,7 +15,7 @@
  * (jack-to-port map measured by walking a cable round the jacks)
  *
  * Nothing happens unless dsa_mask is set (bit 0 = switch A, bit 1 = switch B),
- * so the plain "two dumb switches" mode of /etc/init.d/velo540-switch stays
+ * so the plain "two dumb switches" mode of /etc/init.d/velo5x0-switch stays
  * the default.  With DSA, that script must only bring the CPU-side SerDes up
  * and force switch port 4; DSA owns everything else.
  *
