@@ -1,0 +1,25 @@
+--- a/net/dsa/dsa.c
++++ b/net/dsa/dsa.c
+@@ -1462,15 +1462,19 @@
+ 
+ static int dsa_switch_parse(struct dsa_switch *ds, struct dsa_chip_data *cd)
+ {
++	int index = 0;
+ 	int err;
+ 
+ 	ds->cd = cd;
+ 
+-	/* We don't support interconnected switches nor multiple trees via
+-	 * platform data, so this is the unique switch of the tree.
++	/* We don't support interconnected switches via platform data, so
++	 * this is the unique switch of its tree; use the lowest free tree
++	 * index so that several independent switches can coexist.
+ 	 */
+ 	ds->index = 0;
+-	ds->dst = dsa_tree_touch(0);
++	while (dsa_tree_find(index))
++		index++;
++	ds->dst = dsa_tree_touch(index);
+ 	if (!ds->dst)
+ 		return -ENOMEM;
+ 

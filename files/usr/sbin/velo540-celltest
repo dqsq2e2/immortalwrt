@@ -1,0 +1,89 @@
+#!/bin/sh
+# velo540-celltest - score the cellular path after an antenna or placement change.
+#
+# Prints the four receive chains (sampled under load, which is the only time the
+# module reports all of them), the serving cell, and throughput.  Run it before
+# and after moving antennas: chains within ~3 dB of each other and SINR above
+# 10 dB is the target; today's baseline is a 10-14 dB spread and SINR near 0.
+#
+# Usage: velo540-celltest [quick]     quick = radio only, no transfers
+P=/dev/ttyUSB3
+IF=$(ubus call network.interface.wwan status 2>/dev/null | jsonfilter -e '@.l3_device')
+[ -n "$IF" ] || IF=wwan0
+DOWN="http://speed.cloudflare.com/__down?bytes=75000000"
+UP="http://speed.cloudflare.com/__up"
+
+at() {
+	[ -c "$P" ] || return 1
+	: > /tmp/.celltest.at
+	cat "$P" > /tmp/.celltest.at 2>/dev/null & c=$!
+	sleep 1
+	printf '%s\r' "$1" > "$P" 2>/dev/null
+	sleep 3
+	kill $c 2>/dev/null
+	tr -d '\r' < /tmp/.celltest.at | grep -v '^$' | grep -v '^OK$' | grep -v "^AT"
+}
+f4() { echo "$1" | sed 's/^[^:]*: *//' | cut -d, -f1-4 | tr ',' ' ' | sed 's/-32768/   -/g'; }
+nrbw() { case "$1" in 0) echo 5;; 1) echo 10;; 2) echo 15;; 3) echo 20;; 4) echo 25;; 5) echo 30;; 6) echo 40;; 7) echo 50;; 8) echo 60;; 9) echo 70;; 10) echo 80;; 11) echo 90;; 12) echo 100;; *) echo "?";; esac; }
+up_cs() { cut -d' ' -f1 /proc/uptime | tr -d .; }
+
+A=$(ip -4 -br addr show "$IF" 2>/dev/null | awk '{print $3}')
+[ -z "$A" ] && { echo "no $IF address - modem is not connected"; exit 1; }
+[ -c "$P" ] || echo "note: $P missing, radio detail unavailable"
+
+if [ "$1" = quick ]; then
+	echo "chains RSRP $(f4 "$(at 'AT+QRSRP')") dBm   (idle: only the first two report)"
+	echo "chains SINR $(f4 "$(at 'AT+QSINR')") dB"
+else
+	# Time ONLY the transfers.  The radio sampling runs alongside them: the AT
+	# commands take ~18 s, so timing both together capped every reading at
+	# ~120 Mbps no matter how fast the link was.
+	s=$(up_cs)
+	pids=""
+	for n in 1 2 3 4 5 6; do
+		curl -s -m 70 -4 --interface "$IF" -o /dev/null "$DOWN" &
+		pids="$pids $!"
+	done
+	( sleep 6
+	  at 'AT+QRSRP' > /tmp/.ct.r
+	  at 'AT+QSINR' > /tmp/.ct.s
+	  at 'AT+QENG="servingcell"' > /tmp/.ct.q ) &
+	sampler=$!
+	wait $pids
+	e=$(up_cs)
+	wait $sampler 2>/dev/null
+	R=$(cat /tmp/.ct.r 2>/dev/null); S=$(cat /tmp/.ct.s 2>/dev/null); Q=$(cat /tmp/.ct.q 2>/dev/null)
+	[ $((e - s)) -gt 0 ] && DL=$(( 450 * 8 * 100 / (e - s) ))
+	# Single-stream upload on this link swings 2-30 Mbps run to run while the
+	# parallel figure holds steady, so report the parallel one as the number
+	# that means something, and keep the single-stream one beside it.
+	UL1=$(head -c 20000000 /dev/zero | curl -s -m 70 -4 --interface "$IF" -o /dev/null -w '%{speed_upload}' -X POST --data-binary @- "$UP" | awk '{printf "%.0f", $1*8/1e6}')
+	s=$(up_cs)
+	upids=""
+	for n in 1 2 3 4 5 6; do
+		head -c 20000000 /dev/zero | curl -s -m 70 -4 --interface "$IF" -o /dev/null -X POST --data-binary @- "$UP" &
+		upids="$upids $!"
+	done
+	wait $upids
+	e=$(up_cs)
+	[ $((e - s)) -gt 0 ] && UL=$(( 120 * 8 * 100 / (e - s) ))
+	PG=$(ping -I "$IF" -c5 -W3 1.1.1.1 2>/dev/null | tail -1 | sed 's:.*= ::;s:/.*::')
+	echo "chains RSRP $(f4 "$R") dBm   (under load, all four)"
+	echo "chains SINR $(f4 "$S") dB"
+fi
+
+[ -z "$Q" ] && Q=$(at 'AT+QENG="servingcell"')
+C=$(echo "$Q" | grep -m1 QENG | tr -d ' "')
+case "$C" in
+*NR5G-SA*)
+	set -- $(echo "$C" | cut -d, -f10-15 | tr ',' ' ')
+	echo "cell   5G SA  n$2  $(nrbw "$3") MHz   RSRP $4  RSRQ $5  SINR $6"
+	;;
+*LTE*)
+	echo "cell   LTE    $(echo "$C" | cut -d, -f9-14)"
+	;;
+*)
+	[ -n "$C" ] && echo "cell   $C"
+	;;
+esac
+[ "$1" = quick ] || echo "speed  down ${DL:-?} Mbps (6 streams)   up ${UL:-?} Mbps (6 streams, ${UL1:-?} on one)   ping ${PG:-?} ms"
