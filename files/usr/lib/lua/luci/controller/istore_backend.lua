@@ -105,8 +105,9 @@ end
 local function get_cpu_temperature()
   local temp_file = io.open("/sys/class/thermal/thermal_zone0/temp", "r")
   if not temp_file then
-    -- coreboot board (no ACPI thermal zone): read coretemp package temp via hwmon
-    temp_file = io.popen("for h in /sys/class/hwmon/hwmon*; do [ \"$(cat $h/name 2>/dev/null)\" = coretemp ] && cat $h/temp1_input 2>/dev/null; done | head -n 1")
+    -- coreboot board (no ACPI thermal zone): read coretemp via hwmon.
+    -- This Atom's coretemp exposes only temp2..temp5 (no temp1), take the max.
+    temp_file = io.popen("for h in /sys/class/hwmon/hwmon*; do [ \"$(cat $h/name 2>/dev/null)\" = coretemp ] && cat $h/temp*_input 2>/dev/null; done | sort -n | tail -n 1")
   end
   if temp_file then
     local temp = temp_file:read("*n")
