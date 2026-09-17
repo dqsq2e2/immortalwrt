@@ -7,6 +7,12 @@
 # LAN stays on 10.11.0.1/24 to avoid clashing with a 192.168.1.x upstream.
 # Only seed the bridge on a fresh install; a preserved config (sysupgrade)
 # already carries the user's port list (eth0/eth1 or the DSA lan1..lan8).
+#
+# Board guard: files/ is tree-global, so EVERY build from this source tree
+# (including generic x86) gets this script. On non-VeloCloud hardware the
+# port rewrite below would put nonexistent lan1..lan8 into br-lan and drop
+# the box's only real NIC, making it unreachable. Run only on VeloCloud.
+grep -qi velocloud /sys/class/dmi/id/sys_vendor 2>/dev/null || exit 0
 if ! uci -q get network.@device[0].ports | grep -qE 'eth1|lan1'; then
 	uci -q batch <<'UCI'
 delete network.@device[0].ports
