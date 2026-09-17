@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <stddef.h>
+#include <string.h>
 
 /* Mode/reset/event semantics: TMI7604R V1.3 and TMI7608R V0.3, pp.14-23.
  * Board wiring, ADC packing and undocumented setup values: RP01/RP02 pse_ctl.
@@ -168,11 +169,32 @@ static int check_supply(struct tmi_io *io)
 	return -ERANGE;
 }
 
+static int confirm_off(struct tmi_io *io, uint8_t mask)
+{
+	unsigned int attempt;
+	uint8_t powered, good;
+	int ret;
+
+	io->stage = "shutdown-confirm";
+	for (attempt = 0; attempt < 20; attempt++) {
+		ret = read_reg(io, 0x1c, &powered);
+		if (ret)
+			return ret;
+		ret = read_reg(io, 0x1d, &good);
+		if (ret)
+			return ret;
+		if (!((powered | good) & mask))
+			return 0;
+		io->delay(io->ctx, 100);
+	}
+	return -ETIMEDOUT;
+}
+
 int tmi_disable(struct tmi_io *io, const struct tmi_board *board)
 {
 	int ret, first = 0;
-	unsigned int group, attempt;
-	uint8_t powered, good, expected = 0, actual = 0;
+	unsigned int group;
+	uint8_t expected = 0, actual = 0;
 	int first_reg = -1;
 	const char *operation = NULL;
 
@@ -195,19 +217,7 @@ int tmi_disable(struct tmi_io *io, const struct tmi_board *board)
 		io->actual = actual;
 		return first;
 	}
-	io->stage = "shutdown-confirm";
-	for (attempt = 0; attempt < 20; attempt++) {
-		ret = read_reg(io, 0x1c, &powered);
-		if (ret)
-			return ret;
-		ret = read_reg(io, 0x1d, &good);
-		if (ret)
-			return ret;
-		if (!(powered | good))
-			return 0;
-		io->delay(io->ctx, 100);
-	}
-	return -ETIMEDOUT;
+	return confirm_off(io, (1U << board->channels) - 1);
 }
 
 static int enable_detection(struct tmi_io *io, const struct tmi_board *board,
@@ -295,7 +305,7 @@ int tmi_set_policy(struct tmi_io *io, const struct tmi_board *board,
 		return ret;
 	if (old->budget_mw == policy->budget_mw && old->mask == policy->mask &&
 	    old->class4plus == policy->class4plus)
-		return 0;
+		return policy->mask ? 0 : confirm_off(io, (1U << board->channels) - 1);
 	if (old->budget_mw != policy->budget_mw || old->class4plus != policy->class4plus) {
 		/* Update two budget bytes with outputs off, never at a transient limit. */
 		ret = tmi_disable(io, board);
@@ -319,6 +329,12 @@ int tmi_set_policy(struct tmi_io *io, const struct tmi_board *board,
 	ret = enable_detection(io, board, retained, policy->mask);
 	if (ret)
 		return ret;
+	if (!policy->mask || (old->mask & ~policy->mask)) {
+		ret = confirm_off(io, !policy->mask ? (1U << board->channels) - 1 :
+				  old->mask & ~policy->mask);
+		if (ret)
+			return ret;
+	}
 	return tmi_verify_policy(io, board, policy);
 }
 
@@ -407,6 +423,34 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 		sample.voltage_mv[port] = voltage_mv(raw);
 	}
 	/* Never publish a partly updated snapshot after an I2C failure. */
+	*status = sample;
+	return 0;
+}
+
+int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
+		    struct tmi_status *status)
+{
+	struct tmi_status sample;
+	unsigned int i;
+	uint8_t event;
+	int ret;
+
+	/* Only the owning daemon consumes the clear-on-read aliases. Never
+	 * retry these reads in the transport: a failed transfer may have cleared
+	 * the latch already. Keep every successful read across later failures.
+	 */
+	io->stage = "events";
+	for (i = 0; i < TMI_EVENTS; i++) {
+		ret = read_reg(io, 0x03 + 2 * i, &event);
+		if (ret)
+			return ret;
+		io->pending_events[i] |= event;
+	}
+	ret = tmi_read_status(io, board, &sample);
+	if (ret)
+		return ret;
+	memcpy(sample.events, io->pending_events, sizeof(sample.events));
+	memset(io->pending_events, 0, sizeof(io->pending_events));
 	*status = sample;
 	return 0;
 }

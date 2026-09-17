@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 #define _GNU_SOURCE
 #include "tmi.h"
+#include "log.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,6 +29,7 @@
 #define I2C_ADAPTERS "/sys/bus/i2c/devices"
 
 static volatile sig_atomic_t stopping, reloading;
+static bool debug_logging;
 
 struct transport {
 	int fd;
@@ -77,7 +79,9 @@ static int read_reg(void *ctx, uint8_t reg, uint8_t *value)
 		{ .addr = bus->address, .len = 1, .buf = &reg },
 		{ .addr = bus->address, .flags = I2C_M_RD, .len = 1, .buf = &result },
 	};
-	int ret = transfer(bus, msgs, 2, true);
+	/* Clear-on-read event aliases must not be retried. */
+	bool clear_on_read = reg >= 0x03 && reg <= 0x13 && (reg & 1);
+	int ret = transfer(bus, msgs, 2, !clear_on_read);
 
 	if (!ret)
 		*value = result;
@@ -246,6 +250,7 @@ static int load_policy(const struct tmi_board *board, struct tmi_policy *policy,
 	policy->budget_mw = board->max_budget_mw;
 	policy->mask = tmi_board_mask(board);
 	policy->class4plus = true;
+	policy->debug = false;
 	*enabled = true;
 	option = uci_lookup_option(ctx, section, "enabled");
 	if (option && option->type != UCI_TYPE_STRING)
@@ -274,6 +279,13 @@ static int load_policy(const struct tmi_board *board, struct tmi_policy *policy,
 		    (strcmp(option->v.string, "0") && strcmp(option->v.string, "1")))
 			goto out;
 		policy->class4plus = !strcmp(option->v.string, "1");
+	}
+	option = uci_lookup_option(ctx, section, "debug");
+	if (option) {
+		if (option->type != UCI_TYPE_STRING ||
+		    (strcmp(option->v.string, "0") && strcmp(option->v.string, "1")))
+			goto out;
+		policy->debug = !strcmp(option->v.string, "1");
 	}
 	disabled = uci_lookup_option(ctx, section, "disabled_ports");
 	if (disabled) {
@@ -319,24 +331,69 @@ static void signal_handler(int signal)
 		stopping = 1;
 }
 
+static const char *failure_stage(const struct tmi_io *io)
+{
+	static const struct { const char *stage, *text; } stages[] = {
+		{ "i2c-node", "controller device-tree lookup" },
+		{ "i2c-enumerate", "I2C adapter discovery" },
+		{ "i2c-match", "I2C controller matching" },
+		{ "i2c-open", "I2C device open" },
+		{ "i2c-capabilities", "I2C capability check" },
+		{ "i2c-address", "I2C controller access" },
+		{ "gpio-request", "reset GPIO request" },
+		{ "hardware-reset", "controller reset" },
+		{ "factory-setup", "controller configuration" },
+		{ "budget", "power budget configuration" },
+		{ "protection", "protection configuration" },
+		{ "clear-interrupts", "event initialization" },
+		{ "supply-check", "input voltage check" },
+		{ "shutdown-modes", "output shutdown" },
+		{ "shutdown-confirm", "output shutdown confirmation" },
+		{ "detection-prepare", "PD detection preparation" },
+		{ "automatic-mode", "automatic detection activation" },
+		{ "configuration-monitor", "configuration verification" },
+		{ "events", "event collection (an uncertain transfer may lose an event)" },
+		{ "status", "status read" },
+		{ "lock", "controller lock" },
+		{ "reload-lock", "configuration lock" },
+		{ "status-lock", "status lock" },
+		{ "shutdown-lock", "shutdown lock" },
+	};
+	size_t i;
+
+	if (io->operation && !strcmp(io->operation, "verify") && io->failed_reg >= 0) {
+		if (io->failed_reg == 0x2d)
+			return "Class4+ setting verification";
+		if (io->failed_reg == 0x77 || io->failed_reg == 0x78)
+			return "power budget verification";
+	}
+	for (i = 0; i < sizeof(stages) / sizeof(stages[0]); i++)
+		if (!strcmp(io->stage, stages[i].stage))
+			return stages[i].text;
+	return "operation";
+}
+
 static void error_log(const struct tmi_io *io, const struct tmi_board *board, int ret)
 {
 	const struct transport *bus = io->ctx;
 
+	syslog(LOG_ERR, "PoE %s failed: %s", failure_stage(io), strerror(-ret));
+	if (!debug_logging)
+		return;
 	if (!strncmp(io->stage, "i2c-", 4))
-		syslog(LOG_ERR, "stage=%s failed: board=%s address=0x%02x node=%s "
+		syslog(LOG_DEBUG, "stage=%s failed: board=%s address=0x%02x node=%s "
 		       "adapters=%s device=%s errno=%d (%s)", io->stage, board->compatible,
 		       board->address, I2C_NODE, I2C_ADAPTERS,
 		       *bus->device ? bus->device : "unmatched", -ret, strerror(-ret));
 	else if (io->failed_reg < 0)
-		syslog(LOG_ERR, "stage=%s failed: errno=%d (%s)",
+		syslog(LOG_DEBUG, "stage=%s failed: errno=%d (%s)",
 		       io->stage, -ret, strerror(-ret));
 	else if (io->operation && !strcmp(io->operation, "verify"))
-		syslog(LOG_ERR, "stage=%s failed: operation=verify register=0x%02x "
+		syslog(LOG_DEBUG, "stage=%s failed: operation=verify register=0x%02x "
 		       "expected=0x%02x actual=0x%02x errno=%d (%s)", io->stage,
 		       io->failed_reg, io->expected, io->actual, -ret, strerror(-ret));
 	else
-		syslog(LOG_ERR, "stage=%s failed: operation=%s last-register=0x%02x errno=%d (%s)",
+		syslog(LOG_DEBUG, "stage=%s failed: operation=%s last-register=0x%02x errno=%d (%s)",
 		       io->stage, io->operation, io->failed_reg, -ret, strerror(-ret));
 }
 
@@ -352,23 +409,42 @@ static void print_status(const struct tmi_board *board, const struct tmi_policy 
 	static const char * const mode_names[] = { "shutdown", "manual", "semi", "auto" };
 	unsigned int port, channel, index, mode;
 
-	printf("chip=%s address=0x%02x requested-mask=0x%02x requested-budget-mw=%u requested-class4plus=%u "
-	       "input-mv=%u summary=0x%02x powered=0x%02x good=0x%02x\n", board->chip,
-	       board->address, policy->mask, policy->budget_mw, policy->class4plus, status->input_mv,
-	       status->summary, status->powered, status->good);
-	printf("hw-budget-raw=0x%04x hw-budget-nominal-mw=%u hw-detect=0x%02x hw-classify=0x%02x hw-class4plus=0x%02x\n",
-	       status->budget_raw, nominal_budget_mw(status), status->detect, status->classify,
-	       status->class4plus);
+	if (debug_logging) {
+		printf("chip=%s address=0x%02x requested-mask=0x%02x requested-budget-mw=%u requested-class4plus=%u "
+		       "input-mv=%u summary=0x%02x powered=0x%02x good=0x%02x\n", board->chip,
+		       board->address, policy->mask, policy->budget_mw, policy->class4plus, status->input_mv,
+		       status->summary, status->powered, status->good);
+		printf("hw-budget-raw=0x%04x hw-budget-nominal-mw=%u hw-detect=0x%02x hw-classify=0x%02x hw-class4plus=0x%02x\n",
+		       status->budget_raw, nominal_budget_mw(status), status->detect, status->classify,
+		       status->class4plus);
+	}
+	if (!debug_logging)
+		printf("controller=%s requested-budget-mw=%u hardware-budget-nominal-mw=%u requested-Class4+=%s input-mv=%u\n",
+		       board->chip, policy->budget_mw, nominal_budget_mw(status),
+		       policy->class4plus ? "enabled" : "disabled", status->input_mv);
 	for (port = 0; port < board->ports; port++) {
 		channel = board->port_map[port];
 		index = channel - 1;
 		mode = (status->modes[index / 4] >> (2 * (index % 4))) & 3;
-		printf("lan%u pse=%u requested=%u mode=%s powered=%u good=%u state=0x%02x "
-		       "voltage-mv=%u ", port + 1,
-		       channel, !!(policy->mask & (1U << (channel - 1))),
-		       mode_names[mode], !!(status->powered & (1U << index)),
-		       !!(status->good & (1U << index)), status->port_state[port],
-		       status->voltage_mv[port]);
+		if (debug_logging) {
+			printf("lan%u pse=%u requested=%u mode=%s powered=%u good=%u state=0x%02x "
+			       "voltage-mv=%u ", port + 1,
+			       channel, !!(policy->mask & (1U << (channel - 1))),
+			       mode_names[mode], !!(status->powered & (1U << index)),
+			       !!(status->good & (1U << index)), status->port_state[port],
+			       status->voltage_mv[port]);
+		}
+		if (!debug_logging) {
+			printf("LAN%u requested=%s mode=%s powered=%s power-good=%s hardware-Class4+=%s class=unconfirmed voltage-mv=%u ",
+			       port + 1, policy->mask & (1U << index) ? "enabled" : "disabled",
+			       mode_names[mode], status->powered & (1U << index) ? "yes" : "no",
+			       status->good & (1U << index) ? "yes" : "no",
+			       status->class4plus & (1U << index) ? "enabled" : "disabled", status->voltage_mv[port]);
+			if (status->class4plus & (1U << index)) {
+				printf("current=unconfirmed\n");
+				continue;
+			}
+		}
 		if (status->class4plus & (1U << index))
 			printf("current-raw=0x%04x current-scale=unresolved current-ma-at-1a=%u "
 			       "current-ma-at-2a=%u\n", status->current_raw[port],
@@ -379,55 +455,29 @@ static void print_status(const struct tmi_board *board, const struct tmi_policy 
 	}
 }
 
-static void log_changes(const struct tmi_board *board, const struct tmi_status *old,
-			const struct tmi_status *now, bool first)
+static bool policy_changed(const struct tmi_policy *old, const struct tmi_policy *next)
 {
-	unsigned int port, channel, bit, event;
-
-	if (first || memcmp(old->modes, now->modes, sizeof(now->modes)) ||
-	    old->detect != now->detect || old->classify != now->classify ||
-	    old->budget_raw != now->budget_raw || old->class4plus != now->class4plus)
-		syslog(LOG_INFO, "hardware configuration: modes=0x%02x/0x%02x detect=0x%02x "
-		       "classify=0x%02x class4plus=0x%02x budget-raw=0x%04x budget-nominal-mw=%u",
-		       now->modes[0], now->modes[1], now->detect, now->classify,
-		       now->class4plus, now->budget_raw, nominal_budget_mw(now));
-	if (first || old->summary != now->summary || old->good != now->good ||
-	    old->powered != now->powered)
-		syslog(LOG_INFO, "controller status: summary=0x%02x input-mv=%u powered=0x%02x good=0x%02x",
-		       now->summary, now->input_mv, now->powered, now->good);
-	for (event = 0; event < TMI_EVENTS; event++)
-		if (first || old->events[event] != now->events[event])
-			syslog(LOG_INFO, "controller event: register=0x%02x value=0x%02x",
-			       0x02 + 2 * event, now->events[event]);
-	for (port = 0; port < board->ports; port++) {
-		channel = board->port_map[port];
-		bit = 1U << (channel - 1);
-		if (first || ((old->powered ^ now->powered) & bit) ||
-		    ((old->good ^ now->good) & bit) ||
-		    old->port_state[port] != now->port_state[port]) {
-			syslog(LOG_INFO, "port status: lan%u pse=%u powered=%u good=%u state=0x%02x "
-			       "voltage-mv=%u current-raw=0x%04x current-scale=%s", port + 1, channel,
-			       !!(now->powered & bit), !!(now->good & bit), now->port_state[port],
-			       now->voltage_mv[port], now->current_raw[port],
-			       (now->class4plus & bit) ? "unresolved" : "1a");
-		}
-	}
+	return old->mask != next->mask || old->budget_mw != next->budget_mw ||
+	       old->class4plus != next->class4plus;
 }
 
 int main(int argc, char **argv)
 {
 	const struct tmi_board *board;
 	struct tmi_policy policy, next;
-	struct tmi_status status, previous = { 0 };
+	struct tmi_status status;
+	struct tmi_log log = { 0 };
 	struct transport bus = { .fd = -1 };
 	struct tmi_io io = { .ctx = &bus, .read = read_reg, .write = write_reg,
 		.delay = delay_ms, .stage = "startup", .failed_reg = -1 };
 	struct sigaction action = { .sa_handler = signal_handler };
-	bool run, enabled, initialized = false, first = true;
+	bool run, enabled, next_enabled, initialized = false, error_reported = false;
+	bool status_debug;
 	int owner = -1, lock = -1, gpio = -1, ret = 0, cleanup, errors = 0;
 
-	if (argc != 2 || (strcmp(argv[1], "run") && strcmp(argv[1], "status"))) {
-		fprintf(stderr, "Usage: tmi-poe {run|status}\n");
+	status_debug = argc == 3 && !strcmp(argv[1], "status") && !strcmp(argv[2], "--debug");
+	if ((!status_debug && argc != 2) || (strcmp(argv[1], "run") && strcmp(argv[1], "status"))) {
+		fprintf(stderr, "Usage: tmi-poe run | status [--debug]\n");
 		return 2;
 	}
 	run = !strcmp(argv[1], "run");
@@ -442,6 +492,8 @@ int main(int argc, char **argv)
 		syslog(LOG_ERR, "configuration invalid; no hardware access");
 		return 1;
 	}
+	debug_logging = policy.debug || status_debug;
+	setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
 	if (run && !enabled) {
 		syslog(LOG_INFO, "PoE disabled by configuration");
 		return 0;
@@ -458,8 +510,7 @@ int main(int argc, char **argv)
 		sigaction(SIGTERM, &action, NULL);
 		sigaction(SIGINT, &action, NULL);
 		sigaction(SIGHUP, &action, NULL);
-		syslog(LOG_INFO, "initialization started: chip=%s address=0x%02x mask=0x%02x budget-mw=%u class4plus=%u",
-		       board->chip, board->address, policy.mask, policy.budget_mw, policy.class4plus);
+		syslog(LOG_INFO, "PoE initialization started: controller=%s", board->chip);
 	}
 	lock = lock_file(LOCK_FILE, run ? LOCK_EX : LOCK_SH);
 	if (lock < 0) {
@@ -478,8 +529,9 @@ int main(int argc, char **argv)
 			print_status(board, &policy, &status);
 		goto out;
 	}
-	syslog(LOG_INFO, "I2C ready: device=%s node=%s address=0x%02x",
-	       bus.device, I2C_NODE, board->address);
+	syslog(LOG_INFO, "PoE controller connected: device=%s", bus.device);
+	if (debug_logging)
+		syslog(LOG_DEBUG, "I2C: node=%s address=0x%02x", I2C_NODE, board->address);
 	io.stage = "gpio-request";
 	gpio = request_reset();
 	if (gpio < 0) {
@@ -495,50 +547,79 @@ int main(int argc, char **argv)
 	if (ret)
 		goto out;
 	delay_ms(&bus, 100);
-	syslog(LOG_INFO, "hardware reset completed: line=poe-reset hold-ms=200");
+	syslog(LOG_INFO, "PoE controller reset completed");
 	initialized = true; /* Cleanup required even if a later initialization step fails. */
 	ret = tmi_initialize(&io, board, &policy);
 	if (ret)
 		goto out;
-	syslog(LOG_INFO, "initialization completed: configuration verified; PD detection requested mask=0x%02x",
-	       policy.mask);
+	syslog(LOG_INFO, "PoE configuration verified");
+	tmi_log_policy(board, &policy, enabled, "enabled");
 	flock(lock, LOCK_UN);
 	while (!stopping) {
 		io.failed_reg = -1;
+		error_reported = false;
 		if (reloading) {
 			reloading = 0;
-			ret = load_policy(board, &next, &enabled);
+			ret = load_policy(board, &next, &next_enabled);
 			if (ret) {
 				syslog(LOG_ERR, "reload rejected: invalid configuration; previous policy retained");
 				ret = 0;
 			} else {
-				if (flock(lock, LOCK_EX) < 0) {
-					ret = -errno;
-					io.stage = "reload-lock";
-					goto out;
+				bool changed = policy_changed(&policy, &next) || enabled != next_enabled;
+				bool reconfigure = policy.budget_mw != next.budget_mw ||
+						   policy.class4plus != next.class4plus;
+				uint8_t off = reconfigure ? tmi_board_mask(board) : policy.mask & ~next.mask;
+				unsigned int i;
+				const char *reason = !next_enabled ? "global-switch-off" :
+						     reconfigure ? "configuration-change" : "port-disabled";
+
+				if (changed) {
+					if (flock(lock, LOCK_EX) < 0) {
+						ret = -errno;
+						io.stage = "reload-lock";
+						goto out;
+					}
+					if (enabled && !next_enabled)
+						syslog(LOG_INFO, "PoE disabling: reason=global-switch-off");
+					else
+						syslog(LOG_INFO, "PoE configuration updating");
+					if (policy.budget_mw != next.budget_mw)
+						syslog(LOG_INFO, "PoE budget changing: %u.%03uW -> %u.%03uW",
+						       policy.budget_mw / 1000, policy.budget_mw % 1000,
+						       next.budget_mw / 1000, next.budget_mw % 1000);
+					ret = tmi_set_policy(&io, board, &policy, &next);
+					if (ret)
+						goto out;
+					tmi_log_ports_off(board, &log, off, reason);
+					for (i = 0; i < TMI_EVENTS - 1; i++)
+						io.pending_events[i] &= ~off;
+					tmi_log_policy(board, &next, next_enabled,
+						       !next_enabled ? "disabled; outputs confirmed off" :
+						       !enabled ? "enabled" : "configuration applied");
+					flock(lock, LOCK_UN);
 				}
-				syslog(LOG_INFO, "policy update started: mask=0x%02x budget-mw=%u class4plus=%u",
-				       next.mask, next.budget_mw, next.class4plus);
-				ret = tmi_set_policy(&io, board, &policy, &next);
-				if (ret)
-					goto out;
+				if (policy.debug != next.debug)
+					syslog(LOG_INFO, "PoE debug logging %s", next.debug ? "enabled" : "disabled");
 				policy = next;
-				syslog(LOG_INFO, "policy update completed: mask=0x%02x budget-mw=%u class4plus=%u",
-				       policy.mask, policy.budget_mw, policy.class4plus);
-				flock(lock, LOCK_UN);
+				enabled = next_enabled;
+				debug_logging = policy.debug;
+				setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
 			}
 		}
-		if (flock(lock, LOCK_SH) < 0) {
+		if (flock(lock, LOCK_EX) < 0) {
 			ret = -errno;
 			io.stage = "status-lock";
 			io.failed_reg = -1;
 			goto out;
 		}
-		ret = tmi_read_status(&io, board, &status);
+		ret = tmi_poll_status(&io, board, &status);
 		flock(lock, LOCK_UN);
+		if (stopping && ret == -ECANCELED)
+			break;
 		if (ret) {
 			if (!errors)
 				error_log(&io, board, ret);
+			error_reported = true;
 			if (++errors >= 3)
 				goto out;
 		} else {
@@ -547,24 +628,23 @@ int main(int argc, char **argv)
 			errors = 0;
 			if (status.input_mv < TMI_INPUT_MIN_MV || status.input_mv > TMI_INPUT_MAX_MV) {
 				syslog(LOG_ERR, "supply outside board range: input-mv=%u; disabling PoE", status.input_mv);
+				error_reported = true;
 				io.stage = "supply-monitor";
 				io.failed_reg = -1;
 				ret = -ERANGE;
 				goto out;
 			}
-			log_changes(board, &previous, &status, first);
-			previous = status;
-			first = false;
+			tmi_log_status(board, &log, &status, debug_logging);
 		}
 		poll(NULL, 0, 2000);
 	}
 	ret = 0;
 out:
-	if (ret)
+	if (ret && !error_reported)
 		error_log(&io, board, ret);
 	if (run && initialized) {
 		bus.cleaning = true;
-		syslog(LOG_INFO, "shutdown started");
+		syslog(LOG_INFO, "PoE disabling: reason=%s", ret ? "controller-failure" : "service-stopped");
 		if (flock(lock, LOCK_EX) < 0) {
 			cleanup = -errno;
 			io.stage = "shutdown-lock";
@@ -577,7 +657,9 @@ out:
 			if (!ret)
 				ret = cleanup;
 		} else {
-			syslog(LOG_INFO, "shutdown completed: all board PoE ports report off");
+			tmi_log_ports_off(board, &log, tmi_board_mask(board),
+					  ret ? "controller-failure" : "service-stopped");
+			syslog(LOG_INFO, "PoE disabled: all outputs confirmed off");
 		}
 	}
 	if (gpio >= 0)

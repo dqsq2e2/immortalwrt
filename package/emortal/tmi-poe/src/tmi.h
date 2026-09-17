@@ -30,12 +30,15 @@ struct tmi_io {
 	const char *operation;
 	uint8_t expected;
 	uint8_t actual;
+	/* Preserve consumed events until a complete sample can be delivered. */
+	uint8_t pending_events[TMI_EVENTS];
 };
 
 struct tmi_policy {
 	unsigned int budget_mw;
 	uint8_t mask;
 	bool class4plus;
+	bool debug;
 };
 
 struct tmi_status {
@@ -66,6 +69,8 @@ int tmi_disable(struct tmi_io *io, const struct tmi_board *board);
 int tmi_verify_policy(struct tmi_io *io, const struct tmi_board *board,
 		      const struct tmi_policy *policy);
 int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
+		    struct tmi_status *status);
+int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
 		    struct tmi_status *status);
 
 #endif

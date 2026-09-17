@@ -22,7 +22,7 @@ bt negotiation or the PD's maximum rated load.
 
 ## Power budget
 
-`/etc/config/tmi-poe` accepts `enabled`, `budget_mw`, `class4plus`, and a list of
+`/etc/config/tmi-poe` accepts `enabled`, `budget_mw`, `class4plus`, `debug`, and a list of
 `disabled_ports` (`lan1`, `lan2`, etc.). WAN is never a PoE output.
 If `budget_mw` is omitted, the original board budget is used:
 
@@ -54,9 +54,11 @@ to standard af/at operation. No manual or semiautomatic control is needed.
 
 ## Diagnostics
 
-`tmi-poe status` reads hardware without resetting it or enabling outputs.
-The shared controller lock prevents it from observing a service's partial
-configuration update. It reports:
+`tmi-poe status` reports requested settings, actual port modes, supply and
+power-good state in readable form. It reads hardware without resetting it,
+enabling outputs, or consuming event latches. The shared controller lock
+prevents it from observing a service's partial configuration/event update.
+`tmi-poe status --debug` additionally reports the raw diagnostic snapshot:
 
 - `requested-mask` / `requested-budget-mw`: the current UCI configuration.
 - `hw-budget-raw`: the actual threshold register value; `hw-budget-nominal-mw`
@@ -78,11 +80,48 @@ Requested settings can differ from hardware when a service failed to start,
 is stopped, or has not reloaded changed UCI settings. `mode=shutdown` and
 `powered=0 good=0` describe an off port even when `requested=1`.
 
-Logs include initialization, bus selection, reset, completed configuration,
-port/PGOOD transitions, changed hardware configuration, failures and shutdown.
-Bus failures identify the stage, board, address, device-tree node, adapter
-directory and selected device. Register verification failures include the
-expected and actual bytes. Normal operation logs changes, not every sample.
+Normal logs report controller initialization, connection, reset, verified
+configuration, explicit global enable/disable and per-port transitions.
+Detection and classification completion are reported once when automatic
+classification or confirmed power establishes progress beyond probing. The
+repetitive detection-complete latch alone does not advance the normal log.
+Powered/PGOOD changes and documented disconnect, startup timeout,
+overcurrent and current-limit events are described in words. Repeated
+detection on an empty or non-PoE port, unchanged reloads and repeated faults
+while waiting for recovery do not repeat normal logs. Continuous voltage and
+current fluctuations do not generate normal logs.
+
+The daemon consumes clear-on-read event aliases under its exclusive lock.
+Successfully consumed events survive a later sample failure in memory; reads
+that may clear an event are never retried. If an I2C transfer fails after the
+chip cleared a latch, that event may be unavailable; the error is reported.
+Events coalesced by hardware cannot reconstruct every edge or its exact time
+between two-second polls. A sampled power-off/reconnect rearms per-port phase
+messages. Multiple short changes may be summarized as an interruption already
+recovered. Class decoding is not documented: `class=unconfirmed` is intentional,
+and `negotiation=completed` requires automatic detection/classification active
+and actual powered/PGOOD confirmation. A completion event alone does not prove
+successful classification. The Class4+ enable setting is not a negotiated class.
+
+Automatic hardware probing remains enabled while waiting. It is not triggered
+by Ethernet carrier: a PD needs power before it can establish link, and carrier
+can flap during boot without a PoE disconnect. Disable PoE on a port explicitly
+if it must never probe. The chip's automatic protection is unchanged.
+
+Raw registers, event bitmaps, ADC codes and verification expected/actual bytes
+are emitted only at debug level when `debug=1`. Normal errors retain the
+operation and readable failure reason. Debug-only changes do not interrupt
+power:
+
+```sh
+uci set tmi-poe.main.debug='1'
+uci commit tmi-poe
+/etc/init.d/tmi-poe reload
+logread -e tmi-poe
+```
+
+Set `debug` back to `0` and reload to stop raw diagnostics. A debug snapshot
+can be requested with `tmi-poe status --debug` without changing configuration.
 
 The P5/P8 reset pin's electrical defaults are applied with the I2C device's
 pinctrl state after the TLMM provider has registered its functions. The
