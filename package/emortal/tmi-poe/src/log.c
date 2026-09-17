@@ -67,16 +67,18 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 {
 	const struct tmi_status *old = &log->previous;
 	unsigned int p, channel, bit, mode, i;
+	bool debug_start = debug && !log->debug;
 
-	if (debug && (!log->initialized || memcmp(old->modes, now->modes, sizeof(now->modes)) ||
+	if (debug && (debug_start || !log->initialized || memcmp(old->modes, now->modes, sizeof(now->modes)) ||
 	    old->detect != now->detect || old->classify != now->classify ||
-	    old->class4plus != now->class4plus || old->budget_raw != now->budget_raw))
-		syslog(LOG_DEBUG, "hardware: modes=0x%02x/0x%02x detect=0x%02x classify=0x%02x class4plus=0x%02x budget=0x%04x",
+	    old->disconnect != now->disconnect || old->class4plus != now->class4plus ||
+	    old->budget_raw != now->budget_raw))
+		syslog(LOG_DEBUG, "hardware: modes=0x%02x/0x%02x detect=0x%02x classify=0x%02x class4plus=0x%02x budget=0x%04x disconnect=0x%02x",
 		       now->modes[0], now->modes[1], now->detect, now->classify,
-		       now->class4plus, now->budget_raw);
+		       now->class4plus, now->budget_raw, now->disconnect);
 	if (debug)
 		for (i = 0; i < TMI_EVENTS; i++)
-			if (now->events[i] && (!log->initialized || now->events[i] != old->events[i]))
+			if (now->events[i])
 				syslog(LOG_DEBUG, "event: register=0x%02x value=0x%02x", 0x02 + 2 * i, now->events[i]);
 	if (now->events[EV_SUPPLY] & ~log->supply_events) {
 		if ((now->events[EV_SUPPLY] & ~log->supply_events) & 0x80)
@@ -86,8 +88,9 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 		log->supply_events |= now->events[EV_SUPPLY];
 	}
 	if (log->supply_events && !now->events[EV_SUPPLY] && now->powered &&
-	    now->powered == now->good) {
-		syslog(LOG_NOTICE, "PoE controller power recovered");
+	    now->powered == now->good && now->input_mv >= TMI_INPUT_MIN_MV &&
+	    now->input_mv <= TMI_INPUT_MAX_MV) {
+		syslog(LOG_NOTICE, "PoE supply event cleared: input voltage in range, active outputs report power-good");
 		log->supply_events = 0;
 	}
 	for (p = 0; p < board->ports; p++) {
@@ -110,12 +113,13 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 			 (!!(now->events[EV_CURRENT_LIMIT] & bit) << 2);
 		fault_reason(faults, reason, sizeof(reason));
 		if (!on && good && (!port->initialized || (old->powered & bit) || !(old->good & bit)))
-			syslog(LOG_WARNING, "LAN%u power status inconsistent: output=off, power-good=yes", p + 1);
+			syslog(LOG_NOTICE, "LAN%u output is off but power-good is still set: shutdown not yet confirmed", p + 1);
 		if (lost) {
-			syslog(LOG_NOTICE, "LAN%u %s: reason=%s", p + 1,
+			syslog(faults ? LOG_WARNING : LOG_NOTICE, "LAN%u %s: reason=%s", p + 1,
 			       on ? "power interruption observed; output is already on" : "power off",
-			       faults ? reason : disconnected ? "PD-disconnected" : "unconfirmed");
+			       faults ? reason : disconnected ? "DC-disconnect event" : "unconfirmed");
 			port->detection = port->classification = port->waiting = false;
+			port->classification_event = false;
 		}
 		if (!lost && was_on && on && good == !!(old->good & bit) &&
 		    (now->events[EV_PGOOD] & bit))
@@ -126,10 +130,15 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 			       p + 1, reason, on ? "on" : "off");
 		port->faults |= faults;
 		if (!port->initialized || lost || port_mode(old, channel) != mode ||
+		    (!mode && !on && !good && ((old->powered | old->good) & bit)) ||
 		    (((old->detect ^ now->detect) | (old->classify ^ now->classify)) & bit)) {
 			if (!mode) {
-				syslog(LOG_INFO, "LAN%u PoE disabled", p + 1);
+				if (on || good)
+					syslog(LOG_WARNING, "LAN%u shutdown mode selected but output is not confirmed off", p + 1);
+				else
+					syslog(LOG_INFO, "LAN%u PoE disabled", p + 1);
 				port->detection = port->classification = port->waiting = false;
+				port->classification_event = false;
 			} else if (automatic && !on && !port->waiting) {
 				syslog(LOG_INFO, "LAN%u waiting for a valid PoE device", p + 1);
 				port->waiting = true;
@@ -137,12 +146,16 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 				syslog(LOG_WARNING, "LAN%u automatic PoE detection is not active", p + 1);
 			}
 		}
-		/* Empty/non-PD probes also set DET. Advance the normal log only
-		 * when automatic classification or confirmed power establishes that
-		 * the controller progressed beyond probing. The raw DET is debug-only.
+		/* A completion event does not encode success. Only automatic mode
+		 * with confirmed power establishes successful negotiation here.
+		 * Empty/non-PD detection events remain debug-only.
 		 */
-		if (automatic && (!was_on || lost) &&
-		    ((now->events[EV_CLASSIFICATION] & bit) || (on && good))) {
+		if (automatic && !(on && good) && !port->classification_event &&
+		    (now->events[EV_CLASSIFICATION] & bit)) {
+			syslog(LOG_INFO, "LAN%u classification event observed: result=unconfirmed", p + 1);
+			port->classification_event = true;
+		}
+		if (automatic && on && good) {
 			if (!port->detection) {
 				syslog(LOG_INFO, "LAN%u detection completed", p + 1);
 				port->detection = true;
@@ -152,13 +165,18 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 				port->classification = true;
 			}
 		}
+		/* A historical fault latch can coexist with a powered snapshot. Do
+		 * not clear it in the same sample or repeat the fault every poll.
+		 * Recovery need not coincide with a powered/PGOOD transition.
+		 */
+		if (port->faults && !faults && on && good) {
+			syslog(LOG_NOTICE, "LAN%u power recovered", p + 1);
+			port->faults = 0;
+		}
 		if (on && (!was_on || lost || !port->initialized || (!!(old->good & bit) != good))) {
 			if (good) {
-				if (port->faults)
-					syslog(LOG_NOTICE, "LAN%u power recovered", p + 1);
 				syslog(LOG_INFO, "LAN%u power on: negotiation=%s, class=unconfirmed, power-good=yes",
 				       p + 1, automatic ? "completed" : "unconfirmed");
-				port->faults = 0;
 				port->detection = port->classification = true;
 			} else {
 				syslog(was_on && (old->good & bit) ? LOG_WARNING : LOG_INFO,
@@ -168,7 +186,7 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 			}
 			port->waiting = false;
 		}
-		if (debug && (!port->initialized || old->port_state[p] != now->port_state[p] ||
+		if (debug && (debug_start || !port->initialized || old->port_state[p] != now->port_state[p] ||
 		    ((old->powered ^ now->powered) & bit) || ((old->good ^ now->good) & bit)))
 			syslog(LOG_DEBUG, "LAN%u: pse=%u state=0x%02x powered=%u good=%u voltage-mv=%u current-raw=0x%04x",
 			       p + 1, channel + 1, now->port_state[p], on, good,
@@ -177,4 +195,5 @@ void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,
 	}
 	log->previous = *now;
 	log->initialized = true;
+	log->debug = debug;
 }

@@ -80,16 +80,39 @@ Requested settings can differ from hardware when a service failed to start,
 is stopped, or has not reloaded changed UCI settings. `mode=shutdown` and
 `powered=0 good=0` describe an off port even when `requested=1`.
 
-Normal logs report controller initialization, connection, reset, verified
-configuration, explicit global enable/disable and per-port transitions.
-Detection and classification completion are reported once when automatic
-classification or confirmed power establishes progress beyond probing. The
-repetitive detection-complete latch alone does not advance the normal log.
+Normal logs report initialization, I2C adapter readiness, reset sequence,
+verified configuration, explicit global enable/disable and per-port transitions.
+Opening the adapter does not prove that the PSE responds. Detection and
+classification success are reported once automatic mode and powered/PGOOD
+confirm successful negotiation. A classification event alone is reported as
+an observation with an unconfirmed result. The repetitive detection-complete
+latch alone does not advance the normal log.
 Powered/PGOOD changes and documented disconnect, startup timeout,
 overcurrent and current-limit events are described in words. Repeated
 detection on an empty or non-PoE port, unchanged reloads and repeated faults
 while waiting for recovery do not repeat normal logs. Continuous voltage and
-current fluctuations do not generate normal logs.
+current fluctuations do not generate normal logs. Fault recovery requires a
+later powered/PGOOD sample without a newly reported fault. A DC-disconnect
+event identifies the controller's load-disconnect observation, not proof of
+a physical unplug. Power-off and power-good registers are read separately;
+an off output with power-good still set is reported as shutdown unconfirmed.
+
+On failure, the service still attempts output shutdown. An initialization or
+reload error and its cleanup result are combined into one error record, keeping
+the original stage and reason. Repeated I2C errors do not hide the final output
+state: a failed cleanup explicitly reports it as unconfirmed. Normal SIGTERM
+or SIGINT cancellation is not labeled a controller failure. Sampling failures
+are logged on the first occurrence or when their details change; three
+consecutive failures stop monitoring and initiate shutdown.
+
+Each complete sample checks requested modes, detection/classification,
+DC-disconnect protection, Class4+ and budget against hardware. A controller
+reset or lost setting therefore cannot silently leave the service running
+under different settings. A mismatch logs the affected setting and shuts down;
+the service does not automatically reset or repower the controller. This adds
+one ordinary protection-register read to each sample. Status queries remain
+read-only and do not enforce policy. The checks do not reconstruct undocumented
+registers or establish that every analog protection circuit is healthy.
 
 The daemon consumes clear-on-read event aliases under its exclusive lock.
 Successfully consumed events survive a later sample failure in memory; reads
@@ -111,7 +134,10 @@ if it must never probe. The chip's automatic protection is unchanged.
 Raw registers, event bitmaps, ADC codes and verification expected/actual bytes
 are emitted only at debug level when `debug=1`. Normal errors retain the
 operation and readable failure reason. Debug-only changes do not interrupt
-power:
+power. Enabling debug emits a baseline on the next successful sample, and a
+reload that also changes policy enables requested diagnostics before applying
+the hardware update. Identical consumed events in successive samples are each
+visible in debug output:
 
 ```sh
 uci set tmi-poe.main.debug='1'

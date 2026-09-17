@@ -8,6 +8,7 @@ struct tmi_port_log {
 	bool initialized;
 	bool detection;
 	bool classification;
+	bool classification_event;
 	bool waiting;
 	uint8_t faults;
 };
@@ -17,6 +18,7 @@ struct tmi_log {
 	struct tmi_port_log ports[TMI_MAX_PORTS];
 	uint8_t supply_events;
 	bool initialized;
+	bool debug;
 };
 
 void tmi_log_status(const struct tmi_board *board, struct tmi_log *log,

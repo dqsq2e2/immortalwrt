@@ -362,6 +362,12 @@ static const char *failure_stage(const struct tmi_io *io)
 	size_t i;
 
 	if (io->operation && !strcmp(io->operation, "verify") && io->failed_reg >= 0) {
+		if (io->failed_reg == 0x1f || io->failed_reg == 0x20)
+			return "port mode verification";
+		if (io->failed_reg == 0x21)
+			return "DC disconnect protection verification";
+		if (io->failed_reg == 0x22 || io->failed_reg == 0x23)
+			return "automatic detection/classification verification";
 		if (io->failed_reg == 0x2d)
 			return "Class4+ setting verification";
 		if (io->failed_reg == 0x77 || io->failed_reg == 0x78)
@@ -373,11 +379,30 @@ static const char *failure_stage(const struct tmi_io *io)
 	return "operation";
 }
 
-static void error_log(const struct tmi_io *io, const struct tmi_board *board, int ret)
+static const char *failure_reason(const struct tmi_io *io, int ret)
+{
+	if (io->operation && !strcmp(io->operation, "verify"))
+		return "hardware setting differs from the requested value";
+	if (io->failed_reg >= 0 && (ret == -ENXIO || ret == -EREMOTEIO))
+		return "controller did not respond on I2C";
+	return strerror(-ret);
+}
+
+static bool same_failure(const struct tmi_io *a, int ar,
+			 const struct tmi_io *b, int br)
+{
+	return ar == br && !strcmp(a->stage, b->stage) &&
+	       a->failed_reg == b->failed_reg &&
+	       ((!a->operation && !b->operation) ||
+		(a->operation && b->operation && !strcmp(a->operation, b->operation))) &&
+	       (!a->operation || strcmp(a->operation, "verify") ||
+		(a->expected == b->expected && a->actual == b->actual));
+}
+
+static void error_details(const struct tmi_io *io, const struct tmi_board *board, int ret)
 {
 	const struct transport *bus = io->ctx;
 
-	syslog(LOG_ERR, "PoE %s failed: %s", failure_stage(io), strerror(-ret));
 	if (!debug_logging)
 		return;
 	if (!strncmp(io->stage, "i2c-", 4))
@@ -397,6 +422,44 @@ static void error_log(const struct tmi_io *io, const struct tmi_board *board, in
 		       io->stage, io->operation, io->failed_reg, -ret, strerror(-ret));
 }
 
+static void error_log(const struct tmi_io *io, const struct tmi_board *board, int ret)
+{
+	syslog(LOG_ERR, "PoE %s failed: %s", failure_stage(io), failure_reason(io, ret));
+	error_details(io, board, ret);
+}
+
+static void exit_log(const struct tmi_io *io, const struct tmi_board *board,
+		     const char *phase, int ret, bool reported,
+		     const struct tmi_io *cleanup_io, int cleanup)
+{
+	char result[256];
+	bool repeated = ret && cleanup && same_failure(io, ret, cleanup_io, cleanup);
+
+	if (!cleanup_io)
+		snprintf(result, sizeof(result), "not attempted");
+	else if (!cleanup)
+		snprintf(result, sizeof(result), "all outputs confirmed off");
+	else if (repeated)
+		snprintf(result, sizeof(result), "same failure; output state unconfirmed");
+	else
+		snprintf(result, sizeof(result), "%s failed: %s; output state unconfirmed",
+			 failure_stage(cleanup_io), failure_reason(cleanup_io, cleanup));
+	if (ret && !reported) {
+		/* Preserve the first failure and combine cleanup without logging the
+		 * same bus failure twice. The cleanup attempt itself is not skipped.
+		 */
+		syslog(LOG_ERR, "PoE %s failed: stage=%s; reason=%s; cleanup=%s",
+		       phase, failure_stage(io), failure_reason(io, ret), result);
+		error_details(io, board, ret);
+	} else if (cleanup) {
+		syslog(LOG_ERR, "PoE shutdown incomplete: %s", result);
+	}
+	if (cleanup && !repeated)
+		error_details(cleanup_io, board, cleanup);
+	if (cleanup_io && !cleanup && (!ret || reported))
+		syslog(LOG_INFO, "PoE disabled: all outputs confirmed off");
+}
+
 static unsigned int nominal_budget_mw(const struct tmi_status *status)
 {
 	/* Inverse of the factory 53 V threshold encoding, subject to quantization. */
@@ -414,9 +477,9 @@ static void print_status(const struct tmi_board *board, const struct tmi_policy 
 		       "input-mv=%u summary=0x%02x powered=0x%02x good=0x%02x\n", board->chip,
 		       board->address, policy->mask, policy->budget_mw, policy->class4plus, status->input_mv,
 		       status->summary, status->powered, status->good);
-		printf("hw-budget-raw=0x%04x hw-budget-nominal-mw=%u hw-detect=0x%02x hw-classify=0x%02x hw-class4plus=0x%02x\n",
+		printf("hw-budget-raw=0x%04x hw-budget-nominal-mw=%u hw-detect=0x%02x hw-classify=0x%02x hw-class4plus=0x%02x hw-disconnect=0x%02x\n",
 		       status->budget_raw, nominal_budget_mw(status), status->detect, status->classify,
-		       status->class4plus);
+		       status->class4plus, status->disconnect);
 	}
 	if (!debug_logging)
 		printf("controller=%s requested-budget-mw=%u hardware-budget-nominal-mw=%u requested-Class4+=%s input-mv=%u\n",
@@ -470,10 +533,12 @@ int main(int argc, char **argv)
 	struct transport bus = { .fd = -1 };
 	struct tmi_io io = { .ctx = &bus, .read = read_reg, .write = write_reg,
 		.delay = delay_ms, .stage = "startup", .failed_reg = -1 };
+	struct tmi_io last_error = { 0 }, cleanup_io;
 	struct sigaction action = { .sa_handler = signal_handler };
 	bool run, enabled, next_enabled, initialized = false, error_reported = false;
 	bool status_debug;
-	int owner = -1, lock = -1, gpio = -1, ret = 0, cleanup, errors = 0;
+	const char *phase = "initialization";
+	int owner = -1, lock = -1, gpio = -1, ret = 0, cleanup = 0, errors = 0, last_ret = 0;
 
 	status_debug = argc == 3 && !strcmp(argv[1], "status") && !strcmp(argv[2], "--debug");
 	if ((!status_debug && argc != 2) || (strcmp(argv[1], "run") && strcmp(argv[1], "status"))) {
@@ -481,6 +546,8 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	run = !strcmp(argv[1], "run");
+	if (!run)
+		phase = "status query";
 	openlog("tmi-poe", LOG_PID | (run ? 0 : LOG_PERROR), LOG_DAEMON);
 	board = get_board();
 	if (!board) {
@@ -529,7 +596,7 @@ int main(int argc, char **argv)
 			print_status(board, &policy, &status);
 		goto out;
 	}
-	syslog(LOG_INFO, "PoE controller connected: device=%s", bus.device);
+	syslog(LOG_INFO, "PoE I2C adapter ready: device=%s", bus.device);
 	if (debug_logging)
 		syslog(LOG_DEBUG, "I2C: node=%s address=0x%02x", I2C_NODE, board->address);
 	io.stage = "gpio-request";
@@ -547,16 +614,19 @@ int main(int argc, char **argv)
 	if (ret)
 		goto out;
 	delay_ms(&bus, 100);
-	syslog(LOG_INFO, "PoE controller reset completed");
+	syslog(LOG_INFO, "PoE reset sequence completed");
 	initialized = true; /* Cleanup required even if a later initialization step fails. */
 	ret = tmi_initialize(&io, board, &policy);
 	if (ret)
 		goto out;
 	syslog(LOG_INFO, "PoE configuration verified");
+	syslog(LOG_INFO, "PoE initialization completed: controller=%s", board->chip);
 	tmi_log_policy(board, &policy, enabled, "enabled");
 	flock(lock, LOCK_UN);
 	while (!stopping) {
+		phase = "monitoring";
 		io.failed_reg = -1;
+		io.operation = NULL;
 		error_reported = false;
 		if (reloading) {
 			reloading = 0;
@@ -573,7 +643,13 @@ int main(int argc, char **argv)
 				const char *reason = !next_enabled ? "global-switch-off" :
 						     reconfigure ? "configuration-change" : "port-disabled";
 
+				/* Enable requested diagnostics before a hardware update can fail. */
+				if (policy.debug != next.debug)
+					syslog(LOG_INFO, "PoE debug logging %s", next.debug ? "enabled" : "disabled");
+				debug_logging = next.debug;
+				setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
 				if (changed) {
+					phase = "configuration update";
 					if (flock(lock, LOCK_EX) < 0) {
 						ret = -errno;
 						io.stage = "reload-lock";
@@ -598,14 +674,11 @@ int main(int argc, char **argv)
 						       !enabled ? "enabled" : "configuration applied");
 					flock(lock, LOCK_UN);
 				}
-				if (policy.debug != next.debug)
-					syslog(LOG_INFO, "PoE debug logging %s", next.debug ? "enabled" : "disabled");
 				policy = next;
 				enabled = next_enabled;
-				debug_logging = policy.debug;
-				setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
 			}
 		}
+		phase = "monitoring";
 		if (flock(lock, LOCK_EX) < 0) {
 			ret = -errno;
 			io.stage = "status-lock";
@@ -617,15 +690,21 @@ int main(int argc, char **argv)
 		if (stopping && ret == -ECANCELED)
 			break;
 		if (ret) {
-			if (!errors)
+			if (!errors || !same_failure(&last_error, last_ret, &io, ret))
 				error_log(&io, board, ret);
+			last_error = io;
+			last_ret = ret;
 			error_reported = true;
-			if (++errors >= 3)
+			if (++errors >= 3) {
+				syslog(LOG_ERR, "PoE monitoring stopped: three consecutive samples failed");
 				goto out;
+			}
 		} else {
 			if (errors)
 				syslog(LOG_NOTICE, "status communication recovered after %d failed samples", errors);
 			errors = 0;
+			/* Deliver consumed events before a policy/supply failure exits. */
+			tmi_log_status(board, &log, &status, debug_logging);
 			if (status.input_mv < TMI_INPUT_MIN_MV || status.input_mv > TMI_INPUT_MAX_MV) {
 				syslog(LOG_ERR, "supply outside board range: input-mv=%u; disabling PoE", status.input_mv);
 				error_reported = true;
@@ -634,34 +713,39 @@ int main(int argc, char **argv)
 				ret = -ERANGE;
 				goto out;
 			}
-			tmi_log_status(board, &log, &status, debug_logging);
+			ret = tmi_check_policy_status(&io, board, &policy, &status);
+			if (ret)
+				goto out;
 		}
 		poll(NULL, 0, 2000);
 	}
 	ret = 0;
 out:
-	if (ret && !error_reported)
-		error_log(&io, board, ret);
+	/* A stop interrupt during initialization/reload is not a controller fault. */
+	if (stopping && (ret == -ECANCELED || ret == -EINTR))
+		ret = 0;
 	if (run && initialized) {
 		bus.cleaning = true;
-		syslog(LOG_INFO, "PoE disabling: reason=%s", ret ? "controller-failure" : "service-stopped");
+		cleanup_io = io;
+		cleanup_io.failed_reg = -1;
+		cleanup_io.operation = NULL;
+		syslog(LOG_INFO, "PoE shutdown started: reason=%s%s",
+		       ret ? phase : "service-stopped", ret ? " failed" : "");
 		if (flock(lock, LOCK_EX) < 0) {
 			cleanup = -errno;
-			io.stage = "shutdown-lock";
-			io.failed_reg = -1;
+			cleanup_io.stage = "shutdown-lock";
 		} else {
-			cleanup = tmi_disable(&io, board);
+			cleanup = tmi_disable(&cleanup_io, board);
 		}
-		if (cleanup) {
-			error_log(&io, board, cleanup);
-			if (!ret)
-				ret = cleanup;
-		} else {
+		if (!cleanup) {
 			tmi_log_ports_off(board, &log, tmi_board_mask(board),
 					  ret ? "controller-failure" : "service-stopped");
-			syslog(LOG_INFO, "PoE disabled: all outputs confirmed off");
 		}
 	}
+	exit_log(&io, board, phase, ret, error_reported,
+		 run && initialized ? &cleanup_io : NULL, cleanup);
+	if (!ret)
+		ret = cleanup;
 	if (gpio >= 0)
 		close(gpio);
 	if (bus.fd >= 0)
