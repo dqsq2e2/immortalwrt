@@ -1450,7 +1450,7 @@ $(eval $(call KernelPackage,e1000e))
 define KernelPackage/igb
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Intel(R) 82575/82576 PCI-Express Gigabit Ethernet support
-  DEPENDS:=@PCI_SUPPORT +kmod-i2c-core +kmod-i2c-algo-bit +kmod-ptp +kmod-hwmon-core
+  DEPENDS:=@PCI_SUPPORT +kmod-i2c-core +kmod-i2c-algo-bit +kmod-ptp +kmod-hwmon-core +kmod-libphy +kmod-mdio
   KCONFIG:=CONFIG_IGB \
     CONFIG_IGB_HWMON=y \
     CONFIG_IGB_DCA=n
