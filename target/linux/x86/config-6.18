@@ -539,3 +539,7 @@ CONFIG_X86_VMX_FEATURE_NAMES=y
 CONFIG_XZ_DEC_BCJ=y
 CONFIG_XZ_DEC_X86=y
 CONFIG_ZLIB_INFLATE=y
+
+# Expose hwmon sensors (coretemp/i350bb/mv88e6xxx) as thermal zones
+# so rpcd-mod-luci getTempInfo finds them (coreboot has no ACPI zones).
+CONFIG_THERMAL_HWMON=y
