@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# velo5x0 edition: read CPU (coretemp) and WiFi (ath10k_hwmon) temps by
+# hwmon device name. coreboot has no ACPI thermal zones and the ath10k
+# hwmon does not always sit under /sys/class/ieee80211, so the stock
+# script found neither sensor on this board.
+
+cpu_temp=""
+wifi_temp=""
+
+for h in /sys/class/hwmon/hwmon*; do
+	name=$(cat "$h/name" 2>/dev/null)
+	case "$name" in
+	coretemp)
+		for t in "$h"/temp*_input; do
+			v=$(cat "$t" 2>/dev/null) || continue
+			[ "$v" -gt "${cmax:-0}" ] && cmax=$v
+		done
+		;;
+	ath10k_hwmon)
+		v=$(cat "$h"/temp1_input 2>/dev/null)
+		[ -n "$v" ] && wmax=$v
+		;;
+	esac
+done
+
+[ -n "$cmax" ] && cpu_temp="$(awk -v v="$cmax" 'BEGIN{printf("%.1f°C", v / 1000)}')"
+[ -n "$wmax" ] && wifi_temp="$(awk -v v="$wmax" 'BEGIN{printf("%.1f°C", v / 1000)}')"
+
+if [ -n "$cpu_temp" ] && [ -z "$wifi_temp" ]; then
+	echo -n "CPU: $cpu_temp"
+elif [ -z "$cpu_temp" ] && [ -n "$wifi_temp" ]; then
+	echo -n "WiFi: $wifi_temp"
+elif [ -n "$cpu_temp" ] && [ -n "$wifi_temp" ]; then
+	echo -n "CPU: $cpu_temp, WiFi: $wifi_temp"
+else
+	echo -n "No temperature info"
+fi
