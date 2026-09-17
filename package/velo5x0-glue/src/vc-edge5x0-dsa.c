@@ -203,7 +203,7 @@ static void vc_dsa_remove(struct platform_device *pdev)
 
 static struct platform_driver vc_dsa_driver = {
 	.probe = vc_dsa_probe,
-	.remove_new = vc_dsa_remove,
+	.remove = vc_dsa_remove,
 	.driver = {
 		.name = "vc-edge5x0-dsa",
 	},

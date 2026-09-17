@@ -142,7 +142,7 @@ static void vc_led_remove(struct platform_device *pdev)
 }
 static struct platform_driver vc_led_driver = {
 	.probe = vc_led_probe,
-	.remove_new = vc_led_remove,
+	.remove = vc_led_remove,
 	.driver = { .name = "vc-edge5x0-led" },
 };
 static struct platform_device *vc_led_pdev;
