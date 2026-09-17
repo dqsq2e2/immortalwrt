@@ -18,12 +18,14 @@ const struct tmi_board tmi_boards[2] = {
 static int read_reg(struct tmi_io *io, uint8_t reg, uint8_t *value)
 {
 	io->failed_reg = reg;
+	io->operation = "read";
 	return io->read(io->ctx, reg, value);
 }
 
 static int write_reg(struct tmi_io *io, uint8_t reg, uint8_t value)
 {
 	io->failed_reg = reg;
+	io->operation = "write";
 	return io->write(io->ctx, reg, value);
 }
 
@@ -34,7 +36,12 @@ static int verify_reg(struct tmi_io *io, uint8_t reg, uint8_t expected)
 
 	if (ret)
 		return ret;
-	return value == expected ? 0 : -EIO;
+	if (value == expected)
+		return 0;
+	io->operation = "verify";
+	io->expected = expected;
+	io->actual = value;
+	return -EIO;
 }
 
 static int write_verify(struct tmi_io *io, uint8_t reg, uint8_t value)
@@ -165,7 +172,9 @@ int tmi_disable(struct tmi_io *io, const struct tmi_board *board)
 {
 	int ret, first = 0;
 	unsigned int group, attempt;
-	uint8_t powered, good, first_reg = 0;
+	uint8_t powered, good, expected = 0, actual = 0;
+	int first_reg = -1;
+	const char *operation = NULL;
 
 	io->stage = "shutdown-modes";
 	/* Try every mode group despite bus errors, preserving the first error. */
@@ -174,10 +183,16 @@ int tmi_disable(struct tmi_io *io, const struct tmi_board *board)
 		if (ret && !first) {
 			first = ret;
 			first_reg = io->failed_reg;
+			operation = io->operation;
+			expected = io->expected;
+			actual = io->actual;
 		}
 	}
 	if (first) {
 		io->failed_reg = first_reg;
+		io->operation = operation;
+		io->expected = expected;
+		io->actual = actual;
 		return first;
 	}
 	io->stage = "shutdown-confirm";
@@ -221,13 +236,13 @@ int tmi_initialize(struct tmi_io *io, const struct tmi_board *board,
 {
 	static const uint8_t setup[][2] = {
 		{ 0x01, 0xe7 }, { 0x54, 0xe7 }, { 0x32, 0xff }, { 0x76, 0x23 },
-		{ 0x88, 0x3a },
 		{ 0x2e, 0x33 }, { 0x2f, 0x33 }, { 0x30, 0x33 }, { 0x31, 0x33 },
 	};
 	unsigned int i;
 	int ret = tmi_validate(board, policy);
 
 	io->stage = "validate";
+	io->failed_reg = -1;
 	if (ret)
 		return ret;
 	/* Reset pin straps can select auto mode. Quiesce before programming. */
@@ -248,9 +263,12 @@ int tmi_initialize(struct tmi_io *io, const struct tmi_board *board,
 	ret = set_budget(io, policy->budget_mw);
 	if (ret)
 		return ret;
+	ret = write_verify(io, 0x88, 0x3a);
+	if (ret)
+		return ret;
 	io->stage = "protection";
-	/* Keep IEEE af/at classification; disable proprietary Class4+ (2 A ADC). */
-	ret = write_verify(io, 0x2d, 0);
+	/* Retain automatic detection; Class4+ extends classification, not PWR_ON. */
+	ret = write_verify(io, 0x2d, policy->class4plus ? tmi_board_mask(board) : 0);
 	if (ret)
 		return ret;
 	ret = write_verify(io, 0x21, tmi_board_mask(board)); /* DC disconnect */
@@ -272,17 +290,23 @@ int tmi_set_policy(struct tmi_io *io, const struct tmi_board *board,
 	int ret = tmi_validate(board, policy);
 
 	io->stage = "validate";
+	io->failed_reg = -1;
 	if (ret)
 		return ret;
-	if (old->budget_mw == policy->budget_mw && old->mask == policy->mask)
+	if (old->budget_mw == policy->budget_mw && old->mask == policy->mask &&
+	    old->class4plus == policy->class4plus)
 		return 0;
-	if (old->budget_mw != policy->budget_mw) {
+	if (old->budget_mw != policy->budget_mw || old->class4plus != policy->class4plus) {
 		/* Update two budget bytes with outputs off, never at a transient limit. */
 		ret = tmi_disable(io, board);
 		if (ret)
 			return ret;
 		io->stage = "budget";
 		ret = set_budget(io, policy->budget_mw);
+		if (ret)
+			return ret;
+		io->stage = "protection";
+		ret = write_verify(io, 0x2d, policy->class4plus ? tmi_board_mask(board) : 0);
 		if (ret)
 			return ret;
 		retained = 0;
@@ -316,7 +340,7 @@ int tmi_verify_policy(struct tmi_io *io, const struct tmi_board *board,
 	ret = verify_reg(io, 0x78, value >> 8);
 	if (ret)
 		return ret;
-	return verify_reg(io, 0x2d, 0);
+	return verify_reg(io, 0x2d, policy->class4plus ? tmi_board_mask(board) : 0);
 }
 
 int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
@@ -327,6 +351,23 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 	int ret;
 
 	io->stage = "status";
+	for (i = 0; i < board->channels / 4; i++) {
+		ret = read_reg(io, 0x1f + i, &sample.modes[i]);
+		if (ret)
+			return ret;
+	}
+	ret = read_reg(io, 0x22, &sample.detect);
+	if (ret)
+		return ret;
+	ret = read_reg(io, 0x23, &sample.classify);
+	if (ret)
+		return ret;
+	ret = read_word(io, 0x77, &sample.budget_raw);
+	if (ret)
+		return ret;
+	ret = read_reg(io, 0x2d, &sample.class4plus);
+	if (ret)
+		return ret;
 	ret = read_reg(io, 0x00, &sample.summary);
 	if (ret)
 		return ret;
@@ -354,7 +395,11 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 		ret = read_word(io, 0x33 + 4 * channel, &raw);
 		if (ret)
 			return ret;
-		/* 1.956 mA/LSB for af/at, four fraction bits in factory ADC word. */
+		/* Preserve raw ADC: Class4+ uses twice the af/at current scale.
+		 * The supplied PDFs do not define the active-range status encoding;
+		 * an enabled Class4+ bit alone does not identify the detected PD class.
+		 */
+		sample.current_raw[port] = raw;
 		sample.current_ma[port] = raw * 1956U / 16000U;
 		ret = read_word(io, 0x35 + 4 * channel, &raw);
 		if (ret)

@@ -57,7 +57,8 @@
 &blsp1_i2c0 {
 	status = "okay";
 	clock-frequency = <400000>;
-	pinctrl-0 = <&poe_i2c_pins>;
+	/* Apply PSE reset electrical settings after TLMM functions are ready. */
+	pinctrl-0 = <&poe_i2c_pins &poe_reset_pins>;
 	pinctrl-names = "default";
 };
 
@@ -94,9 +95,6 @@
 };
 
 &tlmm {
-	pinctrl-0 = <&poe_reset_pins>;
-	pinctrl-names = "default";
-
 	/* Stock GPIO504 = TLMM offset45 (legacy base459, 53 GPIOs). */
 	gpio-line-names =
 		"", "", "", "", "", "", "", "",
