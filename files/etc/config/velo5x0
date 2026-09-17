@@ -18,6 +18,7 @@ config fan
 	option on_above '45'
 	option tach 'auto'
 	option min_duty '45'
+	option temp_src 'cpu'
 
 # dsa: 0 = two dumb switches (eth0/eth1), 3 = DSA for both (lan1..lan8); see velo5x0-dsa
 # 520V 完美固件: DSA per-port by default — each jack is its own netdev.
