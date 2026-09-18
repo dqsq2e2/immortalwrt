@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include "tmi.h"
 #include "log.h"
+#include "log_sink.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -235,6 +236,7 @@ static int load_policy(const struct tmi_board *board, struct tmi_policy *policy,
 	struct uci_option *disabled, *option;
 	struct uci_element *element;
 	const char *s;
+	char port_option[24];
 	char *end;
 	unsigned long value;
 	unsigned int port;
@@ -286,6 +288,19 @@ static int load_policy(const struct tmi_board *board, struct tmi_policy *policy,
 		    (strcmp(option->v.string, "0") && strcmp(option->v.string, "1")))
 			goto out;
 		policy->debug = !strcmp(option->v.string, "1");
+	}
+	/* Per-LAN options are the LuCI-facing form. Missing options retain the
+	 * historical default of enabled, so existing UCI files migrate safely. */
+	for (port = 0; port < board->ports; port++) {
+		snprintf(port_option, sizeof(port_option), "port_lan%u", port + 1);
+		option = uci_lookup_option(ctx, section, port_option);
+		if (!option)
+			continue;
+		if (option->type != UCI_TYPE_STRING ||
+		    (strcmp(option->v.string, "0") && strcmp(option->v.string, "1")))
+			goto out;
+		if (!strcmp(option->v.string, "0"))
+			policy->mask &= ~(1U << (board->port_map[port] - 1));
 	}
 	disabled = uci_lookup_option(ctx, section, "disabled_ports");
 	if (disabled) {
@@ -406,25 +421,25 @@ static void error_details(const struct tmi_io *io, const struct tmi_board *board
 	if (!debug_logging)
 		return;
 	if (!strncmp(io->stage, "i2c-", 4))
-		syslog(LOG_DEBUG, "stage=%s failed: board=%s address=0x%02x node=%s "
+		tmi_log_message(LOG_DEBUG, "stage=%s failed: board=%s address=0x%02x node=%s "
 		       "adapters=%s device=%s errno=%d (%s)", io->stage, board->compatible,
 		       board->address, I2C_NODE, I2C_ADAPTERS,
 		       *bus->device ? bus->device : "unmatched", -ret, strerror(-ret));
 	else if (io->failed_reg < 0)
-		syslog(LOG_DEBUG, "stage=%s failed: errno=%d (%s)",
+		tmi_log_message(LOG_DEBUG, "stage=%s failed: errno=%d (%s)",
 		       io->stage, -ret, strerror(-ret));
 	else if (io->operation && !strcmp(io->operation, "verify"))
-		syslog(LOG_DEBUG, "stage=%s failed: operation=verify register=0x%02x "
+		tmi_log_message(LOG_DEBUG, "stage=%s failed: operation=verify register=0x%02x "
 		       "expected=0x%02x actual=0x%02x errno=%d (%s)", io->stage,
 		       io->failed_reg, io->expected, io->actual, -ret, strerror(-ret));
 	else
-		syslog(LOG_DEBUG, "stage=%s failed: operation=%s last-register=0x%02x errno=%d (%s)",
+		tmi_log_message(LOG_DEBUG, "stage=%s failed: operation=%s last-register=0x%02x errno=%d (%s)",
 		       io->stage, io->operation, io->failed_reg, -ret, strerror(-ret));
 }
 
 static void error_log(const struct tmi_io *io, const struct tmi_board *board, int ret)
 {
-	syslog(LOG_ERR, "PoE %s failed: %s", failure_stage(io), failure_reason(io, ret));
+	tmi_log_message(LOG_ERR, "PoE %s failed: %s", failure_stage(io), failure_reason(io, ret));
 	error_details(io, board, ret);
 }
 
@@ -448,16 +463,16 @@ static void exit_log(const struct tmi_io *io, const struct tmi_board *board,
 		/* Preserve the first failure and combine cleanup without logging the
 		 * same bus failure twice. The cleanup attempt itself is not skipped.
 		 */
-		syslog(LOG_ERR, "PoE %s failed: stage=%s; reason=%s; cleanup=%s",
+		tmi_log_message(LOG_ERR, "PoE %s failed: stage=%s; reason=%s; cleanup=%s",
 		       phase, failure_stage(io), failure_reason(io, ret), result);
 		error_details(io, board, ret);
 	} else if (cleanup) {
-		syslog(LOG_ERR, "PoE shutdown incomplete: %s", result);
+		tmi_log_message(LOG_ERR, "PoE shutdown incomplete: %s", result);
 	}
 	if (cleanup && !repeated)
 		error_details(cleanup_io, board, cleanup);
 	if (cleanup_io && !cleanup && (!ret || reported))
-		syslog(LOG_INFO, "PoE disabled: all outputs confirmed off");
+		tmi_log_message(LOG_INFO, "PoE disabled: all outputs confirmed off");
 }
 
 static unsigned int nominal_budget_mw(const struct tmi_status *status)
@@ -465,6 +480,8 @@ static unsigned int nominal_budget_mw(const struct tmi_status *status)
 	/* Inverse of the factory 53 V threshold encoding, subject to quantization. */
 	return (uint64_t)status->budget_raw * 1956U * 53U / 1000U;
 }
+
+static int ethernet_carrier(unsigned int port);
 
 static void print_status(const struct tmi_board *board, const struct tmi_policy *policy,
 			 const struct tmi_status *status)
@@ -518,6 +535,61 @@ static void print_status(const struct tmi_board *board, const struct tmi_policy 
 	}
 }
 
+static int ethernet_carrier(unsigned int port)
+{
+	char path[64], value;
+	int fd;
+
+	snprintf(path, sizeof(path), "/sys/class/net/lan%u/carrier", port);
+	fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+	if (read(fd, &value, 1) != 1) {
+		close(fd);
+		return -1;
+	}
+	close(fd);
+	return value == '1';
+}
+
+static void print_status_json(const struct tmi_board *board,
+			      const struct tmi_policy *policy, bool enabled,
+			      const struct tmi_status *status)
+{
+	static const char * const mode_names[] = { "shutdown", "manual", "semi", "auto" };
+	unsigned int port, channel, index, mode;
+	int carrier;
+	printf("{\"controller\":\"%s\",\"enabled\":%s,\"budget_mw\":%u,"
+	       "\"max_budget_mw\":%u,\"input_mv\":%u,\"ports\":[",
+	       board->chip, enabled ? "true" : "false", policy->budget_mw,
+	       board->max_budget_mw,
+	       status->input_mv);
+	for (port = 0; port < board->ports; port++) {
+		channel = board->port_map[port];
+		index = channel - 1;
+		mode = (status->modes[index / 4] >> (2 * (index % 4))) & 3;
+		carrier = ethernet_carrier(port + 1);
+		if (port)
+			putchar(',');
+		printf("{\"port\":%u,\"connected\":", port + 1);
+		if (carrier < 0)
+			printf("null");
+		else
+			printf("%s", carrier ? "true" : "false");
+		printf(",\"output_enabled\":%s,\"powered\":%s,\"power_good\":%s,"
+		       "\"mode\":\"%s\",\"protocol\":",
+		       policy->mask & (1U << index) ? "true" : "false",
+		       status->powered & (1U << index) ? "true" : "false",
+		       status->good & (1U << index) ? "true" : "false", mode_names[mode]);
+		if ((status->powered & (1U << index)) && (status->good & (1U << index)))
+			printf("\"unconfirmed\"");
+		else
+			printf("null");
+		printf("}");
+	}
+	printf("]}\n");
+}
+
 static bool policy_changed(const struct tmi_policy *old, const struct tmi_policy *next)
 {
 	return old->mask != next->mask || old->budget_mw != next->budget_mw ||
@@ -536,40 +608,55 @@ int main(int argc, char **argv)
 	struct tmi_io last_error = { 0 }, cleanup_io;
 	struct sigaction action = { .sa_handler = signal_handler };
 	bool run, enabled, next_enabled, initialized = false, error_reported = false;
-	bool status_debug;
+	bool status_debug, status_json;
 	const char *phase = "initialization";
 	int owner = -1, lock = -1, gpio = -1, ret = 0, cleanup = 0, errors = 0, last_ret = 0;
 
+	/* Log maintenance must not probe, reset or change the PoE controller. */
+	if (argc == 2 && !strcmp(argv[1], "clear-log")) {
+		ret = tmi_log_clear();
+		if (ret)
+			fprintf(stderr, "Unable to clear PoE log: %s\n", strerror(-ret));
+		return ret ? 1 : 0;
+	}
 	status_debug = argc == 3 && !strcmp(argv[1], "status") && !strcmp(argv[2], "--debug");
-	if ((!status_debug && argc != 2) || (strcmp(argv[1], "run") && strcmp(argv[1], "status"))) {
-		fprintf(stderr, "Usage: tmi-poe run | status [--debug]\n");
+	status_json = argc == 3 && !strcmp(argv[1], "status") && !strcmp(argv[2], "--json");
+	if ((!status_debug && !status_json && argc != 2) ||
+	    (strcmp(argv[1], "run") && strcmp(argv[1], "status"))) {
+		fprintf(stderr, "Usage: tmi-poe run | status [--debug|--json] | clear-log\n");
 		return 2;
 	}
 	run = !strcmp(argv[1], "run");
 	if (!run)
 		phase = "status query";
-	openlog("tmi-poe", LOG_PID | (run ? 0 : LOG_PERROR), LOG_DAEMON);
+	else if ((ret = tmi_log_init(false))) {
+		fprintf(stderr, "Unable to open PoE log: %s\n", strerror(-ret));
+		return 1;
+	}
 	board = get_board();
 	if (!board) {
-		syslog(LOG_ERR, "unsupported board; no hardware access");
+		tmi_log_message(LOG_ERR, "unsupported board; no hardware access");
+		tmi_log_close();
 		return 1;
 	}
 	ret = load_policy(board, &policy, &enabled);
 	if (ret) {
-		syslog(LOG_ERR, "configuration invalid; no hardware access");
+		tmi_log_message(LOG_ERR, "configuration invalid; no hardware access");
+		tmi_log_close();
 		return 1;
 	}
 	debug_logging = policy.debug || status_debug;
-	setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
+	tmi_log_set_debug(debug_logging);
 	if (run && !enabled) {
-		syslog(LOG_INFO, "PoE disabled by configuration");
+		tmi_log_message(LOG_INFO, "PoE disabled by configuration");
+		tmi_log_close();
 		return 0;
 	}
 	bus.address = board->address;
 	if (run) {
 		owner = lock_file(OWNER_FILE, LOCK_EX | LOCK_NB);
 		if (owner < 0) {
-			syslog(LOG_ERR, "another controller owns PoE or owner lock unavailable: %s",
+			tmi_log_message(LOG_ERR, "another controller owns PoE or owner lock unavailable: %s",
 			       strerror(-owner));
 			return 1;
 		}
@@ -577,7 +664,7 @@ int main(int argc, char **argv)
 		sigaction(SIGTERM, &action, NULL);
 		sigaction(SIGINT, &action, NULL);
 		sigaction(SIGHUP, &action, NULL);
-		syslog(LOG_INFO, "PoE initialization started: controller=%s", board->chip);
+		tmi_log_message(LOG_INFO, "PoE initialization started: controller=%s", board->chip);
 	}
 	lock = lock_file(LOCK_FILE, run ? LOCK_EX : LOCK_SH);
 	if (lock < 0) {
@@ -592,13 +679,17 @@ int main(int argc, char **argv)
 	}
 	if (!run) {
 		ret = tmi_read_status(&io, board, &status);
-		if (!ret)
-			print_status(board, &policy, &status);
+		if (!ret) {
+			if (status_debug)
+				print_status(board, &policy, &status);
+			else
+				print_status_json(board, &policy, enabled, &status);
+		}
 		goto out;
 	}
-	syslog(LOG_INFO, "PoE I2C adapter ready: device=%s", bus.device);
+	tmi_log_message(LOG_INFO, "PoE I2C adapter ready: device=%s", bus.device);
 	if (debug_logging)
-		syslog(LOG_DEBUG, "I2C: node=%s address=0x%02x", I2C_NODE, board->address);
+		tmi_log_message(LOG_DEBUG, "I2C: node=%s address=0x%02x", I2C_NODE, board->address);
 	io.stage = "gpio-request";
 	gpio = request_reset();
 	if (gpio < 0) {
@@ -614,13 +705,13 @@ int main(int argc, char **argv)
 	if (ret)
 		goto out;
 	delay_ms(&bus, 100);
-	syslog(LOG_INFO, "PoE reset sequence completed");
+	tmi_log_message(LOG_INFO, "PoE reset sequence completed");
 	initialized = true; /* Cleanup required even if a later initialization step fails. */
 	ret = tmi_initialize(&io, board, &policy);
 	if (ret)
 		goto out;
-	syslog(LOG_INFO, "PoE configuration verified");
-	syslog(LOG_INFO, "PoE initialization completed: controller=%s", board->chip);
+	tmi_log_message(LOG_INFO, "PoE configuration verified");
+	tmi_log_message(LOG_INFO, "PoE initialization completed: controller=%s", board->chip);
 	tmi_log_policy(board, &policy, enabled, "enabled");
 	flock(lock, LOCK_UN);
 	while (!stopping) {
@@ -632,7 +723,7 @@ int main(int argc, char **argv)
 			reloading = 0;
 			ret = load_policy(board, &next, &next_enabled);
 			if (ret) {
-				syslog(LOG_ERR, "reload rejected: invalid configuration; previous policy retained");
+				tmi_log_message(LOG_ERR, "reload rejected: invalid configuration; previous policy retained");
 				ret = 0;
 			} else {
 				bool changed = policy_changed(&policy, &next) || enabled != next_enabled;
@@ -643,12 +734,12 @@ int main(int argc, char **argv)
 				const char *reason = !next_enabled ? "global-switch-off" :
 						     reconfigure ? "configuration-change" : "port-disabled";
 
-				/* Enable requested diagnostics before a hardware update can fail. */
-				if (policy.debug != next.debug)
-					syslog(LOG_INFO, "PoE debug logging %s", next.debug ? "enabled" : "disabled");
-				debug_logging = next.debug;
-				setlogmask(LOG_UPTO(debug_logging ? LOG_DEBUG : LOG_INFO));
-				if (changed) {
+					/* Enable requested diagnostics before a hardware update can fail. */
+					if (policy.debug != next.debug)
+						tmi_log_message(LOG_INFO, "PoE debug logging %s", next.debug ? "enabled" : "disabled");
+					debug_logging = next.debug;
+					tmi_log_set_debug(debug_logging);
+					if (changed) {
 					phase = "configuration update";
 					if (flock(lock, LOCK_EX) < 0) {
 						ret = -errno;
@@ -656,11 +747,11 @@ int main(int argc, char **argv)
 						goto out;
 					}
 					if (enabled && !next_enabled)
-						syslog(LOG_INFO, "PoE disabling: reason=global-switch-off");
+						tmi_log_message(LOG_INFO, "PoE disabling: reason=global-switch-off");
 					else
-						syslog(LOG_INFO, "PoE configuration updating");
+						tmi_log_message(LOG_INFO, "PoE configuration updating");
 					if (policy.budget_mw != next.budget_mw)
-						syslog(LOG_INFO, "PoE budget changing: %u.%03uW -> %u.%03uW",
+						tmi_log_message(LOG_INFO, "PoE budget changing: %u.%03uW -> %u.%03uW",
 						       policy.budget_mw / 1000, policy.budget_mw % 1000,
 						       next.budget_mw / 1000, next.budget_mw % 1000);
 					ret = tmi_set_policy(&io, board, &policy, &next);
@@ -696,17 +787,17 @@ int main(int argc, char **argv)
 			last_ret = ret;
 			error_reported = true;
 			if (++errors >= 3) {
-				syslog(LOG_ERR, "PoE monitoring stopped: three consecutive samples failed");
+				tmi_log_message(LOG_ERR, "PoE monitoring stopped: three consecutive samples failed");
 				goto out;
 			}
 		} else {
 			if (errors)
-				syslog(LOG_NOTICE, "status communication recovered after %d failed samples", errors);
+				tmi_log_message(LOG_NOTICE, "status communication recovered after %d failed samples", errors);
 			errors = 0;
 			/* Deliver consumed events before a policy/supply failure exits. */
 			tmi_log_status(board, &log, &status, debug_logging);
 			if (status.input_mv < TMI_INPUT_MIN_MV || status.input_mv > TMI_INPUT_MAX_MV) {
-				syslog(LOG_ERR, "supply outside board range: input-mv=%u; disabling PoE", status.input_mv);
+				tmi_log_message(LOG_ERR, "supply outside board range: input-mv=%u; disabling PoE", status.input_mv);
 				error_reported = true;
 				io.stage = "supply-monitor";
 				io.failed_reg = -1;
@@ -729,7 +820,7 @@ out:
 		cleanup_io = io;
 		cleanup_io.failed_reg = -1;
 		cleanup_io.operation = NULL;
-		syslog(LOG_INFO, "PoE shutdown started: reason=%s%s",
+		tmi_log_message(LOG_INFO, "PoE shutdown started: reason=%s%s",
 		       ret ? phase : "service-stopped", ret ? " failed" : "");
 		if (flock(lock, LOCK_EX) < 0) {
 			cleanup = -errno;
@@ -754,6 +845,6 @@ out:
 		close(lock);
 	if (owner >= 0)
 		close(owner);
-	closelog();
+	tmi_log_close();
 	return ret ? 1 : 0;
 }

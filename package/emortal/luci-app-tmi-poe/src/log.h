@@ -17,6 +17,7 @@ struct tmi_log {
 	struct tmi_status previous;
 	struct tmi_port_log ports[TMI_MAX_PORTS];
 	uint8_t supply_events;
+	uint8_t detection_events;
 	bool initialized;
 	bool debug;
 };
