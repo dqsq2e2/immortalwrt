@@ -407,8 +407,8 @@ int tmi_check_policy_status(struct tmi_io *io, const struct tmi_board *board,
 	return verify_value(io, 0x78, value >> 8, status->budget_raw >> 8);
 }
 
-int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
-		    struct tmi_status *status)
+static int read_status(struct tmi_io *io, const struct tmi_board *board,
+		       struct tmi_status *status, bool read_events)
 {
 	struct tmi_status sample = { 0 };
 	unsigned int raw, port, channel, i;
@@ -444,12 +444,15 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 	ret = read_reg(io, 0x1d, &sample.good);
 	if (ret)
 		return ret;
-	/* Even addresses are read-only event latches; odd addresses clear them. */
-	for (i = 0; i < TMI_EVENTS; i++) {
-		ret = read_reg(io, 0x02 + 2 * i, &sample.events[i]);
-		if (ret)
-			return ret;
-	}
+	/* Queries peek at the even, non-clearing aliases. The daemon already
+	 * collected the odd aliases and must deliver its pending events instead.
+	 */
+	if (read_events)
+		for (i = 0; i < TMI_EVENTS; i++) {
+			ret = read_reg(io, 0x02 + 2 * i, &sample.events[i]);
+			if (ret)
+				return ret;
+		}
 	ret = read_word(io, 0x89, &raw);
 	if (ret)
 		return ret;
@@ -478,6 +481,12 @@ int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
 	return 0;
 }
 
+int tmi_read_status(struct tmi_io *io, const struct tmi_board *board,
+		    struct tmi_status *status)
+{
+	return read_status(io, board, status, true);
+}
+
 int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
 		    struct tmi_status *status)
 {
@@ -497,7 +506,7 @@ int tmi_poll_status(struct tmi_io *io, const struct tmi_board *board,
 			return ret;
 		io->pending_events[i] |= event;
 	}
-	ret = tmi_read_status(io, board, &sample);
+	ret = read_status(io, board, &sample, false);
 	if (ret)
 		return ret;
 	memcpy(sample.events, io->pending_events, sizeof(sample.events));

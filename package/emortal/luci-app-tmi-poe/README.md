@@ -165,6 +165,9 @@ read-only and do not enforce policy. The checks do not reconstruct undocumented
 registers or establish that every analog protection circuit is healthy.
 
 The daemon consumes clear-on-read event aliases under its exclusive lock.
+Its monitoring sample reuses those consumed events and skips the nine redundant
+non-clearing event reads. Read-only status queries still use the non-clearing
+aliases and never consume events needed by the daemon.
 Successfully consumed events survive a later sample failure in memory; reads
 that may clear an event are never retried. If an I2C transfer fails after the
 chip cleared a latch, that event may be unavailable; the error is reported.
@@ -186,8 +189,8 @@ are emitted only at debug level when `debug=1`. Normal errors retain the
 operation and readable failure reason. Debug-only changes do not interrupt
 power. Enabling debug emits a baseline on the next successful sample, and a
 reload that also changes policy enables requested diagnostics before applying
-the hardware update. Identical consumed events in successive samples are each
-visible in debug output:
+the hardware update. Other consumed event classes remain visible on successive
+samples; repeated detection events follow the suppression described above:
 
 ```sh
 uci set tmi-poe.main.debug='1'
@@ -207,6 +210,9 @@ once to `/var/log/tmi-poe.log.1`.
 
 Set `debug` back to `0` and reload to stop raw diagnostics. A debug snapshot
 can be requested with `tmi-poe status --debug` without changing configuration.
+Failed status queries report their stage and readable cause on stderr and
+return a nonzero exit code. Successful JSON remains on stdout. Query failures
+do not append to the daemon's log, so page polling cannot fill it with errors.
 
 The P5/P8 reset pin's electrical defaults are applied with the I2C device's
 pinctrl state after the TLMM provider has registered its functions. The

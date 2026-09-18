@@ -635,13 +635,19 @@ int main(int argc, char **argv)
 	}
 	board = get_board();
 	if (!board) {
-		tmi_log_message(LOG_ERR, "unsupported board; no hardware access");
+		if (run)
+			tmi_log_message(LOG_ERR, "unsupported board; no hardware access");
+		else
+			fprintf(stderr, "unsupported board; no hardware access\n");
 		tmi_log_close();
 		return 1;
 	}
 	ret = load_policy(board, &policy, &enabled);
 	if (ret) {
-		tmi_log_message(LOG_ERR, "configuration invalid; no hardware access");
+		if (run)
+			tmi_log_message(LOG_ERR, "configuration invalid; no hardware access");
+		else
+			fprintf(stderr, "configuration invalid; no hardware access\n");
 		tmi_log_close();
 		return 1;
 	}
@@ -833,8 +839,12 @@ out:
 					  ret ? "controller-failure" : "service-stopped");
 		}
 	}
-	exit_log(&io, board, phase, ret, error_reported,
-		 run && initialized ? &cleanup_io : NULL, cleanup);
+	if (run)
+		exit_log(&io, board, phase, ret, error_reported,
+			 initialized ? &cleanup_io : NULL, cleanup);
+	else if (ret)
+		fprintf(stderr, "PoE status query failed: stage=%s; reason=%s\n",
+			failure_stage(&io), failure_reason(&io, ret));
 	if (!ret)
 		ret = cleanup;
 	if (gpio >= 0)
