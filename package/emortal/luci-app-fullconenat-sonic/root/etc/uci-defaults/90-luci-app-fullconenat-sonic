@@ -1,0 +1,57 @@
+#!/bin/sh
+
+# Migrate legacy fields and initialize defaults once at installation.
+# The standard uci-defaults runner removes this script after success.
+# Preserve explicit choices; remove the obsolete masquerading snapshots.
+. /lib/functions.sh
+
+migrate_legacy() {
+	local section="$1"
+	if [ "$(uci -q get "firewall.$section.fullcone6")" = 1 ] &&
+	   [ "$(uci -q get "firewall.$section.fullcone")" != 1 ]; then
+		uci set "firewall.$section.fullcone=1" || exit 1
+	fi
+	if uci -q get "firewall.$section.fullcone6" >/dev/null; then
+		uci -q delete "firewall.$section.fullcone6" || exit 1
+	fi
+}
+
+init_defaults() {
+	uci -q get "firewall.$1.fullcone" >/dev/null ||
+		uci set "firewall.$1.fullcone=1" || exit 1
+}
+
+init_zone() {
+	local section="$1" name
+	if uci -q get "firewall.$section.fullcone_proto" >/dev/null; then
+		uci -q delete "firewall.$section.fullcone_proto" || exit 1
+	fi
+	config_get name "$section" name
+	[ -n "$name" ] || return 0
+
+	if [ "$name" = wan ]; then
+		uci -q get "firewall.$section.fullcone" >/dev/null ||
+			uci set "firewall.$section.fullcone=1" || exit 1
+	fi
+
+	[ "$(uci -q get 'firewall.@defaults[0].fullcone')" = 1 ] || return 0
+	[ "$(uci -q get "firewall.$section.fullcone")" = 1 ] || return 0
+
+	uci set "firewall.$section.masq=1" || exit 1
+	if [ -x /sbin/fw4 ]; then
+		uci set "firewall.$section.masq6=1" || exit 1
+	fi
+}
+
+config_load firewall
+config_foreach migrate_legacy
+config_foreach init_defaults defaults
+config_foreach init_zone zone
+uci commit firewall || exit 1
+
+# This configuration only held restore snapshots, which are no longer used.
+rm -f "${UCI_CONFIG_DIR:-/etc/config}/fullconenat_sonic" \
+	"${UCI_CONFIG_DIR:-/etc/config}/fullconenat_sonic.apk-new" \
+	"${UCI_CONFIG_DIR:-/etc/config}/fullconenat_sonic.apk-save" || exit 1
+
+exit 0

@@ -1,0 +1,35 @@
+--- a/htdocs/luci-static/resources/view/firewall/zones-sonic.js
++++ b/htdocs/luci-static/resources/view/firewall/zones-sonic.js
+@@ -6,6 +6,7 @@
+ 'require network';
+ 'require firewall';
+ 'require tools.firewall as fwtool';
++'require tools.fullconenat-sonic as fullcone';
+ 'require tools.widgets as widgets';
+ 
+ return view.extend({
+@@ -35,6 +36,7 @@
+ 
+ 		m = new form.Map('firewall', _('Firewall - Zone Settings'),
+ 			_('The firewall creates zones over your network interfaces to control network traffic flow.'));
++		fullcone.attach(m, fw4);
+ 
+ 		s = m.section(form.TypedSection, 'defaults', _('General Settings'));
+ 		s.anonymous = true;
+@@ -55,6 +57,7 @@
+ 		};
+ 
+ 		o = s.option(form.Flag, 'drop_invalid', _('Drop invalid packets'));
++		fullcone.addGlobal(s);
+ 
+ 		let p = [
+ 			s.option(form.ListValue, 'input', _('Input', 'firewall input')),
+@@ -179,6 +182,8 @@
+ 			return null;
+ 		};
+ 
++		fullcone.addZone(s, fw4);
++
+ 		o = s.taboption('general', form.Flag, 'mtu_fix', _('MSS clamping'));
+ 		o.modalonly = true;
+ 

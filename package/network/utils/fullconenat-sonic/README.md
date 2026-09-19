@@ -24,6 +24,9 @@ Cross-component patches use their standard build locations:
 - `package/network/utils/nftables/patches/002-*.patch`: nft syntax.
 - `package/network/config/firewall4/patches/001-sonic-fullcone.patch` and
   `002-default-enable-fullcone.patch`: rule generation and defaults.
+- `package/network/config/firewall4/patches/003-match-nat-leakage-address-family.patch`:
+  only emit NAT leakage protection for masqueraded address families, so turning
+  off one family's masquerading cannot conflict with a zone's subnet matches.
 
 The LuCI cleanup patches are kept in this package's `patches/luci/` directory.
 The top-level `prepare-tmpinfo` step invokes its small idempotent bridge before
@@ -37,11 +40,18 @@ independently of userspace package preparation.
 The package's own `Build/Patch` is empty because these patches target the feed.
 
 The separate `package/emortal/luci-app-fullconenat-sonic` package owns the LuCI
-page, menu, ACL and translations for both firewall generations, using the
+integration, ACL and translations for both firewall generations, using the
 standard `htdocs/`, `root/` and `po/` layout and the feed's `luci.mk`.
 The optional `luci-app-fullconenat-sonic` package is selected by default
-when `luci-app-firewall` is enabled. The settings appear under **Network →
-Firewall → Fullcone NAT**. Headless builds do not require the UI package.
+when `luci-app-firewall` is enabled. The settings appear in **Network →
+Firewall → General Settings**: the global switch follows **Drop invalid
+packets**, and the zone switch follows **IPv4 Masquerading** in both the
+zone table and its add/edit dialog. No separate tab is added. At build time,
+the package copies the current feed zone form and applies a small integration
+patch, keeping the standard LuCI zone controls. Its menu entry selects that
+extended view at the existing `firewall/zones` route. The original firewall
+package files remain owned by `luci-app-firewall`. Headless builds do not
+require the UI package.
 The standard LuCI build generates `luci-i18n-fullconenat-sonic-zh-cn` and
 selects it when Simplified Chinese is enabled in the LuCI language options.
 Translation compilation, installation and post-install cache refresh use
@@ -65,7 +75,8 @@ userspace package alone cannot add this feature to a different kernel.
 Fullcone requires `defaults.fullcone=1`, `zone.fullcone=1`, and `zone.masq=1`
 for IPv4 or (with fw4) `zone.masq6=1` for IPv6. Fresh configurations enable the global
 switch and WAN zone, preserving this tree's software/hardware offload
-defaults. IPv6 masquerading is not enabled by default.
+defaults. The base firewall configuration enables IPv4 masquerading; installing
+the LuCI package also enables IPv6 masquerading for active fw4 fullcone zones.
 
 ```uci
 config defaults
@@ -77,11 +88,12 @@ config zone
         list network 'wan6'
         option masq '1'
         option fullcone '1'
-        list fullcone_proto 'udp'
 ```
 
 Supported fullcone protocols are TCP, UDP, UDP-Lite and SCTP. An empty
-`fullcone_proto` list enables all four. Other protocols, and connections
+`fullcone_proto` list enables all four. The LuCI page always uses this default
+and no longer offers a protocol selector; a one-time uci-defaults script
+removes lists saved by the former selector. Other protocols, and connections
 managed by a NAT helper, use ordinary NAT. An explicitly unsupported
 protocol list does not enable fullcone for all traffic.
 Negated protocol entries are ignored; they never enable the excluded
@@ -113,7 +125,20 @@ JSON rule import/export through the patched nftables package.
 
 Existing firewall configurations remain under package-manager conffile
 handling. Upgrades from the old global-only switch require enabling the
-zone switch. The obsolete global `fullcone6` option is unused.
+zone switch. The LuCI package carries a one-time uci-defaults migration that
+maps an enabled legacy `fullcone6` value to `fullcone` when needed and then
+removes the obsolete option; the normal settings page has no legacy fallback.
+The integrated form and its add/edit dialogs use the standard staged save/apply
+flow. Enabling Fullcone NAT enables IPv4 and (with fw4) IPv6 masquerading for
+selected zones. Turning off either masquerading option also disables the
+corresponding zone's Fullcone NAT when saving, preserving that mask-off choice.
+Other zones are unaffected. Enabling masquerading alone does not enable
+Fullcone NAT. Disabling a zone's Fullcone NAT or the global switch leaves the
+current masquerading settings unchanged; no restore snapshots are kept.
+New zones include the switch, initially off. The same one-time migration script
+enables the global and WAN switches only if absent, enables masquerading for
+active zones, and removes the obsolete fullconenat_sonic snapshot configuration.
+The normal form only reads and writes the firewall configuration.
 
 ## Mapping and offload behavior
 

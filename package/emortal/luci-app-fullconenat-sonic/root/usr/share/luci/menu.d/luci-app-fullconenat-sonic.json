@@ -1,13 +1,11 @@
 {
-	"admin/network/firewall/fullconenat-sonic": {
-		"title": "Fullcone NAT",
-		"order": 15,
+	"admin/network/firewall/zones": {
 		"action": {
 			"type": "view",
-			"path": "firewall/fullconenat-sonic"
+			"path": "firewall/zones-sonic"
 		},
 		"depends": {
-			"acl": [ "luci-app-fullconenat-sonic" ],
+			"acl": [ "luci-app-firewall", "luci-app-fullconenat-sonic" ],
 			"uci": { "firewall": true }
 		}
 	}
