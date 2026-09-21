@@ -83,7 +83,7 @@ Signed-off-by: Maxime Chevallier <maxime.chevallier@bootlin.com>
 +#endif
 --- a/include/linux/skbuff.h
 +++ b/include/linux/skbuff.h
-@@ -4920,6 +4920,9 @@ enum skb_ext_id {
+@@ -4944,6 +4944,9 @@ enum skb_ext_id {
  #if IS_ENABLED(CONFIG_INET_PSP)
  	SKB_EXT_PSP,
  #endif
@@ -95,16 +95,15 @@ Signed-off-by: Maxime Chevallier <maxime.chevallier@bootlin.com>
  
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -57,6 +57,7 @@ struct tc_action;
+@@ -57,6 +57,7 @@
  #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
  #define DSA_TAG_PROTO_MXL862_VALUE		30
  #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
 +#define DSA_TAG_PROTO_OOB_VALUE			32
  #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+ #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  
- enum dsa_tag_protocol {
-@@ -93,7 +94,8 @@ enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
+@@ -95,6 +96,7 @@
  	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
@@ -127,7 +126,7 @@ Signed-off-by: Maxime Chevallier <maxime.chevallier@bootlin.com>
  #include <net/dst.h>
  #include <net/sock.h>
  #include <net/checksum.h>
-@@ -5118,6 +5122,9 @@ static const u8 skb_ext_type_len[] = {
+@@ -5120,6 +5124,9 @@ static const u8 skb_ext_type_len[] = {
  #if IS_ENABLED(CONFIG_INET_PSP)
  	[SKB_EXT_PSP] = SKB_EXT_CHUNKSIZEOF(struct psp_skb_ext),
  #endif
