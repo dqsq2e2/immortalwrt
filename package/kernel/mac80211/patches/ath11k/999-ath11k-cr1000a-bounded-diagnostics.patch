@@ -1,0 +1,77 @@
+Subject: [PATCH] wifi: ath11k: bounded CR1000A calibration and regulatory diagnostics
+
+Record the actual BDF/calibration selection and the first eight extended
+regulatory events per device lifetime. This distinguishes country/domain
+rejection from empty 6 GHz rule sets without enabling verbose WMI logging.
+The existing regulatory validation and error paths are unchanged.
+
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -926,6 +926,8 @@
+ 
+ /* Master structure to hold the hw data which may be used in core module */
+ struct ath11k_base {
++	u8 cr1000a_reg_diag_count;
++	u8 cr1000a_bdf_diag_count;
+ 	enum ath11k_hw_rev hw_rev;
+ 	enum ath11k_firmware_mode fw_mode;
+ 	struct platform_device *pdev;
+--- a/drivers/net/wireless/ath/ath11k/qmi.c
++++ b/drivers/net/wireless/ath/ath11k/qmi.c
+@@ -2472,6 +2472,12 @@
+ 
+ 	fw_size = min_t(u32, ab->hw_params.fw.board_size, bd.len);
+ 
++	if (of_machine_is_compatible("verizon,cr1000a") &&
++	    ab->cr1000a_bdf_diag_count < 4)
++		ath11k_info(ab, "cr1000a-diag BDF: board=%u chip=%u size=%u type=%d eeprom-cal=%u\n",
++			    ab->qmi.target.board_id, ab->qmi.target.chip_id,
++			    fw_size, bdf_type, ab->qmi.target.eeprom_caldata);
++
+ 	ret = ath11k_qmi_load_file_target_mem(ab, bd.data, fw_size, bdf_type);
+ 	if (ret < 0) {
+ 		ath11k_warn(ab, "qmi failed to load bdf file\n");
+@@ -2515,6 +2521,14 @@
+ success:
+ 		fw_size = min_t(u32, ab->hw_params.fw.board_size, fw_entry->size);
+ 		tmp = fw_entry->data;
++	}
++
++	if (of_machine_is_compatible("verizon,cr1000a") &&
++	    ab->cr1000a_bdf_diag_count < 4) {
++		ab->cr1000a_bdf_diag_count++;
++		if (file_type == ATH11K_QMI_FILE_TYPE_CALDATA && fw_size >= 0x36)
++			ath11k_info(ab, "cr1000a-diag CAL: size=%u domain=%02x%02x sample=%u/4\n",
++				    fw_size, tmp[0x34], tmp[0x35], ab->cr1000a_bdf_diag_count);
+ 	}
+ 
+ 	ret = ath11k_qmi_load_file_target_mem(ab, tmp, fw_size, file_type);
+--- a/drivers/net/wireless/ath/ath11k/wmi.c
++++ b/drivers/net/wireless/ath/ath11k/wmi.c
+@@ -19,3 +19,4 @@
+ #include <linux/of.h>
++#include <linux/unaligned.h>
+ #include "core.h"
+ #include "debug.h"
+@@ -5470,6 +5470,21 @@
+ 		ath11k_warn(ab, "failed to fetch reg chan list ext update ev\n");
+ 		kfree(tb);
+ 		return -EPROTO;
++	}
++
++	if (of_machine_is_compatible("verizon,cr1000a") &&
++	    ab->cr1000a_reg_diag_count < 8) {
++		u32 hdr = get_unaligned_le32((const u8 *)ev - sizeof(u32));
++
++		ath11k_info(ab,
++			    "cr1000a-diag REG %u/8: tlv=%u skb=%u status=%u phy=%u alpha2=%08x country=%u domain=%08x super6=%08x rules2/5=%u/%u AP6(LPI/SP/VLP)=%u/%u/%u\n",
++			    ++ab->cr1000a_reg_diag_count,
++			    (u32)FIELD_GET(WMI_TLV_LEN, hdr), skb->len,
++			    ev->status_code, ev->phy_id, ev->alpha2,
++			    ev->country_id, ev->domain_code, ev->domain_code_6ghz_super_id,
++			    ev->num_2ghz_reg_rules, ev->num_5ghz_reg_rules,
++			    ev->num_6ghz_reg_rules_ap_lpi, ev->num_6ghz_reg_rules_ap_sp,
++			    ev->num_6ghz_reg_rules_ap_vlp);
+ 	}
+ 
+ 	reg_info->num_2ghz_reg_rules = ev->num_2ghz_reg_rules;
