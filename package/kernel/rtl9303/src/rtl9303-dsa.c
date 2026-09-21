@@ -841,7 +841,7 @@ static int rtl9303_fill_pcs(struct phylink_config *config,
 {
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 
-	return fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), pcs, &count);
+	return fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), pcs, count);
 }
 
 static void rtl9303_get_caps(struct dsa_switch *ds, int port,
@@ -859,8 +859,8 @@ static void rtl9303_get_caps(struct dsa_switch *ds, int port,
 		__set_bit(PHY_INTERFACE_MODE_SGMII, config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_2500BASEX, config->supported_interfaces);
 	}
-	if (!fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL,
-				      &config->num_available_pcs)) {
+	config->num_possible_pcs = fwnode_phylink_pcs_count(of_fwnode_handle(dp->dn));
+	if (config->num_possible_pcs) {
 		config->fill_available_pcs = rtl9303_fill_pcs;
 		bitmap_copy(config->pcs_interfaces, config->supported_interfaces,
 			    PHY_INTERFACE_MODE_MAX);
@@ -870,7 +870,17 @@ static void rtl9303_get_caps(struct dsa_switch *ds, int port,
 static void rtl9303_mac_config(struct phylink_config *config, unsigned int mode,
 			       const struct phylink_link_state *state)
 {
-	/* The shared Otto PCS provider programs and calibrates the SerDes. */
+	struct dsa_port *dp = dsa_phylink_to_port(config);
+	struct rtl9303 *priv = dp->ds->priv;
+	int ret;
+
+	/* The shared Otto PCS provider programs and calibrates the SerDes.  Drop
+	 * any stale force mode before an in-band link is negotiated.
+	 */
+	ret = regmap_write(priv->map, RTL9303_MAC_FORCE(dp->index), 0);
+	if (ret)
+		dev_err_ratelimited(dp->ds->dev, "port %d MAC configuration failed: %d\n",
+				    dp->index, ret);
 }
 
 static void rtl9303_mac_link_down(struct phylink_config *config, unsigned int mode,
@@ -881,8 +891,15 @@ static void rtl9303_mac_link_down(struct phylink_config *config, unsigned int mo
 	int ret;
 
 	mutex_lock(&priv->table_lock);
-	ret = regmap_update_bits(priv->map, RTL9303_MAC_FORCE(dp->index),
-				 RTL9303_FORCE_EN | RTL9303_FORCE_LINK, RTL9303_FORCE_EN);
+	/* The USXGMII PCS reads the MAC link-status mirror.  Forcing this
+	 * mirror down would make phylink wait forever for PCS link-up.  Stop
+	 * traffic using the RX/TX gates and let in-band status reach the MAC.
+	 */
+	ret = regmap_update_bits(priv->map, RTL9303_MAC_CTRL(dp->index),
+				 RTL9303_MAC_RX_TX, 0);
+	if (!ret)
+		ret = regmap_update_bits(priv->map, RTL9303_MAC_FORCE(dp->index),
+					 RTL9303_FORCE_EN | RTL9303_FORCE_LINK, 0);
 	if (!ret)
 		ret = rtl9303_flush_port(priv, dp->index);
 	if (ret)
@@ -896,8 +913,11 @@ static void rtl9303_mac_link_up(struct phylink_config *config, struct phy_device
 {
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct rtl9303 *priv = dp->ds->priv;
-	u32 value = RTL9303_FORCE_EN | RTL9303_FORCE_LINK | RTL9303_FORCE_FC;
+	u32 value = RTL9303_FORCE_LINK | RTL9303_FORCE_FC;
 	int code, ret;
+
+	if (dp->index == priv->cpu_port || phy)
+		value |= RTL9303_FORCE_EN;
 
 	switch (speed) {
 	case SPEED_10:
@@ -929,6 +949,9 @@ static void rtl9303_mac_link_up(struct phylink_config *config, struct phy_device
 	if (rx_pause)
 		value |= RTL9303_RX_PAUSE;
 	ret = regmap_update_bits(priv->map, RTL9303_MAC_FORCE(dp->index), GENMASK(9, 0), value);
+	if (!ret)
+		ret = regmap_update_bits(priv->map, RTL9303_MAC_CTRL(dp->index),
+					 RTL9303_MAC_RX_TX, RTL9303_MAC_RX_TX);
 	if (ret)
 		dev_err_ratelimited(dp->ds->dev, "port %d link-up failed: %d\n", dp->index, ret);
 }

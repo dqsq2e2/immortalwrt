@@ -31,6 +31,69 @@ firmware is included or requested through DT. Both PHY families use the
 upstream drivers and the firmware already running on the board. Any extra
 PHY initialization will be considered only after hardware testing.
 
+PCS discovery uses the current phylink provider API: count possible PCS
+with `fwnode_phylink_pcs_count()`, then return available providers from
+`fwnode_phylink_pcs_parse()`. It follows the in-tree PPE driver and supports
+PCS providers becoming available after the MAC is registered.
+
+Both AQC113C-facing MAC ports (`wan` and `lan1`) declare
+`managed = "in-band-status"`. Without it, phylink selects out-of-band PHY
+management and the Aquantia driver's `config_inband` callback disables
+USXGMII negotiation. The RTL930x PCS always enables USXGMII negotiation,
+so both sides must agree. The two RTL8221B ports retain their existing
+2500BASE-X configuration. This corrects a configuration mismatch; actual
+link recovery still needs cold/warm boot and cable negotiation tests.
+
+Hardware logs 02 and 03 confirm working WAN, lan2 and lan3 and detection
+of lan1's AQR113C, but no lan1 carrier event. Release 20260921-r2 aligned
+MAC force/link callbacks with RTL930x and selected upstream QCN9074 firmware.
+Log 03 confirms the new wireless firmware ran, but neither symptom changed.
+
+Release 20260921-r3 replaces the incomplete Linux RTL9300 MDIO adapter with
+OpenWrt's current `mdio-realtek-otto.c`, alongside its existing Otto PCS
+and SerDes drivers. The previous adapter confused SMI_MAC_TYPE_CTRL (0xca04)
+with SMI_POLL_CTRL (0xca90). It also omitted MAC type and Aquantia hardware
+polling setup even though USXGMII PCS status comes from the MAC mirror.
+The new provider initializes the real polling engine and PHY-specific
+registers. On this mixed-PHY board, C22 RTL8221B ports must not overwrite the
+three global C45 polling descriptors installed for the AQR113C. Only DT
+ports are enabled/disabled; unrelated MoCA polling and MAC fields survive.
+The standard Aquantia PHY driver and in-band USXGMII remain in use.
+
+The QCN9074 board payload is byte-identical to OEM qcn9000/bdwlan.ba4. Both
+WLAN.HK.2.15 and linux-firmware WLAN.HK.2.9.0.1-02146 failed with no regulatory
+rules in the hardware logs. The next test uses OpenWrt's existing
+`ath11k_remove_regdomain` helper on the extracted QCN9074 calibration copy,
+as on MX8500, with an explicit filename and checksum updates. ART is never
+written. This tests whether the OEM calibration domain prevents standard
+firmware from selecting country rules; it is not yet a confirmed hardware
+fix. Firmware regulatory validation and cfg80211 country restrictions are
+unchanged, and no replacement channel/power tables are supplied.
+
+Bounded diagnostics identify the new image and distinguish failure stages:
+
+- `firmware-tag=cr1000a-20260921-r3` in SPI probe, `/etc/cr1000a-build`,
+  system release and image filenames identify the build.
+- `cr1000a-diag PHY` observes existing phylib AN-status reads on port 8;
+  it does not add PHY reads that could consume latched status.
+- `cr1000a-diag PCS` reports SerDes carrier, MAC mirror, speed, and polling,
+  MAC-type and force registers. Both link diagnostics log the first sample
+  and changes only, at least five seconds apart, capped at 16 each.
+- `cr1000a-diag QCN9074 caldata`, `BDF`, `CAL` and `REG` identify calibration
+  selection, domain and actual regulatory events. Detailed REG output is
+  limited to eight events per ath11k device lifetime, BDF/CAL to four loads.
+  Normal driver warnings remain available after the diagnostic cap.
+
+Use `cat /etc/cr1000a-build`, `ubus call system board`, `dmesg` and
+`logread` when collecting the next hardware log. Boot with lan1 connected,
+then unplug/replug it with at least ten seconds between actions. Include
+`ethtool lan1` and `iw reg get`; these do not expose Wi-Fi passwords.
+
+No `usrApp`, `aq-fw-download`, external PHY firmware image or forced
+`ethtool` advertisement is installed. Existing vendor initialization calls
+in a saved `/etc/rc.local` must be removed before testing the DSA driver,
+since they can overwrite the kernel's switch configuration.
+
 The known-working IPQ uplink and OEM DTS use 10GBASE-R, despite some board
 descriptions calling it USXGMII. The fixed 10G speed belongs to `lan-cpu`;
 each new LAN netdev obtains its actual cable speed from its own PHY.
@@ -91,7 +154,7 @@ Sources:
 
 - https://docs.kernel.org/networking/dsa/dsa.html
 - https://github.com/openwrt/openwrt/tree/main/target/linux/realtek
-- https://github.com/torvalds/linux/blob/v6.18/drivers/net/mdio/mdio-realtek-rtl9300.c
+- https://github.com/openwrt/openwrt/blob/main/target/linux/realtek/files-6.18/drivers/net/mdio/mdio-realtek-otto.c
 - https://github.com/torvalds/linux/tree/v6.18/drivers/net/phy/aquantia
 - https://github.com/Xilinx/linux-xlnx/blob/master/drivers/spi/spi-realtek-rtl.c
 - https://github.com/2theo2blau/cr1000a/tree/9bf7af170324879bbc47ff6968150be47aed5612

@@ -7,6 +7,7 @@
 #include <linux/regmap.h>
 #include <linux/spi/spi.h>
 #include <linux/unaligned.h>
+#include "rtl9303-version.h"
 
 struct rtl9303_spi {
 	struct spi_device *spi;
@@ -87,6 +88,8 @@ static int rtl9303_spi_probe(struct spi_device *spi)
 	if ((id >> 16) != 0x9303)
 		return dev_err_probe(dev, -ENODEV, "unexpected switch ID %#x\n", id);
 
+	dev_info(dev, "firmware-tag=%s switch-id=%08x\n", CR1000A_BUILD_TAG, id);
+
 	/* Independent children allow normal deferred probing of PHYs and PCS.
 	 * The DSA child shares the SPI node containing ethernet-ports; management
 	 * providers are its siblings and all use the parent SPI regmap.
@@ -131,3 +134,5 @@ module_spi_driver(rtl9303_spi_driver);
 
 MODULE_DESCRIPTION("RTL9303 external SPI register transport");
 MODULE_LICENSE("GPL");
+
+MODULE_VERSION(CR1000A_BUILD_TAG);
