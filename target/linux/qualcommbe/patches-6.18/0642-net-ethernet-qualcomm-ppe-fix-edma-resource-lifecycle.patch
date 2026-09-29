@@ -764,12 +764,10 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Get RxFill ring producer index */
  	curr_idx = rxfill_ring->prod_idx & EDMA_RXFILL_PROD_IDX_MASK;
-@@ -435,6 +438,8 @@ static void edma_cfg_rx_fill_ring_cleanu
- 			continue;
- 		}
- 
-+		edma_rx_dma_unmap(rxfill_ring,
-+				  le32_to_cpu((__force __le32)rxfill_desc->word0));
+@@ -460,4 +460,4 @@ static void edma_cfg_rx_fill_ring_cleanu
+ 		dma_addr = EDMA_RXFILL_BUFFER_ADDR_GET(rxfill_desc);
+-		edma_cfg_rx_unmap_buffer(dev, rxfill_ring, dma_addr);
++		edma_rx_dma_unmap(rxfill_ring, dma_addr);
  		dev_kfree_skb_any(skb);
  	}
  
@@ -785,12 +783,10 @@ Signed-off-by: ViKing <vking@example.com>
  
  	/* Get Rxdesc consumer & producer indices */
  	cons_idx = rxdesc_ring->cons_idx & EDMA_RXDESC_CONS_IDX_MASK;
-@@ -519,9 +527,18 @@ static void edma_cfg_rx_desc_ring_cleanu
- 			continue;
- 		}
- 
-+		edma_rx_dma_unmap(rxdesc_ring->rxfill,
-+				  EDMA_RXDESC_BUFFER_ADDR_GET(rxdesc_pri));
+@@ -551,8 +551,15 @@ static void edma_cfg_rx_desc_ring_cleanu
+ 		dma_addr = EDMA_RXDESC_BUFFER_ADDR_GET(rxdesc_pri);
+-		edma_cfg_rx_unmap_buffer(dev, rxdesc_ring->rxfill, dma_addr);
++		edma_rx_dma_unmap(rxdesc_ring->rxfill, dma_addr);
  		dev_kfree_skb_any(skb);
  	}
  
