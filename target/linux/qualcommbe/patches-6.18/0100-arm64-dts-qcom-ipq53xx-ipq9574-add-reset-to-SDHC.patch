@@ -14,7 +14,7 @@ Signed-off-by: Robert Marko <robert.marko@sartura.hr>
 
 --- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
-@@ -433,6 +433,7 @@
+@@ -346,6 +346,7 @@
  				 <&gcc GCC_SDCC1_APPS_CLK>,
  				 <&xo_board>;
  			clock-names = "iface", "core", "xo";
@@ -24,7 +24,7 @@ Signed-off-by: Robert Marko <robert.marko@sartura.hr>
  
 --- a/arch/arm64/boot/dts/qcom/ipq9574.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq9574.dtsi
-@@ -495,6 +495,7 @@
+@@ -465,6 +465,7 @@
  				 <&xo_board_clk>,
  				 <&gcc GCC_SDCC1_ICE_CORE_CLK>;
  			clock-names = "iface", "core", "xo", "ice";
