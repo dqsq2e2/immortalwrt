@@ -21,7 +21,6 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 #include <linux/version.h>
-#include <linux/soc/qcom/qca_ppe.h>
 #include <net/netdev_queues.h>
 
 #include "qca_edma.h"
@@ -645,7 +644,8 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 		skb_mark_for_recycle(skb);
 		skb_reserve(skb, NET_SKB_PAD + EDMA_RX_PREHDR_SIZE);
 		skb_put(skb, pkt_len);
-		if (qca_ppe_wifi_ingress_return(skb, src_port))
+		if (EDMA_RXPH_SRC_INFO_TYPE_GET(rxph) == EDMA_PREHDR_DSTINFO_PORTID_IND &&
+		    qca_ppe_wifi_ingress_return(skb, src_port))
 			goto next;
 
 		if (EDMA_RXPH_SRC_INFO_TYPE_GET(rxph) !=
@@ -664,11 +664,6 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 		/* src_info is the original ingress port, not the CPU destination.
 		 * Only a flow-installed service marker identifies edited WLAN data.
 		 * Exception CPU codes retain the normal DSA/slow path. */
-		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE) {
-			priv->stats.rx_ppe_endpoint++;
-			if (le32_to_cpu(rxph->rx_pre4) >> 24)
-				priv->stats.rx_ppe_exception++;
-		}
 		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE &&
 		    !(le32_to_cpu(rxph->rx_pre4) >> 24)) {
 			if ((desc_status & (EDMA_RXDESC_L3_CSUM_OK | EDMA_RXDESC_L4_CSUM_OK)) !=
@@ -818,6 +813,7 @@ static u32 edma_tx_tso(struct sk_buff *skb, struct edma_tx_preheader *txph)
 	return EDMA_TXDESC_TSO_EN;
 }
 
+
 static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *netdev,
 				  struct sk_buff *skb,
 				  struct edma_ring *txdesc_ring, bool ingress)
@@ -838,10 +834,7 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 
 	spin_lock_bh(&priv->tx_lock);
 
-	regmap_read(priv->regmap,
-		    EDMA_REG_TXDESC_PROD_IDX(soc->txdesc_ring),
-		    &val);
-	prod = val & EDMA_TXDESC_PROD_IDX_MASK;
+	prod = txdesc_ring->prod_idx;
 
 	regmap_read(priv->regmap,
 		    EDMA_REG_TXDESC_CONS_IDX(soc->txdesc_ring),
@@ -932,6 +925,7 @@ static netdev_tx_t edma_ring_xmit(struct edma_priv *priv, struct net_device *net
 	}
 
 	prod = (prod + ndesc) & mask;
+	txdesc_ring->prod_idx = prod;
 
 	dev_sw_netstats_tx_add(netdev, 1, bytes);
 	netdev_tx_sent_queue(netdev_get_tx_queue(netdev, 0), bytes);
@@ -1068,6 +1062,10 @@ static void edma_rings_drain(struct edma_priv *priv)
 	edma_rx_ring_free(priv, &priv->rxfill_ring,
 			  sizeof(struct edma_rxfill_desc));
 	edma_ring_free(priv, &priv->rxdesc_ring, sizeof(struct edma_rxdesc));
+	/* Retained rings retain BQL accounting across close/open. Reset only
+	 * after all old completions and outstanding descriptors are gone.
+	 */
+	netdev_tx_reset_queue(netdev_get_tx_queue(priv->netdev, 0));
 }
 
 static void edma_configure_txdesc_ring(struct edma_priv *priv,
@@ -1090,6 +1088,10 @@ static void edma_configure_txdesc_ring(struct edma_priv *priv,
 	regmap_update_bits(priv->regmap,
 			   EDMA_REG_TXDESC_PROD_IDX(soc->txdesc_ring),
 			   EDMA_TXDESC_PROD_IDX_MASK, val);
+	/* Called after hardware reset for newly allocated rings. Ordinary
+	 * stop/open retains both the descriptors and this producer index.
+	 */
+	txdesc_ring->prod_idx = val & EDMA_TXDESC_PROD_IDX_MASK;
 }
 
 static void edma_configure_txcmpl_ring(struct edma_priv *priv,
@@ -1431,9 +1433,9 @@ static const char edma_stat_names[][ETH_GSTRING_LEN] = {
 	"tx_desc_error",
 	"tx_unnamed_frame",
 	"misc_error",
-	"rx_ppe_endpoint",
-	"rx_ppe_exception",
 	"rx_ppe_csum_drop",
+	"tx_pending_reopen",
+	"rx_pending_reopen",
 };
 
 static int edma_get_sset_count(struct net_device *netdev, int sset)
@@ -1477,13 +1479,29 @@ static const struct ethtool_ops edma_ethtool_ops = {
 static int edma_ndo_open(struct net_device *netdev)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
+	const struct edma_soc_data *soc = priv->soc;
+	u32 prod, cons;
+	int i;
 
-	netdev_tx_reset_queue(netdev_get_tx_queue(netdev, 0));
+	/* Count retained work once per open, without packet-path logging. */
+	for (i = 0; i < priv->txdesc_ring.count; i++)
+		priv->stats.tx_pending_reopen += !!priv->txdesc_ring.skb_store[i];
+	regmap_read(priv->regmap, EDMA_REG_RXDESC_PROD_IDX(soc->rxdesc_ring),
+		    &prod);
+	regmap_read(priv->regmap, EDMA_REG_RXDESC_CONS_IDX(soc->rxdesc_ring),
+		    &cons);
+	priv->stats.rx_pending_reopen += (prod - cons) &
+				       (priv->rxdesc_ring.count - 1);
+
 	napi_enable(&priv->tx_napi);
 	napi_enable(&priv->rx_napi);
 	netif_start_queue(netdev);
-	edma_tx_irq_unmask(priv);
-	edma_rx_irq_unmask(priv);
+	/* A handler may have acknowledged an interrupt while NAPI was disabled.
+	 * Poll retained work explicitly; the polls unmask IRQs after catching up.
+	 */
+	napi_schedule(&priv->tx_napi);
+	napi_schedule(&priv->rx_napi);
+	qca_ppe_wifi_inject_register(&priv->wifi_inject_ops);
 
 	return 0;
 }
@@ -1492,11 +1510,25 @@ static int edma_ndo_stop(struct net_device *netdev)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
 
+	/* The private WLAN producer bypasses qdisc and netif_tx_disable().
+	 * Unpublish it and drain RCU readers before disabling or freeing rings.
+	 */
+	qca_ppe_wifi_inject_unregister(&priv->wifi_inject_ops);
 	edma_tx_irq_mask(priv);
 	edma_rx_irq_mask(priv);
 	netif_stop_queue(netdev);
 	napi_disable(&priv->tx_napi);
 	napi_disable(&priv->rx_napi);
+	/* napi_disable() waits for ownership, not the poll function's return.
+	 * Wait for its post-completion unmask/wake before the final shutdown.
+	 */
+	synchronize_net();
+	edma_tx_irq_mask(priv);
+	edma_rx_irq_mask(priv);
+	synchronize_irq(priv->txcmpl_irq);
+	synchronize_irq(priv->rxfill_irq);
+	synchronize_irq(priv->rxdesc_irq);
+	netif_tx_disable(netdev);
 
 	return 0;
 }
@@ -1561,8 +1593,9 @@ drop:
 	return NETDEV_TX_OK;
 }
 
-/* Caller supplies a private, linear non-GSO copy with sufficient headroom.
- * Failure leaves ownership with the caller so the original RX can continue. */
+/* Caller owns a writable, linear non-GSO skb with sufficient headroom.
+ * Success consumes it, possibly before this callback returns. Errors neither
+ * consume it nor retain an EDMA preheader; PPE restores its ingress header. */
 static int edma_wifi_inject(struct net_device *dev, struct sk_buff *skb)
 {
 	struct edma_priv *priv = netdev_priv(dev);
@@ -1683,15 +1716,8 @@ static int edma_reconfigure(struct edma_priv *priv, u8 order, u16 tx_size,
 		return PTR_ERR(new_pool);
 
 	running = netif_running(netdev);
-	if (running) {
-		/* The poll is the other writer of the queue state and it wakes
-		 * a stopped queue whenever it completes a frame, so it is put
-		 * down first: a wake landing after netif_tx_disable() leaves
-		 * the transmit path running into the rings freed below.
-		 */
+	if (running)
 		edma_ndo_stop(netdev);
-		netif_tx_disable(netdev);
-	}
 
 	edma_hw_stop(priv);
 	edma_rings_drain(priv);
@@ -1879,6 +1905,9 @@ static int edma_probe(struct platform_device *pdev)
 	netdev->ethtool_ops = &edma_ethtool_ops;
 
 	priv->netdev = netdev;
+	priv->wifi_inject_ops.dev = netdev;
+	priv->wifi_inject_ops.xmit = edma_wifi_inject;
+	priv->wifi_inject_ops.headroom = EDMA_TX_PREHDR_SIZE;
 
 	netif_napi_add(netdev, &priv->tx_napi, edma_tx_napi);
 	netif_napi_add(netdev, &priv->rx_napi, edma_rx_napi);
@@ -1902,9 +1931,6 @@ static int edma_probe(struct platform_device *pdev)
 		dev_warn(dev, "failed to enable threaded NAPI: %d\n", ret);
 
 	platform_set_drvdata(pdev, priv);
-	priv->wifi_inject_ops.dev = netdev;
-	priv->wifi_inject_ops.xmit = edma_wifi_inject;
-	qca_ppe_wifi_inject_register(&priv->wifi_inject_ops);
 
 	return 0;
 

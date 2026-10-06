@@ -48,8 +48,10 @@ struct ppe_wifi_ingress {
 	int vsi, xlt, my_mac, master_ifindex;
 	bool ingress_core, cpu_egress_core;
 	u16 vid;
+	u64 generation;
+	unsigned int refs; /* Flow leases, including unpublished retirement. */
 	atomic_t flows;
-	atomic64_t injected, injected_bytes;
+	atomic_t returning;
 	bool disabled;
 };
 static int ppe_dsa_core_port_get(struct qca_ppe_priv *priv, int port, bool ingress);
@@ -97,7 +99,15 @@ struct ppe_wifi_key {
 	u16 reserved;
 };
 
+enum ppe_flow_state {
+	PPE_FLOW_LIVE,
+	PPE_FLOW_RETIRING,
+	PPE_FLOW_PENDING_ADD,
+	PPE_FLOW_PENDING_DELETE,
+};
+
 struct ppe_flow_entry {
+	enum ppe_flow_state state;
 	struct rhash_head node;
 	struct list_head list;
 	struct flow_block *block;
@@ -112,6 +122,7 @@ struct ppe_flow_entry {
 	bool sparse;
 	u8 src_if;
 	u32 host_index;
+	u32 previous_host;
 	int nexthop;
 	int my_mac;
 	int l3_if;
@@ -123,6 +134,7 @@ struct ppe_flow_entry {
 	u8 oport;
 	bool wifi_egress;
 	bool wifi_bound;
+	bool wifi_ingress_failed;
 	struct net_device *wifi_dev;
 	struct ppe_wifi_key wifi_key;
 	struct hlist_node wifi_node;
@@ -154,29 +166,6 @@ struct ppe_flow_block {
 static DEFINE_SPINLOCK(ppe_wifi_lock);
 static DEFINE_HASHTABLE(ppe_wifi_flows, 8);
 static DEFINE_HASHTABLE(ppe_wifi_ingress_flows, 8);
-static atomic64_t ppe_wifi_tx = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_drop = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_candidates = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_installed = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_invalid = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_binding_miss = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_link_down = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_xmit_drop = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_accepted = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_accepted_bytes = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_injected = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_injected_bytes = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_inject_fallback = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_miss = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_lookup_miss = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_gso = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_submit_busy = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_submit_unavailable = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_prepare_fail = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_vlan = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_checksum_partial = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_checksum_help = ATOMIC64_INIT(0);
-static atomic64_t ppe_wifi_ingress_checksum_fail = ATOMIC64_INIT(0);
 
 static u32 ppe_wifi_hash(const struct ppe_wifi_key *key)
 {
@@ -197,58 +186,135 @@ void qca_ppe_wifi_inject_unregister(const struct qca_ppe_wifi_inject_ops *ops)
 }
 EXPORT_SYMBOL_GPL(qca_ppe_wifi_inject_unregister);
 
+/* Header guards must not pull, expand or otherwise change a shared RX skb. */
+static bool ppe_wifi_ingress_key(struct sk_buff *skb, struct ppe_wifi_key *key)
+{
+	struct iphdr ip_buf;
+	const struct iphdr *iph;
+	__be16 ports[2];
+
+	iph = skb_header_pointer(skb, 0, sizeof(ip_buf), &ip_buf);
+	if (!iph || iph->version != 4 || iph->ihl != 5 || ip_is_fragment(iph) ||
+	    iph->ttl <= 1 || ntohs(iph->tot_len) > skb->len ||
+	    ntohs(iph->tot_len) < sizeof(*iph) + sizeof(struct udphdr))
+		return false;
+	if (iph->protocol == IPPROTO_TCP) {
+		struct tcphdr tcp_buf;
+		const struct tcphdr *th;
+
+		th = skb_header_pointer(skb, sizeof(*iph), sizeof(tcp_buf), &tcp_buf);
+		if (!th || th->fin || th->rst || th->doff < 5 ||
+		    sizeof(*iph) + th->doff * 4 > ntohs(iph->tot_len))
+			return false;
+	} else if (iph->protocol != IPPROTO_UDP) {
+		return false;
+	}
+	if (skb_copy_bits(skb, sizeof(*iph), ports, sizeof(ports)))
+		return false;
+	key->src = iph->saddr;
+	key->dst = iph->daddr;
+	key->sport = ports[0];
+	key->dport = ports[1];
+	key->proto = iph->protocol;
+	return true;
+}
+
+struct ppe_wifi_rx_restore {
+	struct ethhdr eth;
+	unsigned char *data;
+	unsigned int len;
+	struct net_device *dev;
+	__be16 protocol;
+	u16 mac_header, network_header, transport_header, mac_len;
+	u8 ip_summed;
+};
+
+static bool ppe_wifi_ingress_direct(struct sk_buff *skb, unsigned int headroom)
+{
+	return !skb_shared(skb) && !skb_cloned(skb) && !skb_is_nonlinear(skb) &&
+	       !skb_is_gso(skb) && skb->ip_summed != CHECKSUM_PARTIAL &&
+	       !skb->sk && !skb->destructor &&
+	       skb_headroom(skb) >= headroom + VLAN_ETH_HLEN;
+}
+
+static void ppe_wifi_ingress_save(struct sk_buff *skb,
+				  struct ppe_wifi_rx_restore *saved)
+{
+	*saved = (struct ppe_wifi_rx_restore) {
+		.eth = *eth_hdr(skb), .data = skb->data, .len = skb->len,
+		.dev = skb->dev, .protocol = skb->protocol,
+		.mac_header = skb->mac_header, .network_header = skb->network_header,
+		.transport_header = skb->transport_header, .mac_len = skb->mac_len,
+		.ip_summed = skb->ip_summed,
+	};
+}
+
+static void ppe_wifi_ingress_prepare(struct sk_buff *skb,
+				     const struct ppe_wifi_rx_restore *saved,
+				     struct net_device *dev, u16 vid)
+{
+	struct vlan_ethhdr *eth = skb_push(skb, VLAN_ETH_HLEN);
+
+	/* Eligibility (or copy_expand) supplies writable, sufficient headroom.
+	 * Construct the complete header without a helper that might COW it. */
+	ether_addr_copy(eth->h_dest, saved->eth.h_dest);
+	ether_addr_copy(eth->h_source, saved->eth.h_source);
+	eth->h_vlan_proto = htons(ETH_P_8021AD);
+	eth->h_vlan_TCI = htons(vid);
+	eth->h_vlan_encapsulated_proto = saved->eth.h_proto;
+	skb_reset_mac_header(skb);
+	skb->mac_len = VLAN_ETH_HLEN;
+	skb->ip_summed = CHECKSUM_NONE;
+	skb->protocol = htons(ETH_P_8021AD);
+	skb->dev = dev;
+}
+
+static void ppe_wifi_ingress_restore(struct sk_buff *skb,
+				     const struct ppe_wifi_rx_restore *saved)
+{
+	/* EDMA errors retain ownership and undo their own preheader first.
+	 * The S-tag overwrote the old Ethernet header, so pulling is not enough. */
+	skb->data = saved->data;
+	skb->len = saved->len;
+	skb->dev = saved->dev;
+	skb->protocol = saved->protocol;
+	skb->ip_summed = saved->ip_summed;
+	skb->mac_header = saved->mac_header;
+	skb->network_header = saved->network_header;
+	skb->transport_header = saved->transport_header;
+	skb->mac_len = saved->mac_len;
+	memcpy(eth_hdr(skb), &saved->eth, ETH_HLEN);
+}
+
 static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 					const struct nf_hook_state *state)
 {
 	struct ppe_wifi_ingress *slot = data;
 	const struct qca_ppe_wifi_inject_ops *ops;
 	struct ppe_wifi_key key = {};
+	struct ppe_wifi_rx_restore saved;
 	struct ppe_flow_entry *entry;
-	struct sk_buff *copy = NULL;
-	const struct iphdr *iph;
-	__be16 ports[2];
-	bool found = false;
+	struct sk_buff *packet = NULL;
+	bool found = false, direct = false;
 	int ret = -ENOMEM;
-	u32 length;
 
+	/* CPU exceptions are received synchronously below. Let them traverse
+	 * the normal ingress hooks without reinjecting them, even if their flow
+	 * was deleted or replaced while the frame was in the EDMA ring.
+	 */
+	if (atomic_read(&slot->returning))
+		return NF_ACCEPT;
 	if (READ_ONCE(slot->disabled) ||
 	    !atomic_read(&slot->flows) || skb->protocol != htons(ETH_P_IP) ||
 	    skb_mac_header(skb) + ETH_HLEN != skb->data ||
-	    !ether_addr_equal(eth_hdr(skb)->h_dest, slot->mac) ||
-	    !pskb_may_pull(skb, sizeof(*iph) + sizeof(struct udphdr)))
+	    !ether_addr_equal(eth_hdr(skb)->h_dest, slot->mac))
 		return NF_ACCEPT;
-	if (skb_is_gso(skb)) {
-		atomic64_inc(&ppe_wifi_ingress_gso);
+	if (skb_is_gso(skb))
 		return NF_ACCEPT;
-	}
-	if (skb_vlan_tag_present(skb)) {
-		atomic64_inc(&ppe_wifi_ingress_vlan);
+	if (skb_vlan_tag_present(skb))
 		return NF_ACCEPT;
-	}
-	iph = (const void *)skb->data;
-	if (iph->version != 4 || iph->ihl != 5 || ip_is_fragment(iph) ||
-	    iph->ttl <= 1 || ntohs(iph->tot_len) > skb->len ||
-	    ntohs(iph->tot_len) < sizeof(*iph) + sizeof(struct udphdr))
+	if (!ppe_wifi_ingress_key(skb, &key))
 		return NF_ACCEPT;
-	if (iph->protocol == IPPROTO_TCP) {
-		const struct tcphdr *th;
-
-		if (!pskb_may_pull(skb, sizeof(*iph) + sizeof(*th)))
-			return NF_ACCEPT;
-		iph = (const void *)skb->data;
-		th = (const void *)(iph + 1);
-		if (th->fin || th->rst || th->doff < 5 ||
-		    sizeof(*iph) + th->doff * 4 > ntohs(iph->tot_len))
-			return NF_ACCEPT;
-	} else if (iph->protocol != IPPROTO_UDP) {
-		return NF_ACCEPT;
-	}
-	key.src = iph->saddr;
-	key.dst = iph->daddr;
-	memcpy(ports, iph + 1, sizeof(ports));
-	key.sport = ports[0];
-	key.dport = ports[1];
-	key.proto = iph->protocol;
 	key.iport = slot - ppe_wifi_ingress;
 
 	rcu_read_lock();
@@ -257,7 +323,8 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 		goto accept;
 	/* Publication and removal share this lock. Keep it until submission
 	 * so deleting a flow cannot race a newly selected injection. */
-	spin_lock_bh(&ppe_wifi_lock);
+	local_bh_disable();
+	spin_lock(&ppe_wifi_lock);
 	hash_for_each_possible(ppe_wifi_ingress_flows, entry, wifi_node,
 			       ppe_wifi_hash(&key)) {
 		if (!memcmp(&key, &entry->wifi_key, sizeof(key))) {
@@ -265,60 +332,49 @@ static unsigned int ppe_wifi_ingress_hook(void *data, struct sk_buff *skb,
 			break;
 		}
 	}
-	if (!found || READ_ONCE(slot->disabled)) {
-		if (!found)
-			atomic64_inc(&ppe_wifi_ingress_lookup_miss);
+	if (!found || READ_ONCE(slot->disabled))
 		goto unlock;
+	if (entry->wifi_ingress_failed)
+		goto unlock;
+	ppe_wifi_ingress_save(skb, &saved);
+	direct = ppe_wifi_ingress_direct(skb, ops->headroom);
+	if (direct) {
+		packet = skb;
+	} else {
+		packet = skb_copy_expand(skb, max(64U, ops->headroom) +
+					 VLAN_ETH_HLEN, 0, GFP_ATOMIC);
+		if (!packet)
+			goto fallback;
 	}
-	length = skb->len + ETH_HLEN;
-	copy = skb_copy_expand(skb, 64 + ETH_HLEN + VLAN_HLEN, 0, GFP_ATOMIC);
-	if (!copy)
-		goto fallback;
 	/* The internal EDMA ingress producer deliberately does not request TX
 	 * checksum generation. Complete a Wi-Fi RX packet marked PARTIAL on the
 	 * private copy before adding the Ethernet/S-tag headers, then advertise a
 	 * plain packet to the producer. */
-	if (copy->ip_summed == CHECKSUM_PARTIAL) {
-		atomic64_inc(&ppe_wifi_ingress_checksum_partial);
-		ret = skb_checksum_help(copy);
-		if (ret) {
-			atomic64_inc(&ppe_wifi_ingress_checksum_fail);
+	if (packet->ip_summed == CHECKSUM_PARTIAL) {
+		ret = skb_checksum_help(packet);
+		if (ret)
 			goto fallback;
-		}
-		atomic64_inc(&ppe_wifi_ingress_checksum_help);
 	}
-	copy->ip_summed = CHECKSUM_NONE;
-	skb_push(copy, ETH_HLEN);
-	memcpy(copy->data, eth_hdr(skb), ETH_HLEN);
-	skb_reset_mac_header(copy);
-	ret = __vlan_insert_tag(copy, htons(ETH_P_8021AD), slot->vid);
-	if (ret)
-		goto fallback;
-	copy->protocol = htons(ETH_P_8021AD);
-	copy->dev = ops->dev;
-	ret = ops->xmit(ops->dev, copy);
+	ppe_wifi_ingress_prepare(packet, &saved, ops->dev, slot->vid);
+	ret = ops->xmit(ops->dev, packet);
 	if (!ret) {
-		atomic64_inc(&ppe_wifi_injected);
-		atomic64_add(length, &ppe_wifi_injected_bytes);
-		atomic64_inc(&slot->injected);
-		atomic64_add(length, &slot->injected_bytes);
-		spin_unlock_bh(&ppe_wifi_lock);
+		spin_unlock(&ppe_wifi_lock);
+		local_bh_enable();
 		rcu_read_unlock();
-		consume_skb(skb);
+		/* A successful direct submit may already have completed and freed
+		 * skb. Only the copy path still owns the original RX packet. */
+		if (!direct)
+			consume_skb(skb);
 		return NF_STOLEN;
 	}
 fallback:
-	if (ret == -EBUSY)
-		atomic64_inc(&ppe_wifi_ingress_submit_busy);
-	else if (ret == -ENETDOWN)
-		atomic64_inc(&ppe_wifi_ingress_submit_unavailable);
-	else
-		atomic64_inc(&ppe_wifi_ingress_prepare_fail);
-	if (copy)
-		dev_kfree_skb_any(copy);
-	atomic64_inc(&ppe_wifi_inject_fallback);
+	if (direct)
+		ppe_wifi_ingress_restore(skb, &saved);
+	else if (packet)
+		dev_kfree_skb_any(packet);
 unlock:
-	spin_unlock_bh(&ppe_wifi_lock);
+	spin_unlock(&ppe_wifi_lock);
+	local_bh_enable();
 accept:
 	rcu_read_unlock();
 	return NF_ACCEPT;
@@ -327,8 +383,11 @@ accept:
 bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 {
 	struct ppe_wifi_ingress *slot;
+	struct ppe_flow_entry *entry = NULL;
+	struct ppe_wifi_key key = {};
 	struct vlan_ethhdr *eth;
 	struct net_device *dev;
+	const struct iphdr *iph;
 	u16 vid;
 
 	if (skb_headlen(skb) < sizeof(*eth))
@@ -341,38 +400,71 @@ bool qca_ppe_wifi_ingress_return(struct sk_buff *skb, u8 source_port)
 	    vid >= QCA_PPE_WIFI_INGRESS_VID_BASE + QCA_PPE_WIFI_INGRESS_SLOTS)
 		return false;
 	slot = &ppe_wifi_ingress[vid - QCA_PPE_WIFI_INGRESS_VID_BASE];
+	if (eth->h_vlan_encapsulated_proto == htons(ETH_P_IP) &&
+	    pskb_may_pull(skb, sizeof(*eth) + sizeof(*iph) + 4)) {
+		iph = (const void *)(skb->data + sizeof(*eth));
+		if (iph->version == 4 && iph->ihl == 5 && !ip_is_fragment(iph) &&
+		    (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP)) {
+			key.src = iph->saddr;
+			key.dst = iph->daddr;
+			memcpy(&key.sport, iph + 1, sizeof(key.sport));
+			memcpy(&key.dport, (const u8 *)(iph + 1) + 2,
+			       sizeof(key.dport));
+			key.proto = iph->protocol;
+			key.iport = slot - ppe_wifi_ingress;
+		}
+	}
+	/* Release clears dev before waiting for these readers; neither the slot
+	 * nor its hook may be reused until synchronous receive has completed.
+	 */
+	rcu_read_lock();
 	spin_lock_bh(&ppe_wifi_lock);
 	if (!slot->dev || source_port != QCA_PPE_CPU_PORT) {
 		spin_unlock_bh(&ppe_wifi_lock);
+		rcu_read_unlock();
 		return false;
 	}
-	WRITE_ONCE(slot->disabled, true);
+	if (key.proto)
+		hash_for_each_possible(ppe_wifi_ingress_flows, entry, wifi_node,
+				       ppe_wifi_hash(&key)) {
+			if (!memcmp(&key, &entry->wifi_key, sizeof(key))) {
+				entry->wifi_ingress_failed = true;
+				break;
+			}
+		}
+	atomic_inc(&slot->returning);
 	dev = slot->dev;
-	if (dev)
-		dev_hold(dev);
+	dev_hold(dev);
 	spin_unlock_bh(&ppe_wifi_lock);
-	atomic64_inc(&ppe_wifi_ingress_miss);
-	if (!dev || !netif_running(dev)) {
-		if (dev)
-			dev_put(dev);
+	/* netif_receive_skb_core deliberately has no pfmemalloc handling. The
+	 * EDMA pool normally uses ordinary pages; never expose a reserve page
+	 * to unrestricted protocol processing if allocation policy changes.
+	 */
+	if (!netif_running(dev) || skb_pfmemalloc(skb)) {
 		dev_kfree_skb_any(skb);
-		return true;
+		goto out;
 	}
 	/* The XLT restores the internal S-tag on CPU misses. Remove it before
-	 * re-entering the same AP's normal receive path, with injection disabled. */
+	 * re-entering the same AP. Only the affected flow stays in software.
+	 * Skip RPS deferral so the short-lived return guard covers this receive;
+	 * other ingress hooks, bridge processing and routing still run.
+	 */
 	memmove(skb->data + VLAN_HLEN, skb->data, 2 * ETH_ALEN);
 	skb_pull(skb, VLAN_HLEN);
 	skb->dev = dev;
 	skb->protocol = eth_type_trans(skb, dev);
 	skb_reset_network_header(skb);
 	skb->ip_summed = CHECKSUM_NONE;
-	netif_receive_skb(skb);
+	netif_receive_skb_core(skb);
+out:
+	atomic_dec(&slot->returning);
 	dev_put(dev);
+	rcu_read_unlock();
 	return true;
 }
 EXPORT_SYMBOL_GPL(qca_ppe_wifi_ingress_return);
 
-bool qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
+void qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 {
 	struct ppe_wifi_key key = {};
 	struct ppe_flow_entry *entry;
@@ -381,9 +473,6 @@ bool qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	const struct iphdr *iph;
 	unsigned int iplen;
 	__be16 ports[2];
-	int ret;
-	atomic64_t *reason = &ppe_wifi_invalid;
-	u32 length = skb->len;
 
 	/* Called only for the PPE service marker.  Already edited packets must
 	 * never enter IP forwarding again if the binding disappeared. */
@@ -427,12 +516,10 @@ bool qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	}
 	spin_unlock_bh(&ppe_wifi_lock);
 	if (!dev) {
-		reason = &ppe_wifi_binding_miss;
 		goto drop;
 	}
 	if (!netif_running(dev) || !netif_carrier_ok(dev)) {
 		dev_put(dev);
-		reason = &ppe_wifi_link_down;
 		goto drop;
 	}
 	/* TX owns the complete Ethernet frame; native WLAN TX supplies peer,
@@ -443,25 +530,17 @@ bool qca_ppe_wifi_xmit(struct sk_buff *skb, u8 iport)
 	skb_set_transport_header(skb, ETH_HLEN + sizeof(*iph));
 	skb->protocol = htons(ETH_P_IP);
 	skb->ip_summed = CHECKSUM_NONE;
-	ret = dev_queue_xmit(skb);
+	dev_queue_xmit(skb);
 	dev_put(dev);
-	if (net_xmit_eval(ret)) {
-		atomic64_inc(&ppe_wifi_xmit_drop);
-	} else {
-		atomic64_inc(&ppe_wifi_accepted);
-		atomic64_add(length, &ppe_wifi_accepted_bytes);
-	}
-	atomic64_inc(&ppe_wifi_tx);
-	return true;
+	return;
 drop:
-	atomic64_inc(reason);
-	atomic64_inc(&ppe_wifi_drop);
 	dev_kfree_skb_any(skb);
-	return true;
+	return;
 }
 EXPORT_SYMBOL_GPL(qca_ppe_wifi_xmit);
 
-static int ppe_wifi_stats_show(struct seq_file *s, void *data)
+
+static int ppe_wifi_service_hw_show(struct seq_file *s, void *data)
 {
 	struct qca_ppe_priv *priv = s->private;
 	u32 service_in[2] = {}, service_l2 = 0, service_eg[2] = {};
@@ -477,80 +556,66 @@ static int ppe_wifi_stats_show(struct seq_file *s, void *data)
 				       PPE_EG_SERVICE_TBL(QCA_PPE_WIFI_SERVICE_CODE),
 				       service_eg, ARRAY_SIZE(service_eg));
 
-	seq_printf(s, "enabled %u\n"
-		   "candidates %lld\ninstalled %lld\nhandoff %lld\ndrop %lld\n"
-		   "invalid_frame %lld\nbinding_miss %lld\nlink_down %lld\nxmit_drop %lld\n"
-		   "accepted %lld\naccepted_bytes %lld\n",
-		   1,
-		   atomic64_read(&ppe_wifi_candidates),
-		   atomic64_read(&ppe_wifi_installed),
-		   atomic64_read(&ppe_wifi_tx), atomic64_read(&ppe_wifi_drop),
-		   atomic64_read(&ppe_wifi_invalid), atomic64_read(&ppe_wifi_binding_miss),
-		   atomic64_read(&ppe_wifi_link_down), atomic64_read(&ppe_wifi_xmit_drop),
-		   atomic64_read(&ppe_wifi_accepted), atomic64_read(&ppe_wifi_accepted_bytes));
 	if (!service_ret)
 		seq_printf(s, "service_in %08x:%08x\nservice_l2 %08x\n"
 			   "service_eg %08x:%08x\n", service_in[0], service_in[1],
 			   service_l2, service_eg[0], service_eg[1]);
-	return 0;
+	return service_ret;
 }
-DEFINE_SHOW_ATTRIBUTE(ppe_wifi_stats);
+DEFINE_SHOW_ATTRIBUTE(ppe_wifi_service_hw);
+
 
 static int ppe_wifi_ingress_show(struct seq_file *s, void *data)
+{
+	int i;
+
+	seq_puts(s, "enabled 1\n");
+	seq_printf(s, "transport cpu_ingress port=%u service=0\n", QCA_PPE_CPU_PORT);
+	for (i = 0; i < QCA_PPE_WIFI_INGRESS_SLOTS; i++) {
+		struct ppe_wifi_ingress snapshot, *slot = &snapshot;
+		struct ppe_wifi_ingress *live = &ppe_wifi_ingress[i];
+		char name[IFNAMSIZ];
+		bool present;
+
+		spin_lock_bh(&ppe_wifi_lock);
+		present = live->dev && live->priv == s->private;
+		if (present) {
+			snapshot = *live;
+			strscpy(name, live->dev->name, sizeof(name));
+		}
+		spin_unlock_bh(&ppe_wifi_lock);
+		if (present) {
+			seq_printf(s, "slot %d dev=%s vid=%u vsi=%d xlt=%d flows=%d "
+				   "disabled=%u priority=%d mac=%pM generation=%llu\n", i,
+				   name, slot->vid, slot->vsi, slot->xlt,
+				   atomic_read(&slot->flows), slot->disabled,
+				   slot->hook.priority, slot->mac, slot->generation);
+		}
+	}
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(ppe_wifi_ingress);
+
+static int ppe_wifi_ingress_hw_show(struct seq_file *s, void *data)
 {
 	struct qca_ppe_priv *priv = s->private;
 	int i;
 
-	seq_printf(s, "enabled %u\ninjected %lld\ninjected_bytes %lld\n"
-		   "submit_fallback %lld\nhardware_miss %lld\n"
-		   "lookup_miss %lld\ngso_skip %lld\nvlan_skip %lld\n"
-		   "submit_busy %lld\nsubmit_unavailable %lld\nprepare_fail %lld\n"
-		   "checksum_partial %lld\nchecksum_help %lld\nchecksum_fail %lld\n",
-		   1, atomic64_read(&ppe_wifi_injected),
-		   atomic64_read(&ppe_wifi_injected_bytes),
-		   atomic64_read(&ppe_wifi_inject_fallback),
-		   atomic64_read(&ppe_wifi_ingress_miss),
-		   atomic64_read(&ppe_wifi_ingress_lookup_miss),
-		   atomic64_read(&ppe_wifi_ingress_gso),
-		   atomic64_read(&ppe_wifi_ingress_vlan),
-		   atomic64_read(&ppe_wifi_ingress_submit_busy),
-		   atomic64_read(&ppe_wifi_ingress_submit_unavailable),
-		   atomic64_read(&ppe_wifi_ingress_prepare_fail),
-		   atomic64_read(&ppe_wifi_ingress_checksum_partial),
-		   atomic64_read(&ppe_wifi_ingress_checksum_help),
-		   atomic64_read(&ppe_wifi_ingress_checksum_fail));
-	seq_printf(s, "transport cpu_ingress port=%u service=0\n", QCA_PPE_CPU_PORT);
+	/* Slot release/reuse takes flow_lock; keep identities valid throughout
+	 * register readback and never label a new slot with the old identity.
+	 */
+	guard(mutex)(&priv->flow_lock);
 	for (i = 0; i < QCA_PPE_WIFI_INGRESS_SLOTS; i++) {
 		struct ppe_wifi_ingress *slot = &ppe_wifi_ingress[i];
-		int xlt = -1;
-		int vsi = -1;
-		bool active;
 		u32 rule[3] = {}, action[3] = {};
 		u32 eg_rule[2] = {}, eg_action[2] = {};
-		u32 vp[3] = {};
-		u32 parser;
+		u32 vp[3] = {}, parser;
+		int xlt = slot->xlt, vsi = slot->vsi;
 		int ret;
 
-		spin_lock_bh(&ppe_wifi_lock);
-		active = !!slot->dev;
-		priv = active ? slot->priv : NULL;
-		if (active) {
-			seq_printf(s, "slot %d dev=%s vid=%u vsi=%d xlt=%d flows=%d "
-				   "disabled=%u priority=%d mac=%pM injected=%lld injected_bytes=%lld\n", i,
-				   slot->dev->name, slot->vid, slot->vsi, slot->xlt,
-				   atomic_read(&slot->flows), slot->disabled,
-				   slot->hook.priority, slot->mac,
-				   atomic64_read(&slot->injected),
-				   atomic64_read(&slot->injected_bytes));
-			xlt = slot->xlt;
-			vsi = slot->vsi;
-		}
-		spin_unlock_bh(&ppe_wifi_lock);
-		if (!active || !priv || xlt < 0)
+		if (!slot->dev || slot->priv != priv || xlt < 0)
 			continue;
-
-		/* One read per active slot gives enough evidence to distinguish a
-		 * software submission from a rule that was rejected by the PPE. */
+		/* Explicit readback accompanies baseline/end and slot changes. */
 		ret = regmap_bulk_read(priv->regmap, PPE_XLT_RULE_TBL(xlt),
 				       rule, ARRAY_SIZE(rule));
 		ret |= regmap_bulk_read(priv->regmap, PPE_XLT_ACTION_TBL(xlt),
@@ -567,22 +632,26 @@ static int ppe_wifi_ingress_show(struct seq_file *s, void *data)
 		if (ret)
 			seq_printf(s, "slot %d reg_read_error=%d\n", i, ret);
 		else
-			seq_printf(s, "slot %d reg vsi=%d xlt=%d in_rule=%08x:%08x:%08x "
+			seq_printf(s, "slot %d reg vsi=%d xlt=%d generation=%llu in_rule=%08x:%08x:%08x "
 				   "in_action=%08x:%08x:%08x eg_rule=%08x:%08x "
-				   "eg_action=%08x:%08x vp_l3=%08x:%08x:%08x parser=%08x\n", i, vsi, xlt,
+				   "eg_action=%08x:%08x vp_l3=%08x:%08x:%08x parser=%08x\n",
+				   i, vsi, xlt, slot->generation,
 				   rule[0], rule[1], rule[2], action[0], action[1],
 				   action[2], eg_rule[0], eg_rule[1], eg_action[0],
 				   eg_action[1], vp[0], vp[1], vp[2], parser);
 	}
 	return 0;
 }
-DEFINE_SHOW_ATTRIBUTE(ppe_wifi_ingress);
+DEFINE_SHOW_ATTRIBUTE(ppe_wifi_ingress_hw);
 
 /* Keep the software-side flow identity and the exact nexthop image together
  * in one readout. The normal `flows` file only exposes hardware counters, so
  * it cannot distinguish a LAN-to-WAN entry from its reverse or show whether
  * the RTL9303 TX service tag was actually put in the nexthop.
  */
+static int ppe_flow_entry_age(struct qca_ppe_priv *priv,
+			      struct ppe_flow_entry *entry);
+
 static int ppe_offload_entries_show(struct seq_file *s, void *data)
 {
 	struct qca_ppe_priv *priv = s->private;
@@ -593,7 +662,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 		 "l3_if eg_l3_if wan_port wan_iport packets bytes nh_words "
 		 "wifi_ifindex wifi_dev sw_sc hw_read hw_sc fwd port_valid "
 		 "key_src key_sport key_dst key_dport key_proto key_smac key_dmac key_stage "
-		 "wifi_ingress_dev wifi_ingress_vsi\n");
+		 "wifi_ingress_dev wifi_ingress_vsi wifi_ingress_failed stats_read\n");
 
 	guard(mutex)(&priv->flow_lock);
 	list_for_each_entry(entry, &priv->flow_list, list) {
@@ -601,7 +670,7 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 		u16 dsa_vid = 0;
 		u64 packets, bytes;
 		u32 hw[PPE_FLOW_ENTRY_WORDS_V6] = {};
-		int hw_ret;
+		int hw_ret, stats_ret;
 		int i;
 
 		if (entry->nexthop >= 0 &&
@@ -612,7 +681,9 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 				dsa_vid = priv->dsa_service[entry->dsa_service].vid;
 		}
 
-		ppe_flow_counter_read(priv, entry->index, &packets, &bytes);
+		stats_ret = ppe_flow_entry_age(priv, entry);
+		if (stats_ret >= 0)
+			stats_ret = ppe_flow_counter_read(priv, entry->index, &packets, &bytes);
 		seq_printf(s, "%lx %u %u %u %u %u %u %u %d %u %d ",
 			   entry->cookie, entry->index, entry->src_if,
 			   entry->iport, entry->oport, entry->wifi_egress,
@@ -635,22 +706,28 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 				   (unsigned int)ppe_entry_get(words, PPE_NEXTHOP_CVID_OFF,
 						 PPE_NEXTHOP_CVID_LEN));
 		}
-		seq_printf(s, "%d %d %d %d %llu %llu ", entry->l3_if,
-			   entry->eg_l3_if, entry->wan_port, entry->wan_iport,
-			   packets, bytes);
+		seq_printf(s, "%d %d %d %d ", entry->l3_if,
+			   entry->eg_l3_if, entry->wan_port, entry->wan_iport);
+		if (stats_ret)
+			seq_puts(s, "- - ");
+		else
+			seq_printf(s, "%llu %llu ", packets, bytes);
 		if (!words)
 			seq_putc(s, '-');
 		else
 			for (i = 0; i < PPE_NEXTHOP_WORDS; i++)
 				seq_printf(s, "%s%08x", i ? ":" : "", words[i]);
 		hw_ret = (entry->wifi_egress || entry->wifi_ingress) ?
-			 ppe_flow_entry_read(priv, entry->index, hw, entry->nwords) :
+			 (stats_ret ? stats_ret :
+			  ppe_flow_entry_read(priv, entry->index, hw, entry->nwords)) :
 			 -EOPNOTSUPP;
 		seq_printf(s, " %d %s %u %d %u %u %u %pI4 %u %pI4 %u %u %pM %pM",
 			   entry->wifi_dev ? entry->wifi_dev->ifindex : 0,
 			   entry->wifi_dev ? entry->wifi_dev->name : "none",
-			   (u32)ppe_entry_get(entry->words, 68, 8), hw_ret,
-			   hw_ret ? 0 : (u32)ppe_entry_get(hw, 68, 8),
+			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_SERVICE_CODE_OFF,
+					 PPE_FLOW_E_SERVICE_CODE_LEN), hw_ret,
+			   hw_ret ? 0 : (u32)ppe_entry_get(hw, PPE_FLOW_E_SERVICE_CODE_OFF,
+					 PPE_FLOW_E_SERVICE_CODE_LEN),
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_FWD_TYPE_OFF,
 					      PPE_FLOW_E_FWD_TYPE_LEN),
 			   (u32)ppe_entry_get(entry->words, PPE_FLOW_E_PORT_VALID_OFF,
@@ -659,10 +736,11 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 			   &entry->wifi_key.dst, ntohs(entry->wifi_key.dport),
 			   entry->wifi_key.proto, entry->wifi_key.smac,
 			   entry->wifi_key.dmac);
-		seq_printf(s, " %s %s %d\n", entry->wifi_ingress ? "ingress" :
+		seq_printf(s, " %s %s %d %u %d\n", entry->wifi_ingress ? "ingress" :
 			   entry->wifi_egress ? "post" : "none", entry->wifi_ingress ?
 			   entry->wifi_ingress->dev->name : "none",
-			   entry->wifi_ingress ? entry->wifi_ingress->vsi : -1);
+			   entry->wifi_ingress ? entry->wifi_ingress->vsi : -1,
+			   READ_ONCE(entry->wifi_ingress_failed), stats_ret);
 	}
 
 	return 0;
@@ -670,10 +748,13 @@ static int ppe_offload_entries_show(struct seq_file *s, void *data)
 DEFINE_SHOW_ATTRIBUTE(ppe_offload_entries);
 
 /* The downlink service retains L2/L3 editing and publishes its marker. */
-static int ppe_wifi_service_write(struct qca_ppe_priv *priv, u8 code,
-				  u32 bypass, u32 l2, u8 next_code)
+static int ppe_wifi_service_program(struct qca_ppe_priv *priv)
 {
-	u32 in[2] = { bypass, 0 }, eg[2] = { 0, next_code };
+	const u8 code = QCA_PPE_WIFI_SERVICE_CODE;
+	u32 in[2] = {}, eg[2] = { 0, QCA_PPE_WIFI_SERVICE_CODE };
+	u32 bypass = BIT(0) | BIT(5) | BIT(10) | PPE_IN_L2_SERVICE_FAKE_MAC_DROP_BYP;
+	u32 l2 = FIELD_PREP(PPE_IN_L2_SERVICE_BYPASS, bypass) |
+		 PPE_IN_L2_SERVICE_DST_VALID;
 	u32 read_in[2], read_l2, read_eg[2];
 	int ret;
 
@@ -699,20 +780,12 @@ static int ppe_wifi_service_write(struct qca_ppe_priv *priv, u8 code,
 	       memcmp(eg, read_eg, sizeof(eg)) ? -EIO : 0;
 }
 
-static int ppe_wifi_service_program(struct qca_ppe_priv *priv)
-{
-	u32 bypass = BIT(0) | BIT(5) | BIT(10) | PPE_IN_L2_SERVICE_FAKE_MAC_DROP_BYP;
-	u32 l2 = FIELD_PREP(PPE_IN_L2_SERVICE_BYPASS, bypass);
-
-	return ppe_wifi_service_write(priv, QCA_PPE_WIFI_SERVICE_CODE, 0,
-				     l2 | PPE_IN_L2_SERVICE_DST_VALID,
-				     QCA_PPE_WIFI_SERVICE_CODE);
-}
-
 void ppe_flow_offload_debugfs_init(struct qca_ppe_priv *priv)
 {
-	debugfs_create_file("wifi_endpoint", 0400, priv->debugfs, priv,
-			    &ppe_wifi_stats_fops);
+	debugfs_create_file("wifi_endpoint_hw", 0400, priv->debugfs, priv,
+			    &ppe_wifi_service_hw_fops);
+	debugfs_create_file("wifi_ingress_hw", 0400, priv->debugfs, priv,
+			    &ppe_wifi_ingress_hw_fops);
 	debugfs_create_file("wifi_ingress", 0400, priv->debugfs, priv,
 			    &ppe_wifi_ingress_fops);
 	debugfs_create_file("offload_entries", 0400, priv->debugfs, priv,
@@ -777,8 +850,17 @@ static void ppe_host_ref_get(struct qca_ppe_priv *priv, u32 index)
 
 static void ppe_host_ref_put(struct qca_ppe_priv *priv, u32 index)
 {
-	if (!--priv->host_ref[index])
-		ppe_host_del(priv, index);
+	int ret;
+
+	if (--priv->host_ref[index] || priv->flow_stopping)
+		return;
+	if (!test_and_set_bit(index, priv->host_retired))
+		priv->host_retire_pending++;
+	ret = ppe_host_del(priv, index);
+	if (!ret || ret == -ENOENT) {
+		clear_bit(index, priv->host_retired);
+		priv->host_retire_pending--;
+	}
 }
 
 /* The age of the entry in @index, or -ENOENT if the slot no longer holds this
@@ -789,7 +871,7 @@ static void ppe_host_ref_put(struct qca_ppe_priv *priv, u32 index)
 static int ppe_flow_entry_age(struct qca_ppe_priv *priv,
 			      struct ppe_flow_entry *entry)
 {
-	u32 w[PPE_FLOW_ENTRY_WORDS_V6];
+	u32 w[PPE_FLOW_ENTRY_WORDS_V6], expected[PPE_FLOW_ENTRY_WORDS_V6];
 	u32 age;
 	int ret;
 
@@ -804,7 +886,15 @@ static int ppe_flow_entry_age(struct qca_ppe_priv *priv,
 	age = FIELD_GET(PPE_FLOW_E_AGE_MASK, w[0]);
 	w[0] &= ~PPE_FLOW_E_AGE_MASK;
 
-	if (memcmp(w, entry->words, entry->nwords * sizeof(*w)))
+	memcpy(expected, entry->words, entry->nwords * sizeof(*w));
+	/* QoS is not identity. A failed priority restore must not strand the
+	 * owned slot while teardown frees its unchanged forwarding resources.
+	 */
+	w[1] &= ~BIT(PPE_FLOW_E_PRI_PROFILE_OFF % 32);
+	expected[1] &= ~BIT(PPE_FLOW_E_PRI_PROFILE_OFF % 32);
+	w[2] &= ~GENMASK(PPE_FLOW_E_PRI_PROFILE_LEN - 2, 0);
+	expected[2] &= ~GENMASK(PPE_FLOW_E_PRI_PROFILE_LEN - 2, 0);
+	if (memcmp(w, expected, entry->nwords * sizeof(*w)))
 		return -ENOENT;
 
 	return age;
@@ -890,23 +980,27 @@ static void ppe_entry_set_addr6(u32 *words, u32 offset,
 
 /* Private CPU-ingress tags classify WLAN frames without borrowing a
  * physical port identity. Slots persist across idle flows; AP events free them. */
-static void ppe_wifi_ingress_release(struct ppe_wifi_ingress *slot)
+static void ppe_eg_xlt_clear(struct qca_ppe_priv *priv, int xlt)
 {
-	struct qca_ppe_priv *priv = slot->priv;
-	struct net_device *dev = slot->dev;
-	int xlt = slot->xlt;
-
-	nf_unregister_net_hook(dev_net(dev), &slot->hook);
-	spin_lock_bh(&ppe_wifi_lock);
-	slot->dev = NULL;
-	spin_unlock_bh(&ppe_wifi_lock);
-	/* Invalidate the egress key before clearing its action.  Otherwise a
-	 * packet can observe a half-torn-down translation while the XLT index is
-	 * being returned to the shared allocator. */
+	/* Invalidate the key before clearing its action, as a miss must never see
+	 * an incomplete restore operation during service teardown.
+	 */
 	regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), 0);
 	regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt), 0);
 	regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), 0);
 	regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+}
+
+/* A detached AP must drop its netdev reference immediately, but its private
+ * classification cannot be reused while an uncertain hardware flow owns it.
+ */
+static void ppe_wifi_ingress_free(struct ppe_wifi_ingress *slot)
+{
+	struct qca_ppe_priv *priv = slot->priv;
+
+	if (slot->dev || slot->refs)
+		return;
+	ppe_eg_xlt_clear(priv, slot->xlt);
 	if (slot->cpu_egress_core)
 		ppe_dsa_core_port_put(priv, QCA_PPE_CPU_PORT, false);
 	if (slot->ingress_core)
@@ -919,7 +1013,21 @@ static void ppe_wifi_ingress_release(struct ppe_wifi_ingress *slot)
 	ppe_vsi_free(priv, slot->vsi);
 	slot->ingress_core = false;
 	slot->cpu_egress_core = false;
+	slot->priv = NULL;
+}
+
+static void ppe_wifi_ingress_release(struct ppe_wifi_ingress *slot)
+{
+	struct net_device *dev = slot->dev;
+
+	spin_lock_bh(&ppe_wifi_lock);
+	WRITE_ONCE(slot->disabled, true);
+	slot->dev = NULL;
+	spin_unlock_bh(&ppe_wifi_lock);
+	nf_unregister_net_hook(dev_net(dev), &slot->hook);
+	synchronize_net();
 	dev_put(dev);
+	ppe_wifi_ingress_free(slot);
 }
 
 static struct ppe_wifi_ingress *
@@ -948,7 +1056,7 @@ ppe_wifi_ingress_get(struct qca_ppe_priv *priv, int ifindex, int priority)
 			return s->priv == priv && s->hook.priority == priority - 1 &&
 			       !READ_ONCE(s->disabled) ? s : ERR_PTR(-EBUSY);
 		}
-		if (!s->dev && !slot)
+		if (!s->priv && !slot)
 			slot = s;
 	}
 	if (!slot) {
@@ -1040,9 +1148,9 @@ ppe_wifi_ingress_get(struct qca_ppe_priv *priv, int ifindex, int priority)
 	slot->xlt = xlt;
 	slot->my_mac = my_mac;
 	atomic_set(&slot->flows, 0);
-	atomic64_set(&slot->injected, 0);
-	atomic64_set(&slot->injected_bytes, 0);
+	atomic_set(&slot->returning, 0);
 	WRITE_ONCE(slot->disabled, false);
+	slot->generation = ++priv->wifi_slot_generation;
 	slot->hook = (struct nf_hook_ops) {
 		.hook = ppe_wifi_ingress_hook, .pf = NFPROTO_NETDEV,
 		.hooknum = NF_NETDEV_INGRESS, .priority = priority - 1,
@@ -1060,10 +1168,7 @@ err_mac:
 		ppe_dsa_core_port_put(priv, QCA_PPE_CPU_PORT, false);
 	if (slot->ingress_core)
 		ppe_dsa_core_port_put(priv, QCA_PPE_CPU_PORT, true);
-	regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+	ppe_eg_xlt_clear(priv, xlt);
 	regmap_write(priv->regmap, PPE_L3_VSI_TBL(vsi), 0);
 	ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(vsi), PPE_L3_IF_WORDS);
 	if (ppe_res_put(priv->my_mac, my_mac))
@@ -1073,6 +1178,8 @@ err_xlt:
 err_vsi:
 	ppe_vsi_free(priv, vsi);
 err_dev:
+	if (slot)
+		slot->priv = NULL;
 	dev_put(dev);
 	return ERR_PTR(ret);
 }
@@ -1228,15 +1335,29 @@ out:
 	return ret;
 }
 
-static void ppe_dsa_service_egress_clear(struct qca_ppe_priv *priv, int xlt)
+/* The conduit role outlives offloaded flows. In particular, DHCP and ARP
+ * emitted by the CPU must retain the external switch's private S-tag even
+ * when the last hardware egress lease has been released.
+ */
+int ppe_dsa_core_port_set_base(struct qca_ppe_priv *priv, int port, bool core)
 {
-	/* Invalidate the key before clearing its action, as a miss must never see
-	 * an incomplete restore operation during service teardown.
-	 */
-	regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), 0);
-	regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+	int ret;
+
+	if (WARN_ON_ONCE(port < 0 || port >= QCA_PPE_MAX_PORTS))
+		return -EINVAL;
+	mutex_lock(&priv->vlan_lock);
+	ret = regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
+				 PPE_PORT_EG_VLAN_CORE,
+				 core || priv->dsa_core_egress_refs[port] ?
+				 PPE_PORT_EG_VLAN_CORE : 0);
+	if (!ret) {
+		if (core)
+			priv->dsa_core_egress_base |= BIT(port);
+		else
+			priv->dsa_core_egress_base &= ~BIT(port);
+	}
+	mutex_unlock(&priv->vlan_lock);
+	return ret;
 }
 
 static int ppe_dsa_core_port_get(struct qca_ppe_priv *priv, int port,
@@ -1245,6 +1366,7 @@ static int ppe_dsa_core_port_get(struct qca_ppe_priv *priv, int port,
 	u16 *refs;
 	int ret;
 
+	lockdep_assert_held(&priv->vlan_lock);
 	if (WARN_ON_ONCE(port < 0 || port >= QCA_PPE_MAX_PORTS))
 		return -EINVAL;
 
@@ -1271,6 +1393,7 @@ static void ppe_dsa_core_port_put(struct qca_ppe_priv *priv, int port,
 	u16 *refs;
 	int ret;
 
+	lockdep_assert_held(&priv->vlan_lock);
 	if (WARN_ON_ONCE(port < 0 || port >= QCA_PPE_MAX_PORTS))
 		return;
 	refs = ingress ? &priv->dsa_core_ingress_refs[port] :
@@ -1282,7 +1405,9 @@ static void ppe_dsa_core_port_put(struct qca_ppe_priv *priv, int port,
 		regmap_update_bits(priv->regmap, PPE_PORT_PARSING(port),
 				   PPE_PORT_PARSING_CORE, 0) :
 		regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
-				   PPE_PORT_EG_VLAN_CORE, 0);
+				   PPE_PORT_EG_VLAN_CORE,
+				   priv->dsa_core_egress_base & BIT(port) ?
+				   PPE_PORT_EG_VLAN_CORE : 0);
 	if (ret) {
 		*refs = 1;
 		dev_err(priv->ds.dev, "failed to restore DSA port %d %s role: %d\n",
@@ -1404,7 +1529,7 @@ static void ppe_dsa_service_put(struct qca_ppe_priv *priv, int index)
 
 	xlt = service->xlt;
 	port = service->port;
-	ppe_dsa_service_egress_clear(priv, xlt);
+	ppe_eg_xlt_clear(priv, xlt);
 	ppe_xlt_idx_free(priv, &xlt);
 	ppe_vsi_free(priv, service->vsi);
 	ppe_dsa_core_port_put(priv, QCA_PPE_CPU_PORT, false);
@@ -1587,10 +1712,7 @@ static void ppe_wan_ingress_put(struct qca_ppe_priv *priv, int port)
 		 * blackholes every frame it matches.
 		 */
 		ppe_xlt_idx_free(priv, &priv->wan_xlt[port]);
-		regmap_write(priv->regmap, PPE_EG_XLT_RULE(xlt), 0);
-		regmap_write(priv->regmap, PPE_EG_XLT_RULE_W1(xlt), 0);
-		regmap_write(priv->regmap, PPE_EG_XLT_ACTION(xlt), 0);
-		regmap_write(priv->regmap, PPE_EG_XLT_ACTION_W1(xlt), 0);
+		ppe_eg_xlt_clear(priv, xlt);
 	}
 	regmap_write(priv->regmap, PPE_PPPOE_SESSION(port), 0);
 	regmap_write(priv->regmap, PPE_PPPOE_SESSION_EXT(port), 0);
@@ -1742,18 +1864,47 @@ static int ppe_flow_alloc_ingress(struct qca_ppe_priv *priv, int iport,
 	return 0;
 }
 
-static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
-				   struct ppe_flow_entry *entry);
+static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
+				  struct ppe_flow_entry *entry);
+static void ppe_flow_wifi_unbind(struct ppe_flow_entry *entry);
+
+static void ppe_flow_retire(struct qca_ppe_priv *priv,
+			    struct ppe_flow_entry *entry)
+{
+	int ret = ppe_flow_entry_destroy(priv, entry);
+
+	if (!ret) {
+		kfree(entry);
+		return;
+	}
+	/* No packet path or dying flowtable may retain the entry or a netdev.
+	 * Its hardware-side leases stay allocated until mutation completion. */
+	ppe_wifi_ingress_unbind(entry);
+	ppe_flow_wifi_unbind(entry);
+	entry->block = NULL;
+	if (entry->state == PPE_FLOW_LIVE)
+		entry->state = PPE_FLOW_RETIRING;
+	list_add_tail(&entry->list, &priv->flow_retire_list);
+	priv->flow_retire_pending++;
+	priv->flow_retire_failed++;
+	priv->flow_retire_cookie = entry->cookie;
+	priv->flow_retire_result = ret;
+}
+
+static void ppe_flow_unpublish(struct qca_ppe_priv *priv,
+			       struct ppe_flow_entry *entry)
+{
+	rhashtable_remove_fast(&priv->flow_table, &entry->node,
+			       ppe_flow_ht_params);
+	list_del(&entry->list);
+	ppe_flow_retire(priv, entry);
+}
 
 static void ppe_flow_drop(struct qca_ppe_priv *priv,
 			  struct ppe_flow_entry *entry)
 {
 	priv->flow_stale++;
-	rhashtable_remove_fast(&priv->flow_table, &entry->node,
-			       ppe_flow_ht_params);
-	list_del(&entry->list);
-	ppe_flow_entry_destroy(priv, entry);
-	kfree(entry);
+	ppe_flow_unpublish(priv, entry);
 }
 
 /* The ingress L3 interface holds its own MTU and is programmed with the first
@@ -1897,28 +2048,28 @@ static void ppe_flow_free_ingress(struct qca_ppe_priv *priv,
 
 	if (entry->wifi_ingress) {
 		ppe_wifi_ingress_unbind(entry);
-		return;
-	}
-	if (entry->wan_iport >= 0) {
+		entry->wifi_ingress->refs--;
+	} else if (entry->wan_iport >= 0) {
 		ppe_wan_ingress_put(priv, entry->wan_iport);
-		return;
+	} else {
+		if (entry->l3_if >= 0 && !--priv->l3_if_ref[entry->l3_if]) {
+			regmap_write(priv->regmap, PPE_L3_VSI_TBL(entry->l3_if), 0);
+			ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(entry->l3_if),
+				      PPE_L3_IF_WORDS);
+		}
+		if (ppe_res_put(priv->my_mac, entry->my_mac))
+			ppe_tbl_clear(priv, PPE_MY_MAC_TBL(entry->my_mac), PPE_MY_MAC_WORDS);
+		if (entry->dsa_service >= 0)
+			ppe_dsa_service_put(priv, entry->dsa_service);
 	}
-
-	if (entry->l3_if >= 0 && !--priv->l3_if_ref[entry->l3_if]) {
-		regmap_write(priv->regmap, PPE_L3_VSI_TBL(entry->l3_if), 0);
-		ppe_tbl_clear(priv, PPE_IN_L3_IF_TBL(entry->l3_if),
-			      PPE_L3_IF_WORDS);
-	}
-
-	if (ppe_res_put(priv->my_mac, entry->my_mac))
-		ppe_tbl_clear(priv, PPE_MY_MAC_TBL(entry->my_mac),
-			      PPE_MY_MAC_WORDS);
-	if (entry->dsa_service >= 0)
-		ppe_dsa_service_put(priv, entry->dsa_service);
+	if (!--priv->vsi_flow_refs[entry->src_if] &&
+	    test_bit(entry->src_if, priv->vsi_retired))
+		ppe_vsi_free(priv, entry->src_if);
+	if (entry->wifi_ingress)
+		ppe_wifi_ingress_free(entry->wifi_ingress);
 }
 
-static void ppe_flow_wifi_unbind(struct qca_ppe_priv *priv,
-				 struct ppe_flow_entry *entry)
+static void ppe_flow_wifi_unbind(struct ppe_flow_entry *entry)
 {
 	if (!entry->wifi_dev)
 		return;
@@ -1987,7 +2138,6 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	int port, ret;
 
 	if (wifi) {
-		atomic64_inc(&ppe_wifi_candidates);
 		if (!net_eq(dev_net(data->odev), &init_net) ||
 		    data->addr_type != FLOW_DISSECTOR_KEY_IPV4_ADDRS ||
 		    (data->l4proto != IPPROTO_TCP && data->l4proto != IPPROTO_UDP) ||
@@ -2069,7 +2219,7 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 			  PPE_EG_L3_IF_WORDS + 1);
 	if (ret < 0) {
 		if (wifi)
-			ppe_flow_wifi_unbind(priv, entry);
+			ppe_flow_wifi_unbind(entry);
 		return ret;
 	}
 	entry->eg_l3_if = ret + PPE_VSI_MAX;
@@ -2194,7 +2344,7 @@ err_pub_ip:
 		regmap_write(priv->regmap, PPE_PUB_IP_TBL(entry->pub_ip), 0);
 err_eg_l3_if:
 	if (wifi)
-		ppe_flow_wifi_unbind(priv, entry);
+		ppe_flow_wifi_unbind(entry);
 	if (ppe_res_put(priv->eg_l3_if, entry->eg_l3_if)) {
 		ppe_tbl_clear(priv, PPE_EG_L3_IF_TBL(entry->eg_l3_if),
 			      PPE_EG_L3_IF_WORDS);
@@ -2208,7 +2358,7 @@ err_eg_l3_if:
 static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
 				 struct ppe_flow_entry *entry)
 {
-	ppe_flow_wifi_unbind(priv, entry);
+	ppe_flow_wifi_unbind(entry);
 
 	if (ppe_res_put(priv->nexthop, entry->nexthop))
 		ppe_tbl_clear(priv, PPE_IN_NEXTHOP_TBL(entry->nexthop),
@@ -2232,19 +2382,21 @@ static void ppe_flow_free_egress(struct qca_ppe_priv *priv,
  * bytes - so the deltas are computed in the counters' own widths to survive
  * wraparound.
  */
-static u32 ppe_flow_counter_delta(struct qca_ppe_priv *priv,
-				  struct ppe_flow_entry *entry, u64 *bytes)
+static int ppe_flow_counter_delta(struct qca_ppe_priv *priv,
+				  struct ppe_flow_entry *entry, u32 *pkts,
+				  u64 *bytes)
 {
 	u64 packets, total;
-	u32 pkts;
+	int ret;
 
-	ppe_flow_counter_read(priv, entry->index, &packets, &total);
-	pkts = (u32)(packets - entry->packets);
+	ret = ppe_flow_counter_read(priv, entry->index, &packets, &total);
+	if (ret)
+		return ret;
+	*pkts = (u32)(packets - entry->packets);
 	*bytes = (total - entry->bytes) & PPE_FLOW_CNT_BYTES;
 	entry->packets = packets;
 	entry->bytes = total;
-
-	return pkts;
+	return 0;
 }
 
 static void ppe_flow_dev_add(struct net_device *dev, bool rx, u32 pkts,
@@ -2320,39 +2472,75 @@ static void ppe_flow_account(struct qca_ppe_priv *priv,
 	rcu_read_unlock();
 }
 
-/* Both locks: the release below reaches the VLAN side, and a routing domain
- * going away destroys flows with that lock already held, so taking it here
- * would be the same task asking for it twice.
+/* Retire only after the issued mutation completed and the owned identity
+ * disappeared. Unknown reads never authorize deletion of a sibling index.
  */
-static void ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
-				   struct ppe_flow_entry *entry)
+static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
+				  struct ppe_flow_entry *entry)
 {
 	u64 bytes;
-	int age;
+	u32 pkts;
+	int ret, age;
 
 	lockdep_assert_held(&priv->flow_lock);
 	lockdep_assert_held(&priv->vlan_lock);
-
+	/* Stop new WLAN selections and wait for a selected submission before
+	 * touching hardware or releasing leases. Table ops may sleep, so the
+	 * Wi-Fi spinlock is released by unbind before the mutation starts. */
 	ppe_wifi_ingress_unbind(entry);
-
-	/* Delete by index - the key does not have to be restaged. Only a read
-	 * that says the slot belongs to another flow is a reason not to: the
-	 * hardware removes an idle entry on its own and may have handed the
-	 * slot on, but a read that failed leaves it unknown, and leaving a live
-	 * entry pointing at side tables about to be reused is the worse half of
-	 * that trade.
-	 */
-	age = ppe_flow_entry_age(priv, entry);
-	if (age >= 0) {
-		u32 pkts = ppe_flow_counter_delta(priv, entry, &bytes);
-
-		ppe_flow_account(priv, entry, pkts, bytes);
+	ppe_flow_wifi_unbind(entry);
+	if (priv->flow_stopping)
+		goto free;
+	if (entry->state == PPE_FLOW_PENDING_ADD) {
+		ret = ppe_flow_op_finish(priv, &entry->index, &entry->host_index);
+		if (ret == -ENOENT)
+			goto free;
+		if (ret)
+			return ret;
+		ppe_host_ref_get(priv, entry->host_index);
+		if (entry->previous_host < priv->data->num_host_entries) {
+			ppe_host_ref_put(priv, entry->previous_host);
+			entry->previous_host = U32_MAX;
+		}
+		entry->words[0] = (entry->words[0] & ~PPE_FLOW_E_HOST_IDX_MASK) |
+				 (entry->host_index << PPE_FLOW_E_HOST_IDX_OFF);
+		entry->state = PPE_FLOW_RETIRING;
+	} else if (entry->state == PPE_FLOW_PENDING_DELETE) {
+		ret = ppe_flow_op_finish(priv, NULL, NULL);
+		if (priv->flow_op_busy)
+			return ret;
+		entry->state = PPE_FLOW_RETIRING;
+		if (!ret)
+			goto free;
 	}
-	if (age != -ENOENT)
-		ppe_flow_entry_delete(priv, entry->index);
-	ppe_host_ref_put(priv, entry->host_index);
+	age = ppe_flow_entry_age(priv, entry);
+	if (age == -ENOENT)
+		goto free;
+	if (age < 0)
+		return age;
+	if (entry->state == PPE_FLOW_LIVE &&
+	    !ppe_flow_counter_delta(priv, entry, &pkts, &bytes))
+		ppe_flow_account(priv, entry, pkts, bytes);
+	if (priv->flow_op_busy)
+		return -EBUSY;
+	ret = ppe_flow_entry_delete(priv, entry->index);
+	if (priv->flow_op_busy) {
+		entry->state = PPE_FLOW_PENDING_DELETE;
+		return ret;
+	}
+	if (ret) {
+		age = ppe_flow_entry_age(priv, entry);
+		if (age != -ENOENT)
+			return age < 0 ? age : ret;
+	}
+free:
+	if (entry->previous_host < priv->data->num_host_entries)
+		ppe_host_ref_put(priv, entry->previous_host);
+	if (entry->host_index < priv->data->num_host_entries)
+		ppe_host_ref_put(priv, entry->host_index);
 	ppe_flow_free_egress(priv, entry);
 	ppe_flow_free_ingress(priv, entry);
+	return 0;
 }
 
 /* Encode the flow entry and its host half. The key is always the tuple as the
@@ -2440,6 +2628,8 @@ static int ppe_flow_reject(struct qca_ppe_priv *priv, struct flow_rule *rule,
 	lockdep_assert_held(&priv->flow_lock);
 	priv->flow_reject[why]++;
 	memset(info, 0, sizeof(*info));
+	info->cookie = priv->flow_request_cookie;
+	info->generation = priv->flow_request_generation;
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
 		struct flow_match_meta match;
@@ -2498,6 +2688,8 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
+	priv->flow_request_cookie = f->cookie;
+	priv->flow_request_generation++;
 
 	/* A replace for a cookie already held is the kernel refreshing a flow
 	 * whose packets it saw in the software path. If the hardware entry is
@@ -2508,16 +2700,19 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry = rhashtable_lookup_fast(&priv->flow_table, &f->cookie,
 				       ppe_flow_ht_params);
 	if (entry) {
-		if (ppe_flow_entry_age(priv, entry) >= 0)
+		ret = ppe_flow_entry_age(priv, entry);
+		if (ret >= 0)
 			return 0;
+		if (ret != -ENOENT)
+			return ret;
 
 		priv->flow_reinstalled++;
-		rhashtable_remove_fast(&priv->flow_table, &entry->node,
-				       ppe_flow_ht_params);
-		list_del(&entry->list);
-		ppe_flow_entry_destroy(priv, entry);
-		kfree(entry);
+		ppe_flow_unpublish(priv, entry);
 	}
+
+	if (priv->flow_stopping || priv->flow_op_busy ||
+	    (!list_empty(&priv->flow_retire_list) || priv->host_retire_pending))
+		return -EBUSY;
 
 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META) ||
 	    !flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL) ||
@@ -2728,6 +2923,9 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	if (!entry)
 		return -ENOMEM;
 
+	entry->index = U32_MAX;
+	entry->host_index = U32_MAX;
+	entry->previous_host = U32_MAX;
 	entry->cookie = f->cookie;
 	entry->block = fb->block;
 	entry->nexthop = -1;
@@ -2764,6 +2962,10 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		goto err_free;
 	}
 
+	priv->vsi_flow_refs[entry->src_if]++;
+	if (entry->wifi_ingress)
+		entry->wifi_ingress->refs++;
+
 	ret = ppe_flow_alloc_egress(priv, &data, snat, dnat, iport, entry);
 	if (ret) {
 		ppe_flow_reject(priv, rule, ret == -ENOSPC ? PPE_REJECT_RESOURCE :
@@ -2795,34 +2997,35 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			entry->nexthop, entry->src_if,
 			fw, hw);
 	if (entry->wifi_egress)
-		ppe_entry_set(fw, 68, 8, QCA_PPE_WIFI_SERVICE_CODE);
+		ppe_entry_set(fw, PPE_FLOW_E_SERVICE_CODE_OFF,
+			      PPE_FLOW_E_SERVICE_CODE_LEN, QCA_PPE_WIFI_SERVICE_CODE);
 	nfw = v6 ? PPE_FLOW_ENTRY_WORDS_V6 : PPE_FLOW_ENTRY_WORDS_V4;
 	nhw = v6 ? PPE_HOST_ENTRY_WORDS_V6 : PPE_HOST_ENTRY_WORDS_V4;
 
-	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, fw, nfw, hw, nhw, &entry->index,
-			  &entry->host_index);
-	if (ret) {
-		ppe_flow_reject(priv, rule, PPE_REJECT_HW_OP);
-		goto err_egress;
-	}
-	ppe_host_ref_get(priv, entry->host_index);
-
-	/* The hardware writes the host index it resolved into the entry and
-	 * counts the age down from there, so the stored image carries the one
-	 * and drops the other for readbacks to compare equal.
-	 */
 	memcpy(entry->words, fw, nfw * sizeof(*fw));
 	entry->nwords = nfw;
 	memcpy(entry->hwords, hw, nhw * sizeof(*hw));
 	entry->nhwords = nhw;
 	entry->profile = data.priority;
-	entry->words[0] = (fw[0] | entry->host_index << PPE_FLOW_E_HOST_IDX_OFF) &
-			  ~PPE_FLOW_E_AGE_MASK;
-
-	/* The counter survives the entry that filled it, so a recycled slot has
-	 * to start from zero rather than from the previous flow's total.
-	 */
-	ppe_flow_counter_clear(priv, entry->index);
+	entry->words[0] &= ~PPE_FLOW_E_AGE_MASK;
+	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, fw, nfw, hw, nhw, &entry->index,
+			  &entry->host_index);
+	if (ret) {
+		ppe_flow_reject(priv, rule, PPE_REJECT_HW_OP);
+		if (priv->flow_op_busy) {
+			/* A returned index is not yet an acquired host lease. */
+			entry->host_index = U32_MAX;
+			entry->state = PPE_FLOW_PENDING_ADD;
+			ppe_flow_retire(priv, entry);
+			return ret;
+		}
+		goto err_egress;
+	}
+	ppe_host_ref_get(priv, entry->host_index);
+	entry->words[0] |= entry->host_index << PPE_FLOW_E_HOST_IDX_OFF;
+	ret = ppe_flow_counter_clear(priv, entry->index);
+	if (ret)
+		goto err_hw;
 	entry->last_used = jiffies;
 
 	ret = rhashtable_insert_fast(&priv->flow_table, &entry->node,
@@ -2832,9 +3035,6 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 
 	list_add_tail(&entry->list, &priv->flow_list);
 	priv->flow_offloaded++;
-	if (entry->wifi_egress) {
-		atomic64_inc(&ppe_wifi_installed);
-	}
 
 	if (entry->wifi_ingress) {
 		spin_lock_bh(&ppe_wifi_lock);
@@ -2848,8 +3048,9 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	return 0;
 
 err_hw:
-	ppe_flow_entry_delete(priv, entry->index);
-	ppe_host_ref_put(priv, entry->host_index);
+	entry->state = PPE_FLOW_RETIRING;
+	ppe_flow_retire(priv, entry);
+	return ret;
 err_egress:
 	ppe_flow_free_egress(priv, entry);
 err_ingress:
@@ -2872,14 +3073,11 @@ static int ppe_flow_offload_destroy(struct qca_ppe_priv *priv,
 				       ppe_flow_ht_params);
 	if (!entry) {
 		priv->flow_destroy_miss++;
+		priv->flow_destroy_miss_cookie = f->cookie;
 		return -ENOENT;
 	}
 
-	rhashtable_remove_fast(&priv->flow_table, &entry->node,
-			       ppe_flow_ht_params);
-	list_del(&entry->list);
-	ppe_flow_entry_destroy(priv, entry);
-	kfree(entry);
+	ppe_flow_unpublish(priv, entry);
 
 	return 0;
 }
@@ -2952,11 +3150,7 @@ static void ppe_flow_block_release(void *cb_priv)
 		if (entry->block != fb->block)
 			continue;
 
-		rhashtable_remove_fast(&priv->flow_table, &entry->node,
-				       ppe_flow_ht_params);
-		list_del(&entry->list);
-		ppe_flow_entry_destroy(priv, entry);
-		kfree(entry);
+		ppe_flow_unpublish(priv, entry);
 	}
 	mutex_unlock(&priv->vlan_lock);
 	mutex_unlock(&priv->flow_lock);
@@ -3041,36 +3235,92 @@ module_param_named(sparse_flows, ppe_sparse_flows, bool, 0644);
 MODULE_PARM_DESC(sparse_flows,
 		 "Serve flows of under 80 packets a second ahead of a shaped port's bulk queue");
 
-/* The entry is replaced rather than rewritten in place: an IPv6 entry's
- * words are spread over two slots in a layout only the op engine holds. The
- * host entry is the same one, found again by its key; the counter starts
- * over with the new slot, and so does everything derived from it.
+/* IPv4 has a writable five-word flat image in HPPE. Keep the valid key,
+ * slot, host reference and counters throughout a priority change, including
+ * packets already submitted through EDMA. IPv6's op image spans two slots;
+ * it retains the op-engine replacement below and is not a Wi-Fi candidate.
  */
+static int ppe_flow_profile_ipv4(struct qca_ppe_priv *priv,
+				 struct ppe_flow_entry *entry, u8 profile)
+{
+	u32 old[PPE_FLOW_ENTRY_WORDS_V4], w[PPE_FLOW_ENTRY_WORDS_V4];
+	u32 read[PPE_FLOW_ENTRY_WORDS_V4];
+	int ret, rollback;
+
+	memcpy(old, entry->words, sizeof(old));
+	old[0] |= FIELD_PREP(PPE_FLOW_E_AGE_MASK, PPE_FLOW_AGE_MAX);
+	memcpy(w, old, sizeof(w));
+	w[1] &= ~BIT(PPE_FLOW_E_PRI_PROFILE_OFF % 32);
+	w[2] &= ~GENMASK(PPE_FLOW_E_PRI_PROFILE_LEN - 2, 0);
+	ppe_entry_set(w, PPE_FLOW_E_PRI_PROFILE_OFF, PPE_FLOW_E_PRI_PROFILE_LEN,
+		      profile);
+
+	/* Write the complete SDK flat image, including its final commit word.
+	 * The valid bit is never cleared, and no forwarding/key field changes.
+	 */
+	ret = regmap_bulk_write(priv->regmap, PPE_IN_FLOW_TBL(entry->index),
+				w, ARRAY_SIZE(w));
+	if (!ret) {
+		ret = ppe_flow_entry_read(priv, entry->index, read, ARRAY_SIZE(read));
+		if (!ret) {
+			read[0] &= ~PPE_FLOW_E_AGE_MASK;
+			w[0] &= ~PPE_FLOW_E_AGE_MASK;
+			if (memcmp(read, w, sizeof(w)))
+				ret = -EIO;
+		}
+	}
+	if (!ret) {
+		memcpy(entry->words, w, sizeof(w));
+		priv->flow_profile_inplace++;
+		return 0;
+	}
+
+	rollback = regmap_bulk_write(priv->regmap, PPE_IN_FLOW_TBL(entry->index),
+				     old, ARRAY_SIZE(old));
+	if (!rollback) {
+		rollback = ppe_flow_entry_read(priv, entry->index, read, ARRAY_SIZE(read));
+		if (!rollback) {
+			read[0] &= ~PPE_FLOW_E_AGE_MASK;
+			if (memcmp(read, entry->words, sizeof(read)))
+				rollback = -EIO;
+		}
+	}
+	if (rollback)
+		priv->flow_profile_rollback_failed++;
+	return ret;
+}
+
 static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 				struct ppe_flow_entry *entry, u8 profile)
 {
 	u32 w[PPE_FLOW_ENTRY_WORDS_V6];
 	u32 index, host_index, pkts;
 	u64 bytes;
-	int ret;
+	int ret, add_ret;
 
 	lockdep_assert_held(&priv->flow_lock);
 
-	/* The hardware ages an idle entry out and hands its slot on, and a
-	 * flow under the count is the likeliest to have been; a delete by
-	 * index would then take the sibling's entry.
+
+	/* Only an identity-checked slot can be modified. All software allocation
+	 * is serialized by flow_lock; autonomous aging cannot install a sibling.
 	 */
 	ret = ppe_flow_entry_age(priv, entry);
 	if (ret < 0)
-		return ret;
+		goto out;
 
-	pkts = ppe_flow_counter_delta(priv, entry, &bytes);
+	if (!(entry->words[0] & PPE_FLOW_E_TYPE_IPV6)) {
+		ret = ppe_flow_profile_ipv4(priv, entry, profile);
+		goto out;
+	}
+
+	if (priv->flow_op_busy) {
+		ret = -EBUSY;
+		goto out;
+	}
+	ret = ppe_flow_counter_delta(priv, entry, &pkts, &bytes);
+	if (ret)
+		goto out;
 	ppe_flow_account(priv, entry, pkts, bytes);
-
-	/* The stored image carries the host index and no age; an add is
-	 * staged the way the encoder stages it, at full age and with no host
-	 * index, for the hardware to write the one it resolves.
-	 */
 	memcpy(w, entry->words, entry->nwords * sizeof(*w));
 	w[0] = (w[0] & ~PPE_FLOW_E_HOST_IDX_MASK) |
 	       FIELD_PREP(PPE_FLOW_E_AGE_MASK, PPE_FLOW_AGE_MAX);
@@ -3080,13 +3330,39 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 		      profile);
 
 	ret = ppe_flow_entry_delete(priv, entry->index);
-	if (ret)
-		return ret;
+	if (ret) {
+		if (priv->flow_op_busy) {
+			entry->state = PPE_FLOW_PENDING_DELETE;
+			ppe_flow_unpublish(priv, entry);
+		}
+		goto out;
+	}
 
-	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, w, entry->nwords,
-			  entry->hwords, entry->nhwords, &index, &host_index);
-	if (ret)
-		return ret;
+	add_ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, w, entry->nwords,
+			      entry->hwords, entry->nhwords, &index, &host_index);
+	if (add_ret) {
+		if (priv->flow_op_busy) {
+			ret = add_ret;
+			goto pending_add;
+		}
+		/* Restore the old priority rather than leaving a deleted entry
+		 * published with its previous index and counter baseline.
+		 */
+		memcpy(w, entry->words, entry->nwords * sizeof(*w));
+		w[0] = (w[0] & ~PPE_FLOW_E_HOST_IDX_MASK) |
+		       FIELD_PREP(PPE_FLOW_E_AGE_MASK, PPE_FLOW_AGE_MAX);
+		ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, w, entry->nwords,
+				  entry->hwords, entry->nhwords, &index, &host_index);
+		if (ret) {
+			priv->flow_profile_rollback_failed++;
+			if (priv->flow_op_busy)
+				goto pending_add;
+			/* Both ADDs are confirmed failed; the original DEL completed. */
+			entry->state = PPE_FLOW_RETIRING;
+			ppe_flow_unpublish(priv, entry);
+			goto out;
+		}
+	}
 
 	if (host_index != entry->host_index) {
 		ppe_host_ref_get(priv, host_index);
@@ -3097,37 +3373,103 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 	entry->words[0] = (w[0] | host_index << PPE_FLOW_E_HOST_IDX_OFF) &
 			  ~PPE_FLOW_E_AGE_MASK;
 	entry->index = index;
-	ppe_flow_counter_clear(priv, index);
+	ret = ppe_flow_counter_clear(priv, index);
+	if (ret) {
+		entry->state = PPE_FLOW_RETIRING;
+		ppe_flow_unpublish(priv, entry);
+		goto out;
+	}
 	entry->packets = 0;
 	entry->bytes = 0;
-
-	return 0;
+	ret = add_ret;
+	goto out;
+pending_add:
+	/* Preserve the pending image and old host lease until the result says
+	 * whether the replacement acquired the same host. */
+	entry->previous_host = entry->host_index;
+	entry->host_index = U32_MAX;
+	entry->index = U32_MAX;
+	memcpy(entry->words, w, entry->nwords * sizeof(*w));
+	entry->words[0] &= ~PPE_FLOW_E_AGE_MASK;
+	entry->state = PPE_FLOW_PENDING_ADD;
+	ppe_flow_unpublish(priv, entry);
+out:
+	if (ret)
+		priv->flow_profile_failed++;
+	return ret;
 }
 
 static void ppe_sparse_work(struct work_struct *work)
 {
 	struct qca_ppe_priv *priv = container_of(work, struct qca_ppe_priv,
 						 sparse_work.work);
-	struct ppe_flow_entry *entry;
+	struct ppe_flow_entry *entry, *tmp;
 	u32 pkts, delta;
 
 	mutex_lock(&priv->flow_lock);
-	list_for_each_entry(entry, &priv->flow_list, list) {
+	mutex_lock(&priv->vlan_lock);
+	/* Host deletion uses a different result queue but the same mutation
+	 * admission barrier. Never reuse a host while its command is unknown. */
+	if (priv->flow_op_busy && priv->flow_op_rslt_reg == PPE_HOST_TBL_OP_RSLT) {
+		int ret = ppe_flow_op_finish(priv, NULL, NULL);
+
+		if (!ret || ret == -ENOENT) {
+			clear_bit(priv->host_retire_index, priv->host_retired);
+			priv->host_retire_pending--;
+		}
+	}
+	if (!priv->flow_op_busy) {
+		unsigned long host;
+
+		for_each_set_bit(host, priv->host_retired, priv->data->num_host_entries) {
+			int ret = ppe_host_del(priv, host);
+
+			if (!ret || ret == -ENOENT) {
+				clear_bit(host, priv->host_retired);
+				priv->host_retire_pending--;
+			}
+			if (priv->flow_op_busy)
+				break;
+		}
+	}
+	list_for_each_entry_safe(entry, tmp, &priv->flow_retire_list, list) {
+		int ret = ppe_flow_entry_destroy(priv, entry);
+
+		if (ret) {
+			priv->flow_retire_cookie = entry->cookie;
+			priv->flow_retire_result = ret;
+			continue;
+		}
+		list_del(&entry->list);
+		priv->flow_retire_pending--;
+		kfree(entry);
+	}
+	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list) {
 		u64 bytes;
 
-		regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(entry->index),
-			    &pkts);
+
+		if (regmap_read(priv->regmap, PPE_IN_FLOW_CNT_TBL(entry->index), &pkts)) {
+			priv->flow_counter_read_failed++;
+			continue;
+		}
 		delta = pkts - (u32)entry->packets;
 
 		/* The age read costs the entry's words and only a flow that
 		 * moved has anything to attribute, so it is taken on the
 		 * delta rather than every period.
 		 */
-		if (delta && ppe_flow_entry_age(priv, entry) >= 0) {
-			u32 acct = ppe_flow_counter_delta(priv, entry, &bytes);
+		if (delta) {
+			u32 acct;
 
+			if (ppe_flow_entry_age(priv, entry) < 0 ||
+			    ppe_flow_counter_delta(priv, entry, &acct, &bytes))
+				continue;
 			ppe_flow_account(priv, entry, acct, bytes);
 		}
+
+		/* CPU egress has three bands, without a fourth sparse list. */
+		if (entry->oport == QCA_PPE_CPU_PORT)
+			continue;
 
 		if (delta > PPE_SPARSE_PKTS || !ppe_sparse_flows) {
 			entry->quiet = 0;
@@ -3150,6 +3492,7 @@ static void ppe_sparse_work(struct work_struct *work)
 			priv->flow_sparse_promoted++;
 		}
 	}
+	mutex_unlock(&priv->vlan_lock);
 	mutex_unlock(&priv->flow_lock);
 
 	schedule_delayed_work(&priv->sparse_work,
@@ -3171,7 +3514,9 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 				      sizeof(*priv->host_ref), GFP_KERNEL);
 	priv->my_mac = devm_kcalloc(dev, PPE_MY_MAC_ENTRIES,
 				    sizeof(*priv->my_mac), GFP_KERNEL);
-	if (!priv->eg_l3_if || !priv->pub_ip || !priv->nexthop ||
+	priv->host_retired = devm_bitmap_zalloc(dev, priv->data->num_host_entries,
+					      GFP_KERNEL);
+	if (!priv->host_retired || !priv->eg_l3_if || !priv->pub_ip || !priv->nexthop ||
 	    !priv->host_ref || !priv->my_mac)
 		return -ENOMEM;
 
@@ -3182,6 +3527,7 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 	}
 
 	INIT_LIST_HEAD(&priv->flow_list);
+	INIT_LIST_HEAD(&priv->flow_retire_list);
 
 	/* CPU-return still needs PPE route/NAT and Ethernet editing. Clearing
 	 * metadata-preserve bits publishes the service marker to EDMA. */
@@ -3216,6 +3562,17 @@ void ppe_flow_offload_exit(struct qca_ppe_priv *priv)
 
 	mutex_lock(&priv->flow_lock);
 	mutex_lock(&priv->vlan_lock);
+	/* No netdev references may survive removal. Shut hooks and packet
+	 * bindings before destroying the software owners. The platform driver's
+	 * normal remove path stops EDMA and clocks; leave PPE reset deasserted so a
+	 * warm reboot can enable the same clock branches on the next probe. */
+	list_for_each_entry(entry, &priv->flow_list, list) {
+		ppe_wifi_ingress_unbind(entry);
+		ppe_flow_wifi_unbind(entry);
+	}
+	for (int i = 0; i < QCA_PPE_WIFI_INGRESS_SLOTS; i++)
+		if (ppe_wifi_ingress[i].dev && ppe_wifi_ingress[i].priv == priv)
+			ppe_wifi_ingress_release(&ppe_wifi_ingress[i]);
 	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list) {
 		rhashtable_remove_fast(&priv->flow_table, &entry->node,
 				       ppe_flow_ht_params);
@@ -3223,10 +3580,10 @@ void ppe_flow_offload_exit(struct qca_ppe_priv *priv)
 		ppe_flow_entry_destroy(priv, entry);
 		kfree(entry);
 	}
-	for (int i = 0; i < QCA_PPE_WIFI_INGRESS_SLOTS; i++)
-		if (ppe_wifi_ingress[i].dev && ppe_wifi_ingress[i].priv == priv)
-			ppe_wifi_ingress_release(&ppe_wifi_ingress[i]);
-
+	list_for_each_entry_safe(entry, tmp, &priv->flow_retire_list, list) {
+		list_del(&entry->list);
+		kfree(entry);
+	}
 	mutex_unlock(&priv->vlan_lock);
 	mutex_unlock(&priv->flow_lock);
 

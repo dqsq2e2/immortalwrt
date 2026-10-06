@@ -281,9 +281,9 @@ struct edma_stats {
 	u64 tx_desc_error;
 	u64 tx_unnamed_frame;
 	u64 misc_error;
-	u64 rx_ppe_endpoint;
-	u64 rx_ppe_exception;
 	u64 rx_ppe_csum_drop;
+	u64 tx_pending_reopen;
+	u64 rx_pending_reopen;
 };
 
 struct edma_soc_data {
@@ -303,6 +303,8 @@ struct edma_ring {
 	void *desc;
 	dma_addr_t dma;
 	u16 count;
+	/* TX producer is owned by the CPU, serialized by tx_lock. */
+	u16 prod_idx;
 	struct sk_buff **skb_store;
 	struct page **page_store;
 };

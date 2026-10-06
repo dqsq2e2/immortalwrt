@@ -522,8 +522,8 @@ static void ppe_qm_init(struct qca_ppe_priv *priv)
 
 			/* From PPE_QOS_SPARSE_PRI up: the fourth list, past
 			 * the three bands on a user port. The CPU port has
-			 * none - no flow entry egresses there - so a rule
-			 * that marks that high keeps the third band and its
+			 * none; Wi-Fi downlink uses its existing three bands.
+			 * A rule that marks that high keeps the third band and its
 			 * shaper.
 			 */
 			if (i && pri >= PPE_QOS_SPARSE_PRI)
