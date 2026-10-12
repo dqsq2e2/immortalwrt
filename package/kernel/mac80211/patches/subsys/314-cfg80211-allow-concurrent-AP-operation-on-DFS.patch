@@ -1,0 +1,96 @@
+From: Akshay Kakatkar <me@kakatkarakshay.dev>
+Date: Thu, 8 Oct 2026 21:19:52 +0800
+Subject: [PATCH] cfg80211: allow concurrent AP operation on DFS channels
+
+Never turn a radar/NOP channel from UNAVAILABLE back to AVAILABLE.
+An existing AP must have completed CAC; retain the permissive STA check.
+
+Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/net/wireless/chan.c
++++ b/net/wireless/chan.c
+@@ -990,6 +990,60 @@ static bool cfg80211_dfs_permissive_chan
+ 	return false;
+ }
+ 
++static bool cfg80211_dfs_concurrent_present(struct wiphy *wiphy,
++					    struct ieee80211_channel *chan)
++{
++	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
++	struct wireless_dev *wdev;
++	unsigned int link_id;
++
++	lockdep_assert_held(&rdev->wiphy.mtx);
++
++	if (!(chan->flags & IEEE80211_CHAN_RADAR) ||
++	    chan->dfs_state == NL80211_DFS_UNAVAILABLE)
++		return false;
++
++	list_for_each_entry(wdev, &rdev->wiphy.wdev_list, list) {
++		if (cfg80211_dfs_permissive_check_wdev(rdev, NL80211_IFTYPE_AP,
++						       wdev, chan))
++			return true;
++
++		if (chan->dfs_state != NL80211_DFS_AVAILABLE ||
++		    (wdev->iftype != NL80211_IFTYPE_AP &&
++		     wdev->iftype != NL80211_IFTYPE_P2P_GO))
++			continue;
++
++		for_each_valid_link(wdev, link_id) {
++			if (!wdev->links[link_id].ap.beacon_interval)
++				continue;
++
++			if (cfg80211_is_sub_chan(
++				    &wdev->links[link_id].ap.chandef, chan, false))
++				return true;
++		}
++	}
++
++	return false;
++}
++
++void cfg80211_set_dfs_concurrent(struct wiphy *wiphy,
++				 const struct cfg80211_chan_def *chandef)
++{
++	struct ieee80211_channel *c;
++
++	for_each_subchan(chandef, freq, cf) {
++		c = ieee80211_get_channel_khz(wiphy, freq);
++		if (!c)
++			return;
++
++		if ((c->flags & IEEE80211_CHAN_RADAR) &&
++		    !cfg80211_dfs_concurrent_present(wiphy, c))
++			return;
++	}
++
++	cfg80211_set_dfs_state(wiphy, chandef, NL80211_DFS_AVAILABLE);
++}
++
+ static int cfg80211_get_chans_dfs_required(struct wiphy *wiphy,
+ 					   const struct cfg80211_chan_def *chandef,
+ 					   enum nl80211_iftype iftype)
+--- a/net/wireless/core.h
++++ b/net/wireless/core.h
+@@ -484,6 +484,8 @@ extern struct work_struct cfg80211_disco
+ void cfg80211_set_dfs_state(struct wiphy *wiphy,
+ 			    const struct cfg80211_chan_def *chandef,
+ 			    enum nl80211_dfs_state dfs_state);
++void cfg80211_set_dfs_concurrent(struct wiphy *wiphy,
++				 const struct cfg80211_chan_def *chandef);
+ 
+ void cfg80211_set_cac_state(struct wiphy *wiphy,
+ 			    const struct cfg80211_chan_def *chandef,
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -7356,6 +7356,8 @@ static int nl80211_start_ap(struct sk_bu
+ 	if (err)
+ 		goto out;
+ 
++	cfg80211_set_dfs_concurrent(&rdev->wiphy, &params->chandef);
++
+ 	beacon_check.iftype = wdev->iftype;
+ 	beacon_check.relax = true;
+ 	beacon_check.reg_power =
