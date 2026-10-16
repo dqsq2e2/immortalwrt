@@ -1812,9 +1812,10 @@ static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 			__set_bit(PHY_INTERFACE_MODE_2500BASEX,
 				  config->lpi_interfaces);
 
-		/* phylink uses these capabilities to advertise PHY EEE. The
-		 * XPCS in USXGMII/10GBASE-R has no EEE ability, so advertise
-		 * only when the configured interface supports MAC LPI.
+		/* phylink sets the PHY EEE advertisement from lpi_capabilities
+		 * alone, and the XPCS behind USXGMII and 10GBASE-R reports no
+		 * EEE ability, so EEE is offered only on a port whose phy-mode
+		 * has MAC LPI.
 		 */
 		if (of_get_phy_mode(dp->dn, &mode) ||
 		    !test_bit(mode, config->lpi_interfaces))

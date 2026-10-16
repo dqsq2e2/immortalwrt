@@ -1,9 +1,11 @@
 # fullconenat-sonic
 
 firewall3/iptables and fw4/nftables integration based on [openwrt-sonic-fullcone](https://github.com/mufeng05/openwrt-sonic-fullcone),
-revision `4de0643f6b48e7e7d57d768144204ce5d3078c8f` (2026-09-17), with local
+revision `43cb2060fc34ccd2714e8ee4db6890da0de537f8` (2026-10-13), with local
 mapping reservation and policy isolation fixes. The fw3/iptables target and
 the fw4/nftables expression are compiled into the existing NAT modules.
+The userspace patches support the libnftnl 1.3.2 setter interface and
+nftables 1.1.7 scanner states, retaining the local JSON and optimizer handling.
 
 ## Build and UI
 

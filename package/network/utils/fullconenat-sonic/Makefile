@@ -3,11 +3,11 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fullconenat-sonic
-PKG_VERSION:=20260917
-PKG_RELEASE:=6
+PKG_VERSION:=20261016
+PKG_RELEASE:=1
 
 PKG_URL:=https://github.com/mufeng05/openwrt-sonic-fullcone
-SONIC_SOURCE_VERSION:=4de0643f6b48e7e7d57d768144204ce5d3078c8f
+SONIC_SOURCE_VERSION:=43cb2060fc34ccd2714e8ee4db6890da0de537f8
 SONIC_LEGACY_PACKAGES:=kmod-nft-fullcone kmod-ipt-fullconenat iptables-mod-fullconenat ip6tables-mod-fullconenat
 PKG_LICENSE:=GPL-2.0-only
 
@@ -30,11 +30,10 @@ endef
 
 define Package/fullconenat-sonic/description
  SONiC full cone NAT integrated into nf_nat, nft_masq and xt_MASQUERADE,
- with global, per-zone and per-protocol firewall3/firewall4 settings.
+ with global and per-zone firewall3/firewall4 settings for all supported protocols.
  Requires a kernel built with the SONiC kernel patches.
 endef
 
-# These patches target the LuCI feed and are applied before package scanning.
 define Build/Compile
 endef
 
