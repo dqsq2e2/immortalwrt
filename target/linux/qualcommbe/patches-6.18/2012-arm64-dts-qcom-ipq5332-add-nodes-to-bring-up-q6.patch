@@ -63,7 +63,7 @@ Signed-off-by: Varadarajan Narayanan <varadarajan.narayanan@oss.qualcomm.com>
  	};
  
  	soc@0 {
-@@ -896,6 +925,39 @@
+@@ -908,6 +937,39 @@
  			};
  		};
  

@@ -1,0 +1,57 @@
+From: JiaY-shi <shi05275@163.com>
+Subject: [PATCH] wifi: ath12k: automatically enable supported native Direct Switch
+
+Remove the experimental ppe_ds runtime switch. When the native transport
+is built and its supported IPQ5332 provider is available, register the
+QCN9274 shared rings and enable authorized AP peers automatically.
+
+Check transport availability before allocating WLAN rings or selecting
+bidirectional partner DMA mappings. Platforms without a supported provider
+keep ordinary forwarding. Peer authorization, fault isolation and DMA
+quiescence checks are unchanged.
+
+Signed-off-by: JiaY-shi <shi05275@163.com>
+
+Adapted from JiaY-shi/flint3e-support 89783319734e683acde27509c401d163f6319e7a.
+Retain the local VP lifecycle and AHB RX completion/refill protections.
+---
+--- a/drivers/net/wireless/ath/ath12k/Kconfig
++++ b/drivers/net/wireless/ath/ath12k/Kconfig
+@@ -74,4 +74,4 @@
+ 	help
+ 	  Build the native PPE shared-ring client on Qualcomm platforms.
+ 	  Requires the matching qcom-ppe Direct Switch API in the kernel.
+-	  Runtime activation is controlled by the ppe_ds module parameter.
++	  Automatically activate on platforms with a supported transport.
+--- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
+@@ -40,11 +40,6 @@
+ 	"none", "unsupported-mlo", "control-submit",
+ };
+ 
+-/* Registration rejects unsupported PPE/DMA topologies before activation. */
+-static bool ppe_ds;
+-module_param(ppe_ds, bool, 0444);
+-MODULE_PARM_DESC(ppe_ds, "Enable native PPE Direct Switch (experimental)");
+-
+ struct ath12k_ds_buffer {
+ 	struct list_head list;
+ 	struct ath12k_tx_desc_info *desc;
+@@ -815,7 +810,7 @@
+ 	enum ath12k_ds_fallback fallback;
+ 	int port, i, error, ret = 0;
+ 
+-	if (arvif->ahvif->vif->type != NL80211_IFTYPE_AP || !ppe_ds)
++	if (arvif->ahvif->vif->type != NL80211_IFTYPE_AP)
+ 		return 0;
+ 	/* AHB and MLO peers keep the ordinary WiFi/PPE path. */
+ 	ds = ath12k_ab_to_dp(ar->ab)->ds;
+@@ -1098,7 +1093,7 @@
+ 	struct ath12k_ds *ds;
+ 	int ret, i;
+ 
+-	if (!ppe_ds)
++	if (!qcom_ppe_ds_available())
+ 		return 0;
+ 	if (dp->ab->hw_rev != ATH12K_HW_QCN9274_HW10 &&
+ 	    dp->ab->hw_rev != ATH12K_HW_QCN9274_HW20)

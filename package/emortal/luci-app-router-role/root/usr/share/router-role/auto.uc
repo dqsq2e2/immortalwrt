@@ -60,7 +60,10 @@ export function synchronize(uci, data, upstream4) {
 		}
 	}
 	let sid = sections(uci, 'network', 'globals')[0]?.['.name'] || ensure('network', 'globals', 'globals');
-	if (uci.get('network', sid, 'router_role_ap') == '1') return [];
+	// Keep later user-added ULA prefixes after the one-time cleanup.
+	if (uci.get('network', sid, 'router_role_ula_cleanup_done') != '1')
+		set('network', sid, { ula_prefix: null, router_role_ula_cleanup_done: '1' });
+	if (uci.get('network', sid, 'router_role_ap') == '1') return keys(changed);
 	let role = uci.get('network', 'wan', 'proto') == 'pppoe' ? 'main' : 'sub';
 	if (uci.get('network', sid, 'router_role_auto') != role) {
 		for (let group in [ data.common, data.roles[role] ])

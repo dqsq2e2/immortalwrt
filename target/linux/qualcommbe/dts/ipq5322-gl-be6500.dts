@@ -49,13 +49,11 @@
 		led@32 {
 			label = "blue:run";
 			gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
-			default-state = "on";
 		};
 
 		led@33 {
 			label = "white:system";
 			gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
 		};
 	};
 

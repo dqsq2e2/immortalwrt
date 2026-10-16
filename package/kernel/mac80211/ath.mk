@@ -72,7 +72,7 @@ config-$(call config_package,ath11k-pci) += ATH11K_PCI
 config-$(call config_package,ath12k) += ATH12K
 ifdef CONFIG_PACKAGE_kmod-ath12k
   config-y += ATH12K_AHB
-  config-$(CONFIG_TARGET_qualcommbe) += ATH12K_COREDUMP
+  config-$(CONFIG_TARGET_qualcommbe) += ATH12K_COREDUMP ATH12K_PPE_DS_SUPPORT
 endif
 
 config-$(call config_package,ath5k) += ATH5K ATH5K_PCI
@@ -396,7 +396,7 @@ define KernelPackage/ath12k
   DEPENDS+= @PCI_SUPPORT +kmod-ath +@DRIVER_11AC_SUPPORT +@DRIVER_11AX_SUPPORT \
   +kmod-crypto-michael-mic +kmod-qrtr-mhi \
   +TARGET_qualcommax:kmod-qrtr-smd +TARGET_qualcommbe:kmod-qrtr-smd \
-  +kmod-qcom-qmi-helpers +@DRIVER_11BE_SUPPORT \
+  +kmod-qcom-qmi-helpers +@DRIVER_11BE_SUPPORT +TARGET_qualcommbe:kmod-qcom-ppe \
   +ATH12K_THERMAL:kmod-hwmon-core +ATH12K_THERMAL:kmod-thermal
   FILES:= \
 	$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath12k/ath12k.ko \

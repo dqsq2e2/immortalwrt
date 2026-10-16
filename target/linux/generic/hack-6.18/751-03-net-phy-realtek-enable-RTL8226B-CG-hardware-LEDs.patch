@@ -1,0 +1,23 @@
+From: ViKing <viking.yfy@qq.com>
+Subject: [PATCH] net: phy: realtek: enable RTL8226B-CG hardware LEDs
+
+Reuse the RTL8221B hardware LED operations for the RTL8226B-CG and
+RTL8221B-CG PHY ID. This lets boards with native PHY LED nodes select
+link speeds and activity through the standard netdev trigger.
+Boards without LED nodes retain their existing configuration.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -4042,6 +4042,10 @@
+ 		.write_page	= rtl821x_write_page,
+ 		.read_mmd	= rtl822xb_read_mmd,
+ 		.write_mmd	= rtl822xb_write_mmd,
++		.led_brightness_set = rtl822xb_led_brightness_set,
++		.led_hw_is_supported = rtl822xb_led_hw_is_supported,
++		.led_hw_control_get = rtl822xb_led_hw_control_get,
++		.led_hw_control_set = rtl822xb_led_hw_control_set,
+ 	}, {
+ 		.match_phy_device = rtl8221b_vb_cg_match_phy_device,
+ 		.name		= "RTL8221B-VB-CG 2.5Gbps PHY",

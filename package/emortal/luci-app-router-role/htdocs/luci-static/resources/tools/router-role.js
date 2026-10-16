@@ -124,6 +124,7 @@ function avoidSubnetConflict(context) {
 	for (let i = 2; i < 255; i++) {
 		const address = `192.168.${i}.1/24`;
 		if (upstream.every(b => !overlaps(subnet(address), b))) {
+			console.info(`[router-role] LAN subnet overlaps upstream; staging ${address}`);
 			setOptions('network', 'lan', { ipaddr: address, netmask: null });
 			return;
 		}
@@ -135,6 +136,7 @@ function synchronize(sid, context) {
 	if (uci.get('network', sid, 'router_role_ap') == '1') return;
 	const role = uci.get('network', 'wan', 'proto') == 'pppoe' ? 'main' : 'sub';
 	if (uci.get('network', sid, 'router_role_auto') != role) {
+		console.info(`[router-role] Preparing ${role} router presets`);
 		for (const group of [ context.presets.common, context.presets.roles[role] ])
 			for (const config of [ 'network', 'dhcp' ])
 				for (const [ name, options ] of Object.entries(group[config] || {})) {
@@ -150,6 +152,7 @@ function synchronize(sid, context) {
 function enableAp(sid, context) {
 	const topo = topology(context);
 	validateAp(topo, context);
+	console.info(`[router-role] Preparing AP mode on ${topo.bridgeName}; Ethernet ports: ${topo.ports.join(' ')}`);
 	const state = { options: [], created: [] };
 	recorder = state;
 	try {
@@ -176,6 +179,7 @@ function enableAp(sid, context) {
 	finally { recorder = null; }
 	uci.set('network', sid, 'router_role_ap_state', JSON.stringify(state));
 	uci.set('network', sid, 'router_role_ap', '1');
+	console.info(`[router-role] AP configuration staged; saved ${state.options.length} options and ${state.created.length} new sections; awaiting Save & Apply`);
 }
 
 function disableAp(sid) {
@@ -188,6 +192,7 @@ function disableAp(sid) {
 	for (const section of state.created.slice().reverse()) uci.remove(section.config, section.sid);
 	uci.unset('network', sid, 'router_role_ap_state');
 	uci.set('network', sid, 'router_role_ap', '0');
+	console.info(`[router-role] Previous configuration restored from AP snapshot; ${state.options.length} options; awaiting Save & Apply`);
 }
 
 return baseclass.extend({
@@ -198,12 +203,21 @@ return baseclass.extend({
 		const context = { board: null, upstream4: [], presets: null };
 		const load = map.load.bind(map);
 		map.load = function() {
-			return Promise.all([ load(), L.resolveDefault(fs.read('/etc/board.json'), '{}'),
+			return Promise.all([ load(), fs.read('/etc/board.json').catch(e => {
+				console.warn('[router-role] Board port assignments could not be loaded: ' + e.message);
+				return '{}';
+			}),
 				fs.read('/usr/share/router-role/auto.json'), network.getNetworks() ]).then(data => {
-				try { context.board = JSON.parse(data[1]); } catch (e) { context.board = null; }
+				try { context.board = JSON.parse(data[1]); } catch (e) {
+					console.warn('[router-role] Board port assignments are invalid: ' + e.message);
+					context.board = null;
+				}
 				context.presets = JSON.parse(data[2]);
 				const upstream = uci.get('network', 'lan', 'proto') == 'dhcp' ? 'lan' : 'wan';
 				context.upstream4 = data[3].find(n => n.getName() == upstream)?.getIPAddrs() || [];
+			}).catch(e => {
+				console.error('[router-role] Failed to load role settings: ' + e.message);
+				throw e;
 			});
 		};
 		const save = map.save.bind(map);
@@ -223,7 +237,10 @@ return baseclass.extend({
 				// lease. The backend checks the real WAN after applying changes.
 				if (sid && !selected && !enabled) synchronize(sid, context);
 				return cb ? cb() : undefined;
-			}, silent);
+			}, silent).catch(e => {
+				console.error('[router-role] Failed to save role settings: ' + e.message);
+				throw e;
+			});
 		};
 	},
 

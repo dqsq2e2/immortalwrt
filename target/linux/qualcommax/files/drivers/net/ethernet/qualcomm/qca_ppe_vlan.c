@@ -171,23 +171,24 @@ static void ppe_vlan_free(struct qca_ppe_priv *priv,
 	entry->br_dev = NULL;
 }
 
-/* The ports a VLAN's rules and VSI name. A bridge that does not filter
- * classifies by its own VSI, so a VLAN it does not enforce names none of its
- * ports and none of the CPU port's injected frames; the entry stays, because
- * the bridge VLANs are not offered again when filtering comes back on.
+/* The ports a VLAN's rules name. Keep the CPU out of the ingress match:
+ * host frames already name their destination port and may carry the same
+ * VID as a different bridge. Retain inactive VLAN entries across filtering
+ * toggles because the bridge does not replay them when filtering resumes.
  */
 static u32 ppe_vlan_ports(struct qca_ppe_priv *priv,
 			  struct qca_ppe_vlan_entry *entry)
 {
-	u32 ports = entry->ports & priv->vlan_filtering;
-
-	return ports ? ports | BIT(QCA_PPE_CPU_PORT) : 0;
+	return entry->ports & priv->vlan_filtering;
 }
 
 static void ppe_vlan_members_update(struct qca_ppe_priv *priv,
 				    struct qca_ppe_vlan_entry *entry)
 {
-	ppe_vsi_member_set(priv, entry->vsi, ppe_vlan_ports(priv, entry));
+	u32 ports = ppe_vlan_ports(priv, entry);
+
+	ppe_vsi_member_set(priv, entry->vsi,
+			   ports ? ports | BIT(QCA_PPE_CPU_PORT) : 0);
 }
 
 static void ppe_vlan_pvid_update(struct qca_ppe_priv *priv,

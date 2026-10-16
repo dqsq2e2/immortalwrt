@@ -106,7 +106,7 @@ Signed-off-by: Raj Kumar Bhagat <quic_rajkbhag@quicinc.com>
 +};
 --- a/arch/arm64/boot/dts/qcom/ipq5332.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq5332.dtsi
-@@ -985,6 +985,119 @@
+@@ -997,6 +997,119 @@
  			};
  		};
  

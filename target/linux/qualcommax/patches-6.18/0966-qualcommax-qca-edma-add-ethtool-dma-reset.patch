@@ -1,0 +1,48 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 14 Oct 2026 01:04:30 +0800
+Subject: [PATCH] qualcommax: qca_edma: add ethtool DMA reset
+
+Expose the EDMA block reset through ethtool's ETH_RESET_DMA operation.
+The existing ring rebuild asserts the EDMA reset line, drains all
+descriptors, recreates the page pool, and restores the previous ring
+sizes, so recovery does not need a reboot or a new packet-path API.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/ethernet/qualcomm/qca_edma.c
++++ b/drivers/net/ethernet/qualcomm/qca_edma.c
+@@ -1506,6 +1506,26 @@
+ 				ring->rx_pending);
+ }
+ 
++/*
++ * The rebuild asserts the EDMA block reset line, so expose it through
++ * ethtool without changing ring sizes or the packet path.
++ */
++static int edma_reset(struct net_device *netdev, u32 *flags)
++{
++	struct edma_priv *priv = netdev_priv(netdev);
++	int ret;
++
++	if (!(*flags & ETH_RESET_DMA))
++		return -EINVAL;
++
++	ret = edma_reconfigure(priv, priv->rx_page_order, priv->tx_ring_size,
++			       priv->rx_ring_size);
++	if (!ret)
++		*flags &= ~ETH_RESET_DMA;
++
++	return ret;
++}
++
+ /* A ring interrupts once it holds more frames than its threshold, and its
+  * timer interrupts for fewer once they have waited that long. A threshold of
+  * zero interrupts on every frame, which leaves the timer nothing to do.
+@@ -1718,6 +1738,7 @@
+ 	.get_regs_len = edma_get_regs_len,
+ 	.get_regs = edma_get_regs,
+ 	.get_channels = edma_get_channels,
++	.reset = edma_reset,
+ };
+ 
+ static void edma_rx_vlan_strip(struct edma_priv *priv,

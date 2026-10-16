@@ -106,6 +106,25 @@
 
 				lan2_phy: ethernet-phy@7 {
 					reg = <7>;
+
+					leds {
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						led@0 {
+							reg = <0>;
+							color = <LED_COLOR_ID_WHITE>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+
+						led@1 {
+							reg = <1>;
+							color = <LED_COLOR_ID_AMBER>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+					};
 				};
 			};
 
@@ -116,6 +135,25 @@
 
 				lan3_phy: ethernet-phy@3 {
 					reg = <3>;
+
+					leds {
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						led@0 {
+							reg = <0>;
+							color = <LED_COLOR_ID_WHITE>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+
+						led@1 {
+							reg = <1>;
+							color = <LED_COLOR_ID_AMBER>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+					};
 				};
 			};
 
@@ -127,6 +165,25 @@
 				lan1_phy: ethernet-phy@0 {
 					compatible = "ethernet-phy-ieee802.3-c45";
 					reg = <0>;
+
+					leds {
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						led@0 {
+							reg = <0>;
+							color = <LED_COLOR_ID_WHITE>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+
+						led@1 {
+							reg = <1>;
+							color = <LED_COLOR_ID_AMBER>;
+							function = LED_FUNCTION_LAN;
+							linux,default-trigger = "netdev";
+						};
+					};
 				};
 			};
 		};
@@ -233,6 +290,25 @@
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0x08>;
 		// reset-gpios = <&tlmm 63 GPIO_ACTIVE_LOW>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led@0 {
+				reg = <0>;
+				color = <LED_COLOR_ID_WHITE>;
+				function = LED_FUNCTION_WAN;
+				linux,default-trigger = "netdev";
+			};
+
+			led@1 {
+				reg = <1>;
+				color = <LED_COLOR_ID_AMBER>;
+				function = LED_FUNCTION_WAN;
+				linux,default-trigger = "netdev";
+			};
+		};
 	};
 
 	mxl3711: ethernet-phy@f {

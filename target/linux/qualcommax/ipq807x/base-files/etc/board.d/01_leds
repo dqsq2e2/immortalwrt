@@ -41,6 +41,16 @@ tplink,tl-er2260t)
 	ucidef_set_led_netdev "sfp1-activity" "SFP1 (Activity)" "green:sfp1-act" "10ge1" "tx rx"
 	ucidef_set_led_netdev "sfp2-activity" "SFP2 (Activity)" "green:sfp2-act" "10ge2" "tx rx"
 	;;
+verizon,cr1000a)
+	ucidef_set_led_netdev "cr1000a_wan_white" "wan (1G and faster)" "90000.mdio-1:08:white:wan" "wan" "link_1000 link_2500 link_5000 link_10000 tx rx"
+	ucidef_set_led_netdev "cr1000a_wan_amber" "wan (10/100M)" "90000.mdio-1:08:amber:wan" "wan" "link_100 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan1_white" "lan1 (1G and faster)" "78b9000.spi:switch@0:mdio-controller-2:00:white:lan" "lan1" "link_1000 link_2500 link_5000 link_10000 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan1_amber" "lan1 (10/100M)" "78b9000.spi:switch@0:mdio-controller-2:00:amber:lan" "lan1" "link_100 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan2_white" "lan2 (1G and faster)" "78b9000.spi:switch@0:mdio-controller-0:07:white:lan" "lan2" "link_1000 link_2500 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan2_amber" "lan2 (10/100M)" "78b9000.spi:switch@0:mdio-controller-0:07:amber:lan" "lan2" "link_10 link_100 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan3_white" "lan3 (1G and faster)" "78b9000.spi:switch@0:mdio-controller-1:03:white:lan" "lan3" "link_1000 link_2500 tx rx"
+	ucidef_set_led_netdev "cr1000a_lan3_amber" "lan3 (10/100M)" "78b9000.spi:switch@0:mdio-controller-1:03:amber:lan" "lan3" "link_10 link_100 tx rx"
+	;;
 edgecore,eap102)
 	ucidef_set_led_netdev "wan" "WAN" "green:wanpoe" "wan"
 	;;

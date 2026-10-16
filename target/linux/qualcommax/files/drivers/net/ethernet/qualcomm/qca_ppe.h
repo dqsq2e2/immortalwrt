@@ -738,6 +738,9 @@
  * raised at all for a packet that hit a routed flow entry.
  */
 #define PPE_EXCEP_TCP_FLAGS(n)		(46 + (n))
+#define PPE_EXCEP_IPV4_OPTION		6
+#define PPE_EXCEP_IPV6_EXT_HDR		25
+#define PPE_EXCEP_IPV6_MORE_EXT_HDR	32
 /* The TCP flags trapped from offloaded flows, one pattern each. */
 #define PPE_FLOW_TCP_TRAP		(TCPHDR_FIN | TCPHDR_RST)
 #define PPE_L3_EXCEP_CMD(e)		(PPE_L3_BASE + 0x544 + (e) * 0x4)
@@ -1404,6 +1407,26 @@ struct ppe_flow_failure {
 	u32 result;
 	bool result_valid;
 	bool pending;
+	u32 expected_index;
+	bool index_mode;
+	bool result_rejected;
+	u8 op_type;
+	u8 entry_words;
+	u8 host_words;
+	bool request_issued;
+	u32 entry[PPE_FLOW_ENTRY_WORDS_V6];
+	u32 host[PPE_HOST_ENTRY_WORDS_V6];
+};
+
+/* A consumed completion for a different slot cannot retire our leases. */
+struct ppe_flow_completion_mismatch {
+	u64 sequence;
+	u64 boottime_ns;
+	u32 command_id;
+	u32 result_reg;
+	u32 result;
+	u32 expected_index;
+	u32 returned_index;
 };
 
 /* One slot of a reference-counted hardware side table. */
@@ -1549,6 +1572,15 @@ struct qca_ppe_priv {
 	 * reused. The result queue is consumed once, even if host readback fails. */
 	bool flow_op_busy, flow_op_result_valid;
 	u32 flow_op_cmd_id, flow_op_result, flow_op_rslt_reg;
+	bool flow_op_index_mode, flow_op_result_rejected;
+	u32 flow_op_expected_index;
+	u8 flow_op_type, flow_op_nentry, flow_op_nhost;
+	bool flow_op_request_issued;
+	u32 flow_op_entry[PPE_FLOW_ENTRY_WORDS_V6];
+	u32 flow_op_host[PPE_HOST_ENTRY_WORDS_V6];
+	u64 flow_completion_sequence;
+	struct ppe_flow_completion_mismatch
+		flow_completion_mismatches[PPE_FLOW_FAILURE_HISTORY];
 	unsigned long *host_retired;
 	u32 host_retire_pending, host_retire_index;
 	bool flow_stopping;

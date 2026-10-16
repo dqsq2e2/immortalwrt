@@ -305,6 +305,7 @@ struct edma_stats {
 	u64 tx_unnamed_frame;
 	u64 misc_error;
 	u64 rx_ppe_csum_drop;
+	u64 rx_ppe_csum_fallback;
 	u64 tx_pending_reopen;
 	u64 rx_pending_reopen;
 };

@@ -158,7 +158,6 @@
 				fixed-link {
 					speed = <2500>;
 					full-duplex;
-					pause;
 				};
 			};
 
@@ -212,7 +211,6 @@
 			fixed-link {
 				speed = <2500>;
 				full-duplex;
-				pause;
 			};
 		};
 	};

@@ -17,7 +17,9 @@
  */
 
 #include <linux/bitfield.h>
+#include <linux/dsa/8021q.h>
 #include <linux/debugfs.h>
+#include <linux/if_bridge.h>
 #include <linux/if_pppox.h>
 #include <linux/if_vlan.h>
 #include <linux/module.h>
@@ -137,6 +139,8 @@ struct ppe_flow_entry {
 	int pub_ip;
 	int uplink;
 	int in_uplink;
+	int icasc;
+	int ocasc;
 	int session;
 	u8 iport;
 	u8 oport;
@@ -1331,6 +1335,77 @@ static int ppe_flow_mangle_ipv4(const struct flow_action_entry *act,
 	return 0;
 }
 
+/* The 802.1Q upper of @dev with this VID, not one of its bridge. */
+static struct net_device *ppe_flow_vlan_upper(struct net_device *dev, u16 vid)
+{
+	struct net_device *upper;
+
+	upper = __vlan_find_dev_deep_rcu(dev, htons(ETH_P_8021Q), vid);
+
+	return upper && vlan_dev_real_dev(upper) == dev ? upper : NULL;
+}
+
+/* A port behind a QCA8K switch reaches the PPE as one 802.1Q VLAN. In a
+ * VLAN-aware bridge the frame's VLAN names the domain; an untagged frame uses
+ * the port PVID. A VLAN-unaware bridge and a standalone port use their DSA
+ * tag_8021q VID. */
+static u16 ppe_flow_8021q_vid(struct dsa_port *dp, u16 flow_vid)
+{
+	struct net_device *br;
+	struct bridge_vlan_info vinfo;
+	u16 pvid;
+
+	guard(rcu)();
+	br = dsa_port_bridge_dev_get(dp);
+	if (!br || !br_vlan_enabled(br)) {
+		if (flow_vid)
+			return ppe_flow_vlan_upper(dp->user, flow_vid) ?
+			       flow_vid : 0;
+		if (!br)
+			return dsa_tag_8021q_standalone_vid(dp);
+		return dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
+	}
+	if (flow_vid)
+		return flow_vid;
+
+	if (br_vlan_get_pvid_rcu(dp->user, &pvid) || !pvid ||
+	    br_vlan_get_info_rcu(dp->user, pvid, &vinfo) ||
+	    !(vinfo.flags & BRIDGE_VLAN_INFO_UNTAGGED))
+		return 0;
+
+	return pvid;
+}
+
+/* Resolve a QCA8K user port to the PPE conduit and the VLAN tag that the
+ * qca-8021q tagger carries across it. */
+static int ppe_flow_qca_port_by_ifindex(struct qca_ppe_priv *priv,
+						int ifindex, u16 flow_vid, u16 *vid)
+{
+	struct dsa_port *dp, *cpu_dp, *cdp;
+
+	*vid = 0;
+	dsa_switch_for_each_user_port(dp, &priv->ds) {
+		if (!dp->user || !netdev_uses_dsa(dp->user))
+			continue;
+
+		cpu_dp = dp->user->dsa_ptr;
+		if (!cpu_dp || !cpu_dp->tag_ops ||
+		    cpu_dp->tag_ops->proto != DSA_TAG_PROTO_QCA_8021Q)
+			continue;
+
+		dsa_tree_for_each_user_port(cdp, cpu_dp->dst) {
+			if (cdp->cpu_dp != cpu_dp || !cdp->user ||
+			    cdp->user->ifindex != ifindex)
+				continue;
+
+			*vid = ppe_flow_8021q_vid(cdp, flow_vid);
+			return *vid ? dp->index : -EOPNOTSUPP;
+		}
+	}
+
+	return -EOPNOTSUPP;
+}
+
 /* The RTL9303 DSA user netdev is not a user port of this PPE's DSA switch.
  * Its conduit is the PPE port 5 (lan-cpu), and the tagger identifies the
  * external socket in a private 802.1ad service VID. Return both pieces so a
@@ -2092,6 +2167,14 @@ static int ppe_flow_netdev_event(struct notifier_block *nb, unsigned long event,
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
 
+	/* A stacked switch port invalidates the flow when its MTU, address or
+	 * bridge membership changes. The next software packet rebuilds it with
+	 * the new qca-8021q VID and egress size. */
+	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list)
+		if (entry->icasc == dev->ifindex ||
+		    entry->ocasc == dev->ifindex)
+			ppe_flow_drop(priv, entry);
+
 	/* WLAN is an egress endpoint rather than a DSA port.  Remove its
 	 * bindings before the netdev is released; software flowtable processing
 	 * will continue when no PPE entry can be rebuilt. */
@@ -2239,7 +2322,9 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	u32 eg_mtu;
 	u64 mac;
 	bool wifi = data->odev && data->odev->ieee80211_ptr;
+	bool casc = false;
 	int port, ret;
+	u16 qca_vid;
 
 	if (wifi) {
 		if (!net_eq(dev_net(data->odev), &init_net) ||
@@ -2274,10 +2359,20 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 		ether_addr_copy(entry->wifi_key.smac, data->eth.h_source);
 		dev_hold(entry->wifi_dev);
 	} else {
-		port = ppe_flow_port_by_ifindex(priv, data->odev->ifindex,
-						&data->egress_svid, NULL, true);
-		if (port < 0)
-			return port;
+		qca_vid = data->vlan_valid ? data->vlan_id : 0;
+		port = ppe_flow_qca_port_by_ifindex(priv, data->odev->ifindex,
+						   qca_vid, &qca_vid);
+		if (port >= 0) {
+			data->vlan_id = qca_vid;
+			data->vlan_valid = true;
+			entry->ocasc = data->odev->ifindex;
+			casc = true;
+		} else {
+			port = ppe_flow_port_by_ifindex(priv, data->odev->ifindex,
+							&data->egress_svid, NULL, true);
+			if (port < 0)
+				return port;
+		}
 		data->egress_svid_valid = !!data->egress_svid;
 
 		/* A frame sent back out the port it arrived on is discarded by source
@@ -2310,6 +2405,9 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	 * separate entries when they do not share a size.
 	 */
 	if (wifi) {
+		eg_mtu = data->odev->mtu + ETH_HLEN +
+			 data->vlan_valid * VLAN_HLEN;
+	} else if (casc) {
 		eg_mtu = data->odev->mtu + ETH_HLEN +
 			 data->vlan_valid * VLAN_HLEN;
 	} else {
@@ -2401,7 +2499,8 @@ static int ppe_flow_alloc_egress(struct qca_ppe_priv *priv,
 	    (data->vlan_valid && !priv->port_br_dev[port]))) {
 		ret = ppe_uplink_get(priv, port,
 				     data->vlan_valid ? data->vlan_id : 0,
-				     odp->user->dev_addr, odp->user->mtu);
+				     casc ? data->eth.h_source : odp->user->dev_addr,
+				     casc ? data->odev->mtu : odp->user->mtu);
 		if (ret < 0)
 			goto err_nexthop;
 		entry->uplink = ret;
@@ -2543,9 +2642,32 @@ static void ppe_flow_dev_add(struct net_device *dev, bool rx, u32 pkts,
 }
 
 static void ppe_flow_account_side(struct qca_ppe_priv *priv, int port,
-				  u16 vid, bool rx, u32 pkts, u64 bytes)
+				  u16 vid, int casc, bool rx, u32 pkts,
+				  u64 bytes)
 {
 	struct net_device *dev = priv->port_br_dev[port];
+
+	/* A stacked switch port counts its own frames; account the flow on its
+	 * VLAN upper or bridge instead of on the PPE conduit. */
+	if (casc) {
+		struct net_device *upper;
+
+		dev = dsa_to_port(&priv->ds, port)->user;
+		if (!dev)
+			return;
+		dev = dev_get_by_index_rcu(dev_net(dev), casc);
+		if (!dev)
+			return;
+		upper = ppe_flow_vlan_upper(dev, vid);
+		if (upper) {
+			ppe_flow_dev_add(upper, rx, pkts, bytes);
+			return;
+		}
+		dev = netdev_master_upper_dev_get_rcu(dev);
+		if (dev && netif_is_bridge_master(dev))
+			ppe_flow_dev_add(dev, rx, pkts, bytes);
+		return;
+	}
 
 	if (dev)
 		ppe_flow_dev_add(dev, rx, pkts, bytes);
@@ -2584,11 +2706,12 @@ static void ppe_flow_account(struct qca_ppe_priv *priv,
 
 	rcu_read_lock();
 	if (!entry->wifi_ingress)
-		ppe_flow_account_side(priv, entry->iport, entry->ivid, true, pkts, bytes);
+		ppe_flow_account_side(priv, entry->iport, entry->ivid, entry->icasc,
+				      true, pkts, bytes);
 	/* WLAN TX counts its own dev_queue_xmit traffic. */
 	if (!entry->wifi_egress)
-		ppe_flow_account_side(priv, entry->oport, entry->ovid, false, pkts,
-				      bytes);
+		ppe_flow_account_side(priv, entry->oport, entry->ovid, entry->ocasc,
+				      false, pkts, bytes);
 	rcu_read_unlock();
 }
 
@@ -2820,6 +2943,15 @@ static void ppe_flow_reject_hw(struct qca_ppe_priv *priv,
 	event->result_valid = priv->flow_op_result_valid;
 	event->result = event->result_valid ? priv->flow_op_result : 0;
 	event->pending = priv->flow_op_busy;
+	event->expected_index = priv->flow_op_expected_index;
+	event->index_mode = priv->flow_op_index_mode;
+	event->result_rejected = priv->flow_op_result_rejected;
+		event->op_type = priv->flow_op_type;
+		event->request_issued = priv->flow_op_request_issued;
+		event->entry_words = priv->flow_op_nentry;
+		event->host_words = priv->flow_op_nhost;
+		memcpy(event->entry, priv->flow_op_entry, sizeof(event->entry));
+		memcpy(event->host, priv->flow_op_host, sizeof(event->host));
 }
 
 static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
@@ -2834,6 +2966,8 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	struct flow_action_entry *act;
 	bool snat, dnat, v6, wifi_ingress = false;
 	int i, ret, nfw, nhw, iport, ingress_ifindex;
+	int qca_icasc = 0;
+	u16 flow_vid = 0;
 
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
@@ -2870,11 +3004,27 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 
 	{
 		struct flow_match_meta match;
+		struct flow_match_vlan vlan_match;
 
 		flow_rule_match_meta(rule, &match);
 		ingress_ifindex = match.key->ingress_ifindex;
-		iport = ppe_flow_port_by_ifindex(priv, ingress_ifindex,
-					 &data.ingress_svid, data.ingress_mac, false);
+		if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+			flow_rule_match_vlan(rule, &vlan_match);
+			if (vlan_match.key->vlan_tpid != htons(ETH_P_8021Q))
+				return ppe_flow_reject(priv, rule,
+						PPE_REJECT_INGRESS_VLAN);
+			flow_vid = vlan_match.key->vlan_id;
+		}
+
+		iport = ppe_flow_qca_port_by_ifindex(priv, ingress_ifindex,
+						 flow_vid, &data.ivid);
+		if (iport >= 0) {
+			qca_icasc = data.ivid ? ingress_ifindex : 0;
+		} else {
+			iport = ppe_flow_port_by_ifindex(priv, ingress_ifindex,
+						 &data.ingress_svid, data.ingress_mac,
+						 false);
+		}
 		if (iport < 0) {
 			struct net_device *idev = dev_get_by_index(&init_net, ingress_ifindex);
 
@@ -3100,6 +3250,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	entry->dsa_service = -1;
 	entry->dsa_egress_port = -1;
 	entry->iport = iport;
+	entry->icasc = qca_icasc;
 	INIT_HLIST_NODE(&entry->wifi_node);
 	entry->wifi_ingress = data.wifi_ingress;
 

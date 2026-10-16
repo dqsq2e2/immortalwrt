@@ -21,6 +21,10 @@
 #include <linux/property.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <net/ip.h>
+#include <net/ipv6.h>
 #include <net/netdev_queues.h>
 
 #include "qca_edma.h"
@@ -30,7 +34,8 @@ static void edma_irq_disable_all(struct edma_priv *priv)
 	const struct edma_soc_data *soc = priv->soc;
 	int i;
 
-	for (i = 0; i <= soc->txdesc_ring; i++)
+	/* TX interrupts belong to completion rings, not descriptor rings. */
+	for (i = 0; i <= soc->txcmpl_ring; i++)
 		regmap_write(priv->regmap,
 			     EDMA_REG_TX_INT_MASK(soc->tx_int_base, i),
 			     0);
@@ -143,8 +148,12 @@ static irqreturn_t edma_misc_irq_handle(int irq, void *ctx)
 	if (!val)
 		return IRQ_NONE;
 
+	/* Persistent status has no acknowledgement here. Mask it until the
+	 * engine is rebuilt so one error cannot keep the CPU in its handler.
+	 */
+	regmap_write(priv->regmap, EDMA_REG_MISC_INT_MASK, 0);
 	priv->stats.misc_error++;
-	dev_warn_ratelimited(&priv->pdev->dev, "misc error %#x\n", val);
+	dev_warn(&priv->pdev->dev, "misc error %#x, masked\n", val);
 
 	return IRQ_HANDLED;
 }
@@ -594,6 +603,70 @@ static void edma_rx_vlan(struct net_device *netdev, struct sk_buff *skb,
 		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), tci);
 }
 
+/* A missing hardware verdict does not prove a bad packet. These PPE-edited
+ * frames bypass the forwarding stack, so verify their fixed IP/TCP/UDP
+ * headers before sending them to the Wi-Fi endpoint. Unsupported headers
+ * are never accepted through this service path.
+ */
+static bool edma_wifi_rx_csum_valid(struct sk_buff *skb)
+{
+	const struct ethhdr *eth = (const void *)skb->data;
+	const struct ipv6hdr *ip6 = NULL;
+	const struct iphdr *ip4 = NULL;
+	const struct udphdr *udp;
+	const struct tcphdr *tcp;
+	unsigned int hlen, len, off;
+	__wsum sum;
+	u8 proto;
+
+	if (skb_headlen(skb) < ETH_HLEN + sizeof(struct iphdr))
+		return false;
+	if (eth->h_proto == htons(ETH_P_IPV6)) {
+		if (skb_headlen(skb) < ETH_HLEN + sizeof(*ip6))
+			return false;
+		ip6 = (const void *)(skb->data + ETH_HLEN);
+		if (ip6->version != 6)
+			return false;
+		hlen = sizeof(*ip6);
+		len = ntohs(ip6->payload_len);
+		proto = ip6->nexthdr;
+	} else if (eth->h_proto == htons(ETH_P_IP)) {
+		ip4 = (const void *)(skb->data + ETH_HLEN);
+		if (ip4->version != 4 || ip4->ihl != 5 || ip_is_fragment(ip4) ||
+		    ip_fast_csum((const void *)ip4, ip4->ihl))
+			return false;
+		hlen = sizeof(*ip4);
+		if (ntohs(ip4->tot_len) < hlen)
+			return false;
+		len = ntohs(ip4->tot_len) - hlen;
+		proto = ip4->protocol;
+	} else {
+		return false;
+	}
+	off = ETH_HLEN + hlen;
+	if (len < sizeof(*udp) || len > skb_headlen(skb) - off)
+		return false;
+	if (proto == IPPROTO_TCP) {
+		if (len < sizeof(*tcp))
+			return false;
+		tcp = (const void *)(skb->data + off);
+		if (tcp->doff < 5 || tcp->doff * 4 > len)
+			return false;
+	} else if (proto == IPPROTO_UDP) {
+		udp = (const void *)(skb->data + off);
+		if (ntohs(udp->len) != len)
+			return false;
+		if (!udp->check)
+			return !!ip4;
+	} else {
+		return false;
+	}
+	sum = skb_checksum(skb, off, len, 0);
+	if (ip4)
+		return !csum_tcpudp_magic(ip4->saddr, ip4->daddr, len, proto, sum);
+	return !csum_ipv6_magic(&ip6->saddr, &ip6->daddr, len, proto, sum);
+}
+
 static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			 struct edma_ring *rxdesc_ring)
 {
@@ -689,13 +762,19 @@ static u32 edma_clean_rx(struct edma_priv *priv, int budget,
 			if (skb_headlen(skb) < ETH_HLEN || eh->h_proto != htons(ETH_P_IPV6))
 				csum_ok |= EDMA_RXDESC_L3_CSUM_OK;
 			if ((desc_status & csum_ok) != csum_ok) {
-				priv->stats.rx_ppe_csum_drop++;
-				dev_kfree_skb_any(skb);
-				netdev->stats.rx_dropped++;
-			} else {
-				qca_ppe_wifi_xmit(skb, src_port);
-				dev_sw_netstats_rx_add(priv->netdev, pkt_len);
+				/* R48 sends unverified service-code frames to callbacks.
+				 * This callback bypasses the stack, so validate here.
+				 */
+				if (!edma_wifi_rx_csum_valid(skb)) {
+					priv->stats.rx_ppe_csum_drop++;
+					dev_kfree_skb_any(skb);
+					netdev->stats.rx_dropped++;
+					goto next;
+				}
+				priv->stats.rx_ppe_csum_fallback++;
 			}
+			qca_ppe_wifi_xmit(skb, src_port);
+			dev_sw_netstats_rx_add(priv->netdev, pkt_len);
 			goto next;
 		}
 
@@ -1593,6 +1672,7 @@ static const char edma_stat_names[][ETH_GSTRING_LEN] = {
 	"tx_unnamed_frame",
 	"misc_error",
 	"rx_ppe_csum_drop",
+	"rx_ppe_csum_fallback",
 	"tx_pending_reopen",
 	"rx_pending_reopen",
 };

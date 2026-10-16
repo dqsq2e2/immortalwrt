@@ -37,6 +37,17 @@
 #define RTL9303_MAC_CTRL(p)	(0x3268 + (p) * 64)
 #define RTL9303_MAC_MAX_LEN(p)	(0x326c + (p) * 64)
 #define RTL9303_MAC_FORCE(p)	(0xca1c + (p) * 4)
+#define RTL9303_LED_GLOBAL		0xcc00
+#define RTL9303_LED_PORT_NUM(p)	(0xcc04 + (((p) >> 4) * 4))
+#define RTL9303_LED_SET0_0		0xcc28
+#define RTL9303_LED_PORT_COPR_SET(p)	(0xcc2c + (((p) >> 4) * 4))
+#define RTL9303_LED_PORT_FIB_SET(p)	(0xcc34 + (((p) >> 4) * 4))
+#define RTL9303_LED_PORT_COPR_MASK	0xcc3c
+#define RTL9303_LED_PORT_FIB_MASK	0xcc40
+#define RTL9303_LED_PORT_COMBO_MASK	0xcc44
+#define RTL9303_LED_ACTIVE_LOW		BIT(22)
+#define RTL9303_LED_SET_REG(set, led)	(RTL9303_LED_SET0_0 - ((set) * 8) - (((led) / 2) * 4))
+#define RTL9303_LED_SHIFT(led)		(16 * ((led) % 2))
 #define RTL9303_MAC_RX_TX		GENMASK(1, 0)
 #define RTL9303_FORCE_EN		BIT(0)
 #define RTL9303_FORCE_LINK	BIT(1)
@@ -50,6 +61,8 @@
 struct rtl9303_port {
 	u8 bridge;
 	u8 stp;
+	u8 led_set;
+	bool led_valid;
 	unsigned long flags;
 };
 
@@ -730,11 +743,112 @@ static int rtl9303_config_port(struct rtl9303 *priv, int port)
 	return rtl9303_stp(priv, port, 0, 3);
 }
 
+static int rtl9303_led_init(struct dsa_switch *ds, struct rtl9303 *priv)
+{
+	struct device_node *node;
+	u8 leds_in_set[4] = {};
+	u32 set_config[4], mask = 0, mode = 1;
+	char set_name[16];
+	int ret, set, i;
+
+	node = of_find_compatible_node(NULL, NULL, "realtek,rtl9300-leds");
+	if (!node)
+		return 0;
+
+	for (set = 0; set < ARRAY_SIZE(leds_in_set); set++) {
+		int count, led;
+
+		ret = regmap_write(priv->map, RTL9303_LED_SET0_0 - set * 8, 0);
+		if (ret)
+			goto out;
+		ret = regmap_write(priv->map, RTL9303_LED_SET0_0 - 4 - set * 8, 0);
+		if (ret)
+			goto out;
+
+		snprintf(set_name, sizeof(set_name), "led_set%d", set);
+		count = of_property_count_u32_elems(node, set_name);
+		if (count <= 0 || count > ARRAY_SIZE(set_config)) {
+			if (count != -EINVAL)
+				dev_warn(ds->dev, "%s has invalid LED count %d\n",
+					 set_name, count);
+			continue;
+		}
+
+		ret = of_property_read_u32_array(node, set_name, set_config, count);
+		if (ret)
+			goto out;
+		leds_in_set[set] = count;
+		for (i = 0, led = count - 1; led >= 0; led--, i++) {
+			unsigned int reg = RTL9303_LED_SET_REG(set, led);
+			unsigned int shift = RTL9303_LED_SHIFT(led);
+			u32 led_mask = 0xffffU << shift;
+
+			ret = regmap_update_bits(priv->map, reg, led_mask,
+					 (set_config[i] & 0xffff) << shift);
+			if (ret)
+				goto out;
+		}
+	}
+
+	for (i = 0; i < RTL9303_PORTS; i++) {
+		struct rtl9303_port *port = &priv->ports[i];
+		unsigned int pos, reg;
+		u32 field;
+
+		if (!(priv->user_mask & BIT(i)) || !port->led_valid ||
+		    !leds_in_set[port->led_set])
+			continue;
+		pos = (i << 1) % 32;
+		field = 3U << pos;
+		ret = regmap_update_bits(priv->map, RTL9303_LED_PORT_NUM(i), field,
+					 (leds_in_set[port->led_set] - 1) << pos);
+		if (ret)
+			goto out;
+		reg = RTL9303_LED_PORT_COPR_SET(i);
+		ret = regmap_update_bits(priv->map, reg, field,
+					 port->led_set << pos);
+		if (ret)
+			goto out;
+		reg = RTL9303_LED_PORT_FIB_SET(i);
+		ret = regmap_update_bits(priv->map, reg, field,
+					 port->led_set << pos);
+		if (ret)
+			goto out;
+		mask |= BIT(i);
+	}
+	if (!mask) {
+		ret = 0;
+		goto out;
+	}
+
+	of_property_read_u32(node, "realtek,led-mode", &mode);
+	ret = regmap_update_bits(priv->map, RTL9303_LED_GLOBAL, GENMASK(1, 0),
+				 mode & GENMASK(1, 0));
+	if (ret)
+		goto out;
+	ret = regmap_update_bits(priv->map, RTL9303_LED_GLOBAL,
+				 RTL9303_LED_ACTIVE_LOW,
+				 of_property_read_bool(node, "active-low") ? 0 :
+				 RTL9303_LED_ACTIVE_LOW);
+	if (ret)
+		goto out;
+	ret = regmap_write(priv->map, RTL9303_LED_PORT_COPR_MASK, mask);
+	if (ret)
+		goto out;
+	ret = regmap_write(priv->map, RTL9303_LED_PORT_FIB_MASK, mask);
+	if (ret)
+		goto out;
+	ret = regmap_write(priv->map, RTL9303_LED_PORT_COMBO_MASK, mask);
+out:
+	of_node_put(node);
+	return ret;
+}
+
 static int rtl9303_setup(struct dsa_switch *ds)
 {
 	struct rtl9303 *priv = ds->priv;
 	struct dsa_port *dp;
-	u32 mask;
+	u32 led_set, mask;
 	int ret, i, msti;
 
 	if (ds->index > 7)
@@ -749,6 +863,14 @@ static int rtl9303_setup(struct dsa_switch *ds)
 			priv->cpu_port = dp->index;
 		} else if (dsa_port_is_user(dp)) {
 			priv->user_mask |= BIT(dp->index);
+			if (!of_property_read_u32(dp->dn, "led-set", &led_set)) {
+				if (led_set >= 4)
+					return dev_err_probe(ds->dev, -EINVAL,
+						     "port %d has invalid LED set %u\n",
+						     dp->index, led_set);
+				priv->ports[dp->index].led_set = led_set;
+				priv->ports[dp->index].led_valid = true;
+			}
 		}
 	}
 	if (priv->cpu_port < 0 || !priv->user_mask)
@@ -823,6 +945,9 @@ static int rtl9303_setup(struct dsa_switch *ds)
 			goto out;
 	}
 	ret = rtl9303_fdb_reset(priv);
+	if (ret)
+		goto out;
+	ret = rtl9303_led_init(ds, priv);
 	if (ret)
 		goto out;
 	ret = rtl9303_apply_bridge(priv);

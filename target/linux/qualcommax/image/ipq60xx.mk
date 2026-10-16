@@ -150,6 +150,7 @@ define Device/link_nn6000-common
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := Link
+	DEVICE_MODEL := NN6000
 	SOC := ipq6000
 	KERNEL_SIZE := 6144k
 	DEVICE_DTS_CONFIG := config@cp03-c1
@@ -159,14 +160,12 @@ endef
 
 define Device/link_nn6000-v1
 	$(Device/link_nn6000-common)
-	DEVICE_MODEL := NN6000 v1
 	DEVICE_VARIANT := v1
 endef
 TARGET_DEVICES += link_nn6000-v1
 
 define Device/link_nn6000-v2
 	$(Device/link_nn6000-common)
-	DEVICE_MODEL := NN6000 v2
 	DEVICE_VARIANT := v2
 endef
 TARGET_DEVICES += link_nn6000-v2
