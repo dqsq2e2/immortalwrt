@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath9k: preserve weak-signal detection thresholds
+
+Keep the weak-signal detection thresholds programmed when ANI changes
+the corresponding detection setting.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath9k/ar5008_phy.c
 +++ b/drivers/net/wireless/ath/ath9k/ar5008_phy.c
 @@ -969,55 +969,6 @@ static bool ar5008_hw_ani_control_new(st

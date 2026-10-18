@@ -1,7 +1,13 @@
 From: =?UTF-8?q?Rafa=C5=82=20Mi=C5=82ecki?= <zajec5@gmail.com>
 Subject: [PATCH] mtd: bcm47xxpart: check for bad blocks when calculating offsets
 
+Account for bad NAND blocks when translating the TRX partition offsets
+so the resulting partitions follow the actual flash layout.
+
 Signed-off-by: Rafał Miłecki <zajec5@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 
 --- a/drivers/mtd/parsers/parser_trx.c

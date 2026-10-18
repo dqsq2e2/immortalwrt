@@ -3,7 +3,14 @@ From: John Crispin <john@phrozen.org>
 Date: Fri, 7 Jul 2017 17:09:21 +0200
 Subject: kconfig: owrt specifc dependencies
 
+Expose hidden crypto, textsearch, CRC, sound and networking helper
+options and retain the bus defaults required by OpenWrt kernel package
+selection.
+
 Signed-off-by: John Crispin <john@phrozen.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  crypto/Kconfig        | 10 +++++-----
  drivers/bcma/Kconfig  |  1 +

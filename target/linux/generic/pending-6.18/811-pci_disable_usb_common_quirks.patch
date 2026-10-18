@@ -2,7 +2,13 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Sat, 26 Apr 2025 21:10:40 +0200
 Subject: [PATCH] debloat: disable common USB quirks
 
+Make the PCI USB handoff quirks optional for builds that do not require
+this host-controller initialization.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/usb/host/pci-quirks.c | 7 +++++++
  drivers/usb/host/pci-quirks.h | 4 ++++

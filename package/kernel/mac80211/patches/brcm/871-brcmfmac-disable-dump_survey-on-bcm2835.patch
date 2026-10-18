@@ -1,10 +1,15 @@
+From: Álvaro Fernández Rojas <noltari@gmail.com>
 brcmfmac: disable dump_survey on Raspberry Pi
+Subject: [PATCH] wifi: brcmfmac: disable survey dumping on Raspberry Pi
 
 Enabling this causes slow iwinfo calls on Raspberry Pi and LuCI slows down
 when wireless is enabled.
 https://github.com/openwrt/openwrt/issues/14013
 
 Signed-off-by: Álvaro Fernández Rojas <noltari@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 
 --- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c

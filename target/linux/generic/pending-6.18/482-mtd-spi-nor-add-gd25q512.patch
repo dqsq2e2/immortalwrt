@@ -3,6 +3,11 @@ From: OpenWrt community <openwrt-devel@lists.openwrt.org>
 Date: Thu, 14 Jul 2022 08:38:07 +0200
 Subject: [PATCH] spi-nor/gigadevic: add gd25q512
 
+Add the GigaDevice GD25Q512 identification and geometry to the SPI NOR
+device table.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/spi-nor/gigadevice.c | 3 +++
  1 file changed, 3 insertions(+)

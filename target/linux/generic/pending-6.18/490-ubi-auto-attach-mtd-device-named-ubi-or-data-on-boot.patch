@@ -1,7 +1,13 @@
 From: Daniel Golle <daniel@makrotopia.org>
 Subject: ubi: auto-attach mtd device named "ubi" or "data" on boot
 
+Automatically attach an MTD partition named ubi or data when no explicit
+UBI attachment was supplied at boot.
+
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/ubi/build.c | 36 ++++++++++++++++++++++++++++++++++++
  1 file changed, 36 insertions(+)

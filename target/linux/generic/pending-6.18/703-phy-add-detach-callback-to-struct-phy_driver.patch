@@ -1,9 +1,15 @@
 From: Gabor Juhos <juhosg@openwrt.org>
 Subject: generic: add detach callback to struct phy_driver
 
+Add a PHY driver detach callback and invoke it when the PHY is
+disconnected from its network device.
+
 lede-commit: fe61fc2d7d0b3fb348b502f68f98243b3ddf5867
 
 Signed-off-by: Gabor Juhos <juhosg@openwrt.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/phy/phy_device.c | 3 +++
  include/linux/phy.h          | 6 ++++++

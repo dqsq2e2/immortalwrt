@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/version.mk
 
 PKG_NAME:=ipq-wifi
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/firmware/qca-wireless.git
@@ -148,6 +148,8 @@ ALLWIFIBOARDS:= \
 	verizon_cr1000a \
 	xiaomi_ax1800 \
 	xiaomi_be6500 \
+	xiaomi_be7000 \
+	xiaomi_be7000-pro \
 	zn_m2
 
 ALLWIFIPACKAGES:=$(foreach BOARD,$(ALLWIFIBOARDS),ipq-wifi-$(BOARD))
@@ -175,6 +177,11 @@ define ipq-wifi-install-ath12-one-to
   $(INSTALL_DATA) $(1) $(2)/lib/firmware/ath12k/$(3)/board-2.bin
 endef
 
+define ipq-wifi-install-ath12-qcn9274
+  $(call ipq-wifi-install-ath12-one-to,$(1),$(2),QCN9274/hw2.0)
+  $(call ipq-wifi-install-ath12-one-to,$(1),$(2),QCN9274/hw1.0)
+endef
+
 define ipq-wifi-install-one
   $(if $(filter $(suffix $(1)),.QCA4019 .qca4019),\
     $(call ipq-wifi-install-one-to,$(1),$(2),QCA4019/hw1.0),\
@@ -200,10 +207,12 @@ define ipq-wifi-install-one
     $(call ipq-wifi-install-ath11-one-to,$(1),$(2),QCN6122/hw1.0),\
   $(if $(filter $(suffix $(1)),.QCN9074 .qcn9074),\
     $(call ipq-wifi-install-ath11-one-to,$(1),$(2),QCN9074/hw1.0),\
+  $(if $(filter $(suffix $(1)),.IPQ9574 .ipq9574),\
+    $(call ipq-wifi-install-ath11-one-to,$(1),$(2),IPQ9574/hw1.0),\
   $(if $(filter $(suffix $(1)),.QCN9274 .qcn9274),\
-    $(call ipq-wifi-install-ath12-one-to,$(1),$(2),QCN9274/hw2.0),\
+    $(call ipq-wifi-install-ath12-qcn9274,$(1),$(2)),\
     $(error Unrecognized board-file suffix '$(suffix $(1))' for '$(1)')\
-  )))))))))))))
+  ))))))))))))))
 
 endef
 # Blank line required at end of above define due to foreach context
@@ -375,5 +384,9 @@ $(eval $(call generate-ipq-wifi-package,verizon_cr1000a,Verizon CR1000A))
 $(eval $(call generate-ipq-wifi-package,xiaomi_ax1800,Xiaomi AX1800))
 $(eval $(call generate-ipq-wifi-package,xiaomi_be6500,Xiaomi BE6500))
 $(eval $(call generate-ipq-wifi-package,zn_m2,ZN M2))
+
+
+$(eval $(call generate-ipq-wifi-package,xiaomi_be7000,Xiaomi BE7000))
+$(eval $(call generate-ipq-wifi-package,xiaomi_be7000-pro,Xiaomi BE7000 Pro))
 
 $(foreach PACKAGE,$(ALLWIFIPACKAGES),$(eval $(call BuildPackage,$(PACKAGE))))

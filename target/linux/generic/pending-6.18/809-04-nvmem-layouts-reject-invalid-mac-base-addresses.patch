@@ -1,0 +1,61 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] nvmem: layouts: reject invalid MAC bases before adding an index
+
+An erased all-FF MAC base can wrap into a syntactically valid all-zero
+prefix after adding an index. Reject invalid bases before arithmetic
+for raw, hexadecimal and colon-separated cells, and validate the result
+too. Consumers can then use their existing invalid-address fallback.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
+--- a/drivers/nvmem/layouts.c
++++ b/drivers/nvmem/layouts.c
+@@ -30,10 +30,13 @@
+ 	if (WARN_ON(bytes != ETH_ALEN))
+ 		return -EINVAL;
+ 
++	if (!is_valid_ether_addr(buf))
++		return -EINVAL;
++
+ 	if (index)
+ 		eth_addr_add(buf, index);
+ 
+-	return 0;
++	return is_valid_ether_addr(buf) ? 0 : -EINVAL;
+ }
+ 
+ static int nvmem_mac_base_ascii_read(void *context, const char *id, int index, unsigned int offset,
+@@ -47,9 +50,15 @@
+ 	if (!mac_pton(buf, mac))
+ 		return -EINVAL;
+ 
++	if (!is_valid_ether_addr(mac))
++		return -EINVAL;
++
+ 	if (index)
+ 		eth_addr_add(mac, index);
+ 
++	if (!is_valid_ether_addr(mac))
++		return -EINVAL;
++
+ 	ether_addr_copy(buf, mac);
+ 
+ 	return 0;
+@@ -72,9 +81,15 @@
+ 		mac[i] = (hex_to_bin(hexstr[i * 2]) << 4) | hex_to_bin(hexstr[i * 2 + 1]);
+ 	}
+ 
++	if (!is_valid_ether_addr(mac))
++		return -EINVAL;
++
+ 	if (index)
+ 		eth_addr_add(mac, index);
+ 
++	if (!is_valid_ether_addr(mac))
++		return -EINVAL;
++
+ 	ether_addr_copy(buf, mac);
+ 
+ 	return 0;

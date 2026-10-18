@@ -1,0 +1,67 @@
+From: Daniel Golle <daniel@makrotopia.org>
+Date: Sat, 22 Apr 2023 03:26:01 +0100
+Subject: [PATCH] net: phy: realtek: set up RTL822x ALDPS without probe-only
+ data
+
+Read the ALDPS device tree property at configuration time, including on
+PHY variants without rtl822x_probe(). Keep revision detection, MMD
+discovery, broadcast control and rate adaptation in their own patches.
+
+Original-author: ImmortalWrt
+Source-patch: 720-04-net-phy-realtek-setup-aldps.patch (9155098547fb1172d4fa536f3f6bc9d42f59d08c)
+Source-patch: 720-09-net-phy-realtek-fix-rtl822x-aldps-null-dereference.patch
+
+[viking.yfy@qq.com: fold only the direct correction into its feature]
+Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -188,6 +188,10 @@
+ 
+ #define RTL8224_SRAM_RTCT_LEN(pair)		(0x8028 + (pair) * 4)
+ 
++#define RTL8221B_PHYCR1				0xa430
++#define RTL8221B_PHYCR1_ALDPS_EN		BIT(2)
++#define RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN	BIT(12)
++
+ #define RTL8366RB_POWER_SAVE			0x15
+ #define RTL8366RB_POWER_SAVE_ON			BIT(12)
+ 
+@@ -1739,6 +1743,19 @@
+ 	return write_ret;
+ }
+ 
++static int rtl822x_init_phycr1(struct phy_device *phydev, bool no_aldps)
++{
++	u16 val = 0;
++
++	if (!no_aldps && of_property_read_bool(phydev->mdio.dev.of_node,
++					     "realtek,aldps-enable"))
++		val = RTL8221B_PHYCR1_ALDPS_EN | RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN;
++
++	return phy_modify_mmd_changed(phydev, MDIO_MMD_VEND2, RTL8221B_PHYCR1,
++				      RTL8221B_PHYCR1_ALDPS_EN |
++				      RTL8221B_PHYCR1_ALDPS_XTAL_OFF_EN, val);
++}
++
+ static int rtl822x_set_serdes_option_mode(struct phy_device *phydev, bool gen1)
+ {
+ 	bool has_2500, has_sgmii;
+@@ -1796,7 +1813,15 @@
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	return phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x6f11, 0x8020);
++	ret = phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x6f11, 0x8020);
++	if (ret < 0)
++		return ret;
++
++	ret = rtl822x_init_phycr1(phydev, false);
++	if (ret < 0)
++		return ret;
++
++	return 0;
+ }
+ 
+ static int rtl822x_config_init(struct phy_device *phydev)

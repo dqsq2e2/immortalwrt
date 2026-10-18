@@ -3,7 +3,14 @@ From: John Crispin <blogic@openwrt.org>
 Date: Tue, 12 Aug 2014 20:49:27 +0200
 Subject: [PATCH 30/36] GPIO: add named gpio exports
 
+Allow device tree to describe named GPIO exports with their initial
+direction and value for board-specific userspace control.
+
 Signed-off-by: John Crispin <blogic@openwrt.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/gpio/gpiolib-of.c
 +++ b/drivers/gpio/gpiolib-of.c
 @@ -21,6 +21,8 @@

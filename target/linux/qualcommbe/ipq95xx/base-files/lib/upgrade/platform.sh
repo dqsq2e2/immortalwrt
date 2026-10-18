@@ -35,6 +35,10 @@ platform_do_upgrade() {
 	linksys,ln6001)
 		ln6001_do_upgrade "$1" || return 1
 		;;
+	xiaomi,be7000|\
+	xiaomi,be7000-pro)
+		nand_do_upgrade "$1"
+		;;
 	*)
 		default_do_upgrade "$1"
 		;;

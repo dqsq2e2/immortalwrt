@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: support the older __assign_str trace API
+
+Select the appropriate __assign_str form when building new trace
+definitions against kernels with the older two-argument API.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/bus/mhi/host/trace.h
 +++ b/drivers/bus/mhi/host/trace.h
 @@ -104,7 +104,11 @@ TRACE_EVENT(mhi_gen_tre,

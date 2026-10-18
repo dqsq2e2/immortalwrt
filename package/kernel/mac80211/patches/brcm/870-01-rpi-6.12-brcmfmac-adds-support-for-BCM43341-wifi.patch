@@ -3,7 +3,13 @@ From: Cheong2K <cheong@redbear.cc>
 Date: Fri, 26 Feb 2016 18:20:10 +0800
 Subject: [PATCH] brcmfmac: adds support for BCM43341 wifi
 
+Map BCM43341 to its firmware filename so the driver can request the
+matching firmware image.
+
 Signed-off-by: Phil Elwell <phil@raspberrypi.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/wireless/broadcom/brcm80211/brcmfmac/sdio.c     | 3 ++-
  3 files changed, 4 insertions(+), 3 deletions(-)

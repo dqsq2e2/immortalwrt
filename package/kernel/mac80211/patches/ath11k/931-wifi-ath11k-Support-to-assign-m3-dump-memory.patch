@@ -3,7 +3,13 @@ From: Ziyang Huang <hzyitc@outlook.com>
 Date: Wed, 9 Aug 2023 17:44:49 +0000
 Subject: [PATCH] wifi: ath11k: Support to assign m3 dump memory
 
+Allow device tree to supply the M3 dump memory address and size instead
+of relying only on the default allocation.
+
 Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/wireless/ath/ath11k/qmi.c | 12 ++++++++++++
  1 file changed, 12 insertions(+)

@@ -3,6 +3,11 @@ From: OpenWrt community <openwrt-devel@lists.openwrt.org>
 Date: Wed, 13 Jul 2022 13:49:26 +0200
 Subject: [PATCH] net/usb/qmi_wwan: add MeigLink modem support
 
+Recognize the supported MeigLink USB modem interfaces in the USB
+networking driver match table.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/usb/qmi_wwan.c  | 1 +
  drivers/usb/serial/option.c | 7 +++++++

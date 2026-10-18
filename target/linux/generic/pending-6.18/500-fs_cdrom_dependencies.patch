@@ -3,6 +3,11 @@ From: OpenWrt community <openwrt-devel@lists.openwrt.org>
 Date: Wed, 13 Jul 2022 12:21:15 +0200
 Subject: [PATCH] fs: add cdrom dependency
 
+Make the CD-ROM support dependencies selectable for the associated
+filesystem packages.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  fs/hfs/Kconfig     | 1 +
  fs/hfsplus/Kconfig | 1 +

@@ -15,7 +15,7 @@ mediatek/mt7622)
 	wifi_temp="$(cat $IEEE_PATH/wl*/hwmon*/temp1_input 2>/dev/null | awk '{printf("%.1f°C ", $0 / 1000)}')"
 	;;
 *)
-	wifi_temp="$(cat $IEEE_PATH/phy*/hwmon*/temp1_input 2>/dev/null | awk '{printf("%.1f°C ", $0 / 1000)}')"
+	wifi_temp="$(cat "$IEEE_PATH"/*/hwmon*/temp1_input 2>/dev/null | awk '{printf("%.1f°C ", $0 / 1000)}')"
 	;;
 esac
 

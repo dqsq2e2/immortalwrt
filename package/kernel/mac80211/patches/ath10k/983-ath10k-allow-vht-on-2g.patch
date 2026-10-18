@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath10k: allow VHT capabilities on 2.4 GHz
+
+Allow the 2.4 GHz band to advertise VHT capabilities for firmware that
+supports this operating mode.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath10k/mac.c
 +++ b/drivers/net/wireless/ath/ath10k/mac.c
 @@ -5063,6 +5063,7 @@ static void ath10k_mac_setup_ht_vht_cap(

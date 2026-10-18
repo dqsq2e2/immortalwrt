@@ -3,7 +3,13 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Fri, 7 Jul 2017 16:56:48 +0200
 Subject: build: add a hack for removing non-essential module info
 
+Allow MODULE_STRIPPED builds to omit module metadata that is unnecessary
+for the configured embedded system.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  include/linux/module.h      | 13 ++++++++-----
  include/linux/moduleparam.h | 15 ++++++++++++---

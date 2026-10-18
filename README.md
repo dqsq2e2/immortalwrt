@@ -8,7 +8,7 @@
 
 # 高质量<付费>中转站
 
-[LiBwrt-Ai](https://api.zipimg.cn/register?aff=LR7FSZ2ZZ4D3)
+[LiBwrt-Ai](https://api.zipimg.cn/register?aff=FFPS3UMJ8HJD)
 
 # 本地编译器
 
@@ -20,9 +20,7 @@ https://github.com/VIKINGYFY/packages.git
 
 # 分支说明
 
-main 为高通专用，无法编译其他平台，带满血NSS驱动。
-
-owrt 为多平台通用，MTK、QCA、QCB带有满血PPE驱动，仅支持有线，不支持无线。
+owrt 为多平台通用，MTK、QCA、QCB带有满血PPE驱动。
 
 # 自用 ImmortalWRT
 
@@ -30,11 +28,18 @@ owrt 为多平台通用，MTK、QCA、QCB带有满血PPE驱动，仅支持有线
 
 https://github.com/JiaY-shi/openwrt.git
 
-https://github.com/JuliusBairaktaris/openwrt-nss-edma.git
+https://github.com/JuliusBairaktaris/openwrt-ppe-nss.git
 
 https://github.com/pbs05/ponwrt.git
 
 https://github.com/perceival/openwrt-flint3.git
 
-#
-[![Stargazers over time](https://starchart.cc/VIKINGYFY/immortalwrt.svg?variant=adaptive)](https://starchart.cc/VIKINGYFY/immortalwrt)
+## Star History
+
+<a href="https://www.star-history.com/?repos=vikingyfy%2Fimmortalwrt&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vikingyfy/immortalwrt&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vikingyfy/immortalwrt&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=vikingyfy/immortalwrt&type=date&legend=top-left" />
+ </picture>
+</a>

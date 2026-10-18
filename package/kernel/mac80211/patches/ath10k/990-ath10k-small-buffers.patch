@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath10k: reduce buffers for small-memory builds
+
+Reduce ath10k buffer allocations under ATH10K_SMALLBUFFERS to lower the
+memory cost on constrained devices.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath10k/htt.h
 +++ b/drivers/net/wireless/ath/ath10k/htt.h
 @@ -236,7 +236,11 @@ enum htt_rx_ring_flags {

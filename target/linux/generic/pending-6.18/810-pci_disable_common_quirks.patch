@@ -1,7 +1,13 @@
 From: Gabor Juhos <juhosg@openwrt.org>
 Subject: debloat: add kernel config option to disabling common PCI quirks
 
+Make the common PCI quirk collection optional so embedded builds can
+omit quirks for unrelated hardware.
+
 Signed-off-by: Gabor Juhos <juhosg@openwrt.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/pci/Kconfig  | 6 ++++++
  drivers/pci/quirks.c | 6 ++++++

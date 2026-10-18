@@ -1,8 +1,14 @@
+From: Pat Erley <pat-lkml@erley.org>
+Subject: [PATCH] wifi: ath5k: expose channel bandwidth through debugfs
+
 This adds a bwmode debugfs file which can be used to set alternate
 channel operating bandwidths.  Only tested with AR5413 and only at
 5 and 20 mhz channels.
 
 Signed-off-by: Pat Erley <pat-lkml at erley.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 Other devices will need to be added to the switch in  write_file_bwmode
 

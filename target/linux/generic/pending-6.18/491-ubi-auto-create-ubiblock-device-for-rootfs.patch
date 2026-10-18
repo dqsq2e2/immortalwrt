@@ -1,7 +1,13 @@
 From: Daniel Golle <daniel@makrotopia.org>
 Subject: ubi: auto-create ubiblock device for rootfs
 
+Create a ubiblock device for a suitable rootfs or fit volume while
+leaving native UBIFS volumes on their filesystem path.
+
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/ubi/block.c | 42 ++++++++++++++++++++++++++++++++++++++++++
  1 file changed, 42 insertions(+)

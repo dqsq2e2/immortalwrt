@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: retain the older wiphy namespace callback
+
+Use the compatible wiphy namespace callback declaration when building
+against kernels predating the API change.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/net/wireless/sysfs.c
 +++ b/net/wireless/sysfs.c
 @@ -160,12 +160,21 @@ static SIMPLE_DEV_PM_OPS(wiphy_pm_ops, w

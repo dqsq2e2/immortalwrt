@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath10k: make thermal support separately selectable
+
+Introduce ATH10K_THERMAL and use the backports configuration symbol for
+both thermal.o and its header stubs.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath10k/Kconfig
 +++ b/drivers/net/wireless/ath/ath10k/Kconfig
 @@ -95,6 +95,12 @@ config ATH10K_TRACING

@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] arm64: dts: qcom: ipq6018: fix MP5496 regulator setup
+
+Correct the MP5496 include and keep the required regulator enabled in
+the IPQ6018 board description.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/arch/arm64/boot/dts/qcom/ipq6018-cp01-c1.dts
 +++ b/arch/arm64/boot/dts/qcom/ipq6018-cp01-c1.dts
 @@ -7,7 +7,7 @@

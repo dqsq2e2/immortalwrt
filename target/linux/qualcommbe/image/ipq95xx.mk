@@ -58,3 +58,34 @@ define Device/qcom_rdp433
 	IMAGE/sysupgrade.bin := append-kernel | pad-to 64k | append-rootfs | pad-rootfs | check-size | append-metadata
 endef
 TARGET_DEVICES += qcom_rdp433
+
+define Device/xiaomi_be7000-common
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Xiaomi
+	DEVICE_DTS_CONFIG := config@al02-c6
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	SOC := ipq9574
+	KERNEL_SIZE := 6144k
+	DEVICE_PACKAGES := kmod-ath11k-ahb ath11k-firmware-ipq9574-ddwrt \
+		ath12k-firmware-qcn9274-ddwrt kmod-usb-storage uboot-envtools
+endef
+
+define Device/xiaomi_be7000
+	$(call Device/xiaomi_be7000-common)
+	DEVICE_MODEL := BE7000
+	DEVICE_DTS := ipq9574-be7000
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be7000
+	SUPPORTED_DEVICES += xiaomi,be7000
+endef
+TARGET_DEVICES += xiaomi_be7000
+
+define Device/xiaomi_be7000-pro
+	$(call Device/xiaomi_be7000-common)
+	DEVICE_MODEL := BE7000 Pro
+	DEVICE_DTS := ipq9574-be7000-pro
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be7000-pro
+	SUPPORTED_DEVICES += xiaomi,be7000-pro
+endef
+TARGET_DEVICES += xiaomi_be7000-pro

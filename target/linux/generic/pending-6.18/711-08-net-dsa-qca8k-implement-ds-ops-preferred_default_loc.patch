@@ -4,7 +4,13 @@ Date: Wed, 14 Jan 2026 23:38:30 +0800
 Subject: [PATCH 3/3] net: dsa: qca8k: implement
  ds->ops->preferred_default_local_cpu_port()
 
+Prefer the supported QCA8K CPU ports when DSA selects the default
+conduit for a user port.
+
 Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/dsa/qca/qca8k-8xxx.c | 13 +++++++++++++
  1 file changed, 13 insertions(+)

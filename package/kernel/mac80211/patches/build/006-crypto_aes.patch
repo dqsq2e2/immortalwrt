@@ -1,3 +1,14 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: use the backported AES configuration
+
+Use the backports AES CBC-MAC configuration symbol and omit the
+standalone AES module initialization and FIPS self-test entry points
+from the compatibility library.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/compat/lib-crypto-aes.c
 +++ b/compat/lib-crypto-aes.c
 @@ -515,7 +515,7 @@ void aes_decrypt(const struct aes_key *k

@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: brcmsmac: use the system regulatory flags
+
+Remove the additional driver-imposed NO_IR and radar restrictions so the
+system regulatory rules determine the permitted operation.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/broadcom/brcm80211/brcmsmac/channel.c
 +++ b/drivers/net/wireless/broadcom/brcm80211/brcmsmac/channel.c
 @@ -58,19 +58,12 @@

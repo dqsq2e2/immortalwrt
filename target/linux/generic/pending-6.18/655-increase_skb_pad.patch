@@ -1,8 +1,14 @@
 From: Felix Fietkau <nbd@nbd.name>
 Subject: kernel: add a few patches for avoiding unnecessary skb reallocations - significantly improves ethernet<->wireless performance
 
+Raise NET_SKB_PAD to at least 64 bytes so network drivers have
+sufficient headroom for their receive and forwarding paths.
+
 lede-commit: 6f89cffc9add6939d44a6b54cf9a5e77849aa7fd
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  include/linux/skbuff.h | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)

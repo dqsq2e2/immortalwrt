@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath5k: disable fast channel changes
+
+Use a full hardware reset for channel changes instead of the fast
+channel-change path.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath5k/reset.c
 +++ b/drivers/net/wireless/ath/ath5k/reset.c
 @@ -1154,6 +1154,7 @@ ath5k_hw_reset(struct ath5k_hw *ah, enum

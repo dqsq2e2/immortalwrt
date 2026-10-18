@@ -2,22 +2,16 @@
 
 /dts-v1/;
 
-#include <dt-bindings/gpio/gpio.h>
-#include "ipq9574.dtsi"
+#include "ipq9574-common.dtsi"
 
 / {
 	model = "8devices Kiwi-DVK";
 	compatible = "8devices,kiwi-dvk", "qcom,ipq9574";
 
 	aliases {
-		serial0 = &blsp1_uart2;
 		ethernet0 = &xgmac1;
 		ethernet1 = &xgmac5;
 		ethernet2 = &xgmac6;
-	};
-
-	chosen {
-		stdout-path = "serial0:115200n8";
 	};
 
 	regulator_fixed_3p3: s3300 {
@@ -64,12 +58,6 @@
 		reg = <0>;
 		spi-max-frequency = <50000000>;
 	};
-};
-
-&blsp1_uart2 {
-	pinctrl-0 = <&uart2_pins>;
-	pinctrl-names = "default";
-	status = "okay";
 };
 
 &crypto {
@@ -226,21 +214,6 @@
 
 &rpm_requests {
 	regulators {
-		compatible = "qcom,rpm-mp5496-regulators";
-
-		ipq9574_s1: s1 {
-		/*
-		 * During kernel bootup, the SoC runs at 800MHz with 875mV set by the bootloaders.
-		 * During regulator registration, kernel not knowing the initial voltage,
-		 * considers it as zero and brings up the regulators with minimum supported voltage.
-		 * Update the regulator-min-microvolt with SVS voltage of 725mV so that
-		 * the regulators are brought up with 725mV which is sufficient for all the
-		 * corner parts to operate at 800MHz
-		 */
-			regulator-min-microvolt = <725000>;
-			regulator-max-microvolt = <1075000>;
-		};
-
 		mp5496_l5: l5 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
@@ -262,146 +235,7 @@
 	status = "okay";
 };
 
-&sleep_clk {
-	clock-frequency = <32000>;
-};
-
 &tlmm {
-	sdc_default_state: sdc-default-state {
-		clk-pins {
-			pins = "gpio5";
-			function = "sdc_clk";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		cmd-pins {
-			pins = "gpio4";
-			function = "sdc_cmd";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		data-pins {
-			pins = "gpio0", "gpio1", "gpio2",
-			       "gpio3", "gpio6", "gpio7",
-			       "gpio8", "gpio9";
-			function = "sdc_data";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		rclk-pins {
-			pins = "gpio10";
-			function = "sdc_rclk";
-			drive-strength = <8>;
-			bias-pull-down;
-		};
-	};
-
-	spi_0_default: spi-0-default-state {
-		pins = "gpio11", "gpio12", "gpio13", "gpio14";
-		function = "blsp0_spi";
-		drive-strength = <8>;
-		bias-disable;
-	};
-
-	pcie0_default: pcie0-default-state {
-		clkreq-n-pins {
-			pins = "gpio22";
-			function = "pcie0_clk";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-
-		perst-n-pins {
-			pins = "gpio23";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-			output-low;
-		};
-
-		wake-n-pins {
-			pins = "gpio24";
-			function = "pcie0_wake";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-	};
-
-	pcie1_default: pcie1-default-state {
-		clkreq-n-pins {
-			pins = "gpio25";
-			function = "pcie1_clk";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-
-		perst-n-pins {
-			pins = "gpio26";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-			output-low;
-		};
-
-		wake-n-pins {
-			pins = "gpio27";
-			function = "pcie1_wake";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-	};
-
-	pcie2_default: pcie2-default-state {
-		clkreq-n-pins {
-			pins = "gpio28";
-			function = "pcie2_clk";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-
-		perst-n-pins {
-			pins = "gpio29";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-down;
-			output-low;
-		};
-
-		wake-n-pins {
-			pins = "gpio30";
-			function = "pcie2_wake";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-	};
-
-	pcie3_default: pcie3-default-state {
-		clkreq-n-pins {
-			pins = "gpio31";
-			function = "pcie3_clk";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-
-		perst-n-pins {
-			pins = "gpio32";
-			function = "gpio";
-			drive-strength = <8>;
-			bias-pull-up;
-			output-low;
-		};
-
-		wake-n-pins {
-			pins = "gpio33";
-			function = "pcie3_wake";
-			drive-strength = <6>;
-			bias-pull-up;
-		};
-	};
-
 	i2c1_default: i2c1-default-state {
 		pins = "gpio36", "gpio37";
 		function = "blsp1_i2c";
@@ -440,25 +274,10 @@
 	status = "okay";
 };
 
-/*
- * The bootstrap pins for the board select the XO clock frequency,
- * which automatically enables the right dividers to ensure the
- * reference clock output from WiFi is 48 MHZ.
- */
-&ref_48mhz_clk {
-	clock-div = <1>;
-	clock-mult = <1>;
-};
-
-/*
- * The frequency of xo_board_clk is fixed to 24 MHZ, which is routed
- * from WiFi output clock 48 MHZ divided by 2.
- */
-&xo_board_clk {
-	clock-div = <2>;
-	clock-mult = <1>;
-};
-
-&xo_clk {
-	clock-frequency = <48000000>;
+/* Keep Kiwi's PCIe3 PERST# pull-up. */
+&pcie3_default {
+	perst-n-pins {
+		/delete-property/ bias-pull-down;
+		bias-pull-up;
+	};
 };

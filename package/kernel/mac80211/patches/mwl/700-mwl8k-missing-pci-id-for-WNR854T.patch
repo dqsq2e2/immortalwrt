@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: mwl8k: recognize the WNR854T PCI device
+
+Add the PCI device ID used by the Netgear WNR854T wireless hardware to
+the mwl8k match table.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/marvell/mwl8k.c
 +++ b/drivers/net/wireless/marvell/mwl8k.c
 @@ -5779,6 +5779,7 @@ MODULE_FIRMWARE("mwl8k/fmimage_8366.fw")

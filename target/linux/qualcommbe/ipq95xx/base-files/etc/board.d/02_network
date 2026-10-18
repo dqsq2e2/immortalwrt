@@ -14,7 +14,9 @@ ipq95xx_setup_interfaces()
 	8devices,kiwi-dvk)
 		ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"
 		;;
-	askey,sbe1v1k)
+	askey,sbe1v1k|\
+	xiaomi,be7000|\
+	xiaomi,be7000-pro)
 		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "wan"
 		;;
 	linksys,ln6001)
@@ -40,6 +42,11 @@ ipq95xx_setup_wlan()
 	case "$board" in
 	askey,sbe1v1k)
 		ucidef_add_wlan "$DEV_PATH_PCIE0" "$DEV_PATH_PCIE1" "$DEV_PATH_PCIE2"
+		;;
+	xiaomi,be7000|\
+	xiaomi,be7000-pro)
+		ucidef_add_wlan "platform/soc@0/c000000.wifi"
+		ucidef_add_wlan "$DEV_PATH_PCIE2"
 		;;
 	esac
 }

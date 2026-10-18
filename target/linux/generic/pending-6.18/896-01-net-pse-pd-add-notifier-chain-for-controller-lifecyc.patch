@@ -1,4 +1,5 @@
 From: Corey Leavitt <corey@leavitt.info>
+Subject: [PATCH] net: pse-pd: add a controller lifecycle notifier chain
 
 Introduce a blocking notifier chain that allows other subsystems to be
 informed when a PSE controller is registered or unregistered, and
@@ -25,6 +26,9 @@ nothing subscribes. No observable behavior change.
 Signed-off-by: Corey Leavitt <corey@leavitt.info>
 Signed-off-by: Carlo Szelinsky <github@szelinsky.de>
 Tested-by: Jonas Jelonek <jelonek.jonas@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/pse-pd/pse_core.c | 34 ++++++++++++++++++++++++++++++++++
  include/linux/pse-pd/pse.h    | 32 ++++++++++++++++++++++++++++++++

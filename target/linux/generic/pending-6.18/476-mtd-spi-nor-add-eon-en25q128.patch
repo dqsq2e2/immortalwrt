@@ -1,7 +1,13 @@
 From: Piotr Dymacz <pepe2k@gmail.com>
 Subject: kernel/mtd: add support for EON EN25Q128
 
+Add the EON EN25Q128 identification and geometry to the SPI NOR device
+table.
+
 Signed-off-by: Piotr Dymacz <pepe2k@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/spi-nor/spi-nor.c | 1 +
  1 file changed, 1 insertion(+)

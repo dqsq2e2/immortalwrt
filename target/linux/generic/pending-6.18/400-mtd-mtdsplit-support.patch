@@ -3,6 +3,11 @@ From: OpenWrt community <openwrt-devel@lists.openwrt.org>
 Date: Wed, 13 Jul 2022 11:47:35 +0200
 Subject: [PATCH] mtd: mtdsplit support
 
+Connect the OpenWrt MTD firmware splitters to the MTD configuration and
+build system.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/Kconfig            |  19 ++++
  drivers/mtd/Makefile           |   2 +

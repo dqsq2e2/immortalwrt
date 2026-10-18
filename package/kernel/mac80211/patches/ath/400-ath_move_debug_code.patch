@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath: always provide the operating mode name helper
+
+Link debug.o into the common Atheros module independently of ATH_DEBUG
+and expose ath_opmode_to_string() to its callers.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/Makefile
 +++ b/drivers/net/wireless/ath/Makefile
 @@ -16,10 +16,10 @@ ath-objs :=	main.o \

@@ -58,7 +58,8 @@ function get_hardware_id(iface) {
 		channel_offset: 0,
 	};
 
-	let path = `/sys/class/ieee80211/phy${iface.wiphy}/device/`;
+	let phy_name = find_phy(iface.wiphy)?.wiphy_name ?? `phy${iface.wiphy}`;
+	let path = `/sys/class/ieee80211/${phy_name}/device/`;
 	if (stat(path + 'vendor')) {
 		let data = [];
 		for (let lookup in [ 'vendor', 'device', 'subsystem_vendor', 'subsystem_device' ])

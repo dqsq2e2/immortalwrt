@@ -19,7 +19,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -86,6 +86,34 @@ static const char * const clock_name[EDM
+@@ -86,6 +86,34 @@
  	[EDMA_APB_CLK] = "apb",
  };
  
@@ -54,7 +54,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  /* Rx Fill ring info for IPQ9574. */
  static struct edma_ring_info ipq9574_rxfill_ring_info = {
  	.max_rings = 8,
-@@ -114,6 +142,17 @@ static struct edma_ring_info ipq9574_txc
+@@ -114,6 +142,17 @@
  	.num_rings = 24,
  };
  
@@ -72,7 +72,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  /* HW info for IPQ9574. */
  static struct edma_hw_info ipq9574_hw_info = {
  	.rxfill = &ipq9574_rxfill_ring_info,
-@@ -848,7 +887,11 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -862,7 +901,11 @@
  	if (!edma_ctx)
  		return -ENOMEM;
  
@@ -119,7 +119,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	{
  		.name = "ppe",
  		.avg_bw = 0,
-@@ -111,7 +134,7 @@ static const struct regmap_config regmap
+@@ -111,7 +134,7 @@
  	.fast_io = true,
  };
  
@@ -128,7 +128,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  {
  	unsigned long ppe_rate = ppe_dev->clk_rate;
  	struct device *dev = ppe_dev->dev;
-@@ -175,12 +198,22 @@ static int ppe_clock_init_and_reset(stru
+@@ -175,12 +198,22 @@
  
  static int qcom_ppe_probe(struct platform_device *pdev)
  {
@@ -153,7 +153,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	ppe_dev = devm_kzalloc(dev, struct_size(ppe_dev, icc_paths, num_icc),
  			       GFP_KERNEL);
  	if (!ppe_dev)
-@@ -196,10 +229,10 @@ static int qcom_ppe_probe(struct platfor
+@@ -196,10 +229,10 @@
  				     "PPE initialize regmap failed\n");
  	ppe_dev->dev = dev;
  	ppe_dev->clk_rate = PPE_CLK_RATE;
@@ -166,7 +166,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	if (ret)
  		return dev_err_probe(dev, ret, "PPE clock config failed\n");
  
-@@ -235,6 +268,7 @@ static void qcom_ppe_remove(struct platf
+@@ -235,6 +268,7 @@
  }
  
  static const struct of_device_id qcom_ppe_of_match[] = {
