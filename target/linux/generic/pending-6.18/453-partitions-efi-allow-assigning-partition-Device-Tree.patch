@@ -4,7 +4,14 @@ Date: Tue, 8 Oct 2024 00:25:12 +0100
 Subject: [PATCH 4/8] partitions/efi: allow assigning partition Device Tree
  node
 
+Associate GPT partitions with device tree partition nodes using their
+partition UUID or name so firmware properties can reach the partition
+device.
+
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  block/partitions/efi.c | 34 +++++++++++++++++++++++++++++++++-
  1 file changed, 33 insertions(+), 1 deletion(-)

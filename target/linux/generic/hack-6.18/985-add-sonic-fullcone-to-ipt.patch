@@ -5,6 +5,9 @@ Support IPv4 and IPv6 PREROUTING/POSTROUTING using the shared NAT core.
 Reuse masquerade argument validation and add module aliases. Gate target
 registration with the SONiC build option. Refreshed for Linux 6.18.
 
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/net/netfilter/xt_MASQUERADE.c
 +++ b/net/netfilter/xt_MASQUERADE.c
 @@ -8,8 +8,10 @@

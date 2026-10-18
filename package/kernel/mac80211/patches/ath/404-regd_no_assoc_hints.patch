@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: cfg80211: ignore association regulatory hints
+
+Ignore country information elements and disconnect regulatory hints so
+association changes do not replace the system regulatory configuration.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/net/wireless/reg.c
 +++ b/net/wireless/reg.c
 @@ -3352,6 +3352,8 @@ void regulatory_hint_country_ie(struct w

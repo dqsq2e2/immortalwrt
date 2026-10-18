@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: relax the kernel build version check
+
+Adjust the kernel version check used by the backports build so the
+OpenWrt kernel build layout is accepted.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/Makefile
 +++ b/Makefile
 @@ -2,7 +2,7 @@

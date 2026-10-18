@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath9k: support the UAP high-selectivity receiver
+
+Add the board-specific control path needed by the Ubiquiti UAP high-
+selectivity receiver hardware.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath9k/channel.c
 +++ b/drivers/net/wireless/ath/ath9k/channel.c
 @@ -15,6 +15,7 @@

@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath5k: define board calibration platform data
+
+Provide a platform-data structure for an ath5k MAC address and EEPROM
+image supplied by board code.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- /dev/null
 +++ b/include/linux/ath5k_platform.h
 @@ -0,0 +1,30 @@

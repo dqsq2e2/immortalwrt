@@ -1,28 +1,19 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
 Date: Sun, 05 Jul 2026 00:00:00 +0000
-Subject: [PATCH] net: ethernet: qualcomm: ppe: offload root TBF qdiscs to the port shapers
+Subject: [PATCH] net: ethernet: qualcomm: ppe: offload root TBF with precise
+ shaper arithmetic
 
-Offload a root TBF qdisc on a PPE port to the egress token bucket
-shaper of the port, byte based, taking the committed rate and the
-burst size from the qdisc. Removing the qdisc disables the shaper.
-Statistics dumps retain the qdisc's offloaded state; the hardware exposes
-no per-qdisc counters, so the qdisc core's software-visible counters remain
-unchanged by the callback.
+Introduce root TBF port shaping with the corrected rate arithmetic and
+register field handling. Keep queue limits, QoS priority distribution
+and runtime credit reporting as separate features.
 
-The shaper arithmetic follows the vendor driver: the shaper refreshes
-every port slot time (read from the slot configuration register, in
-8 ns scheduler cycles of the PPE clock, 353 MHz on the IPQ9574 and
-taken from the SoC variant), the token unit
-scales the value of one refresh credit and one bucket unit, and the
-finest token unit whose maximums cover the requested rate and burst
-is selected. Rates beyond what the shaper can express are rejected,
-leaving the qdisc in software.
+Original-author: ViKing <viking.yfy@qq.com>
+Source-patch: 0515-net-ethernet-qualcomm-ppe-offload-tbf-to-port-shapers.patch
+Source-patch: 0614-net-ethernet-qualcomm-ppe-preserve-shaper-precision.patch
 
-The port net devices now advertise and request NETIF_F_HW_TC, which the
-qdisc offload path requires. Keeping the capability in wanted_features
-prevents later feature recalculation from disabling the active bit.
-
+[viking.yfy@qq.com: fold only the direct correction into its feature]
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
@@ -34,7 +25,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #include <linux/printk.h>
  
  #include "edma.h"
-@@ -106,10 +107,10 @@ static int edma_port_open(struct net_dev
+@@ -106,10 +107,10 @@
  	 * checksum offloading and other features. Each port is
  	 * responsible to maintain the feature set it supports.
  	 */
@@ -48,7 +39,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	ppe_port  = port_priv->ppe_port;
  	port_id = ppe_port->port_id;
-@@ -336,12 +337,44 @@ static int edma_port_set_mac_address(str
+@@ -336,12 +337,44 @@
  	return 0;
  }
  
@@ -95,7 +86,16 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	}
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -1737,6 +1737,91 @@ int ppe_port_bridge_learning_set(struct
+@@ -11,6 +11,8 @@
+ #include <linux/bitmap.h>
+ #include <linux/bits.h>
+ #include <linux/device.h>
++#include <linux/limits.h>
++#include <linux/math64.h>
+ #include <linux/regmap.h>
+ 
+ #include "ppe.h"
+@@ -1737,6 +1739,94 @@
  				  enable ? mask : 0);
  }
  
@@ -128,13 +128,17 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +			u32 burst)
 +{
 +	u32 reg = PPE_PSCH_SHP_CFG_TBL_ADDR + PPE_PSCH_SHP_CFG_TBL_INC * port;
-+	u64 rate_bits = rate * 8, rate_max, rate_bit, burst_max, burst_bit;
++	u64 rate_bits, rate_max, burst_max, burst_bit, cir;
 +	u32 val[2] = {}, slot, cycle_ns, token;
 +	int i, ret;
 +
 +	if (!rate)
 +		return regmap_bulk_write(ppe_dev->regmap, reg, val,
 +					 ARRAY_SIZE(val));
++	if (rate > U64_MAX / 8)
++		return -ERANGE;
++
++	rate_bits = rate * 8;
 +
 +	ret = regmap_read(ppe_dev->regmap, PPE_PSCH_SHP_SLOT_CFG_PORT_ADDR,
 +			  &slot);
@@ -155,17 +159,11 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +				    FIELD_MAX(PPE_PSCH_SHP_W0_CBS), token) *
 +			    1000;
 +
-+		rate_bit = div_u64(rate_max, FIELD_MAX(PPE_PSCH_SHP_W0_CIR));
 +		burst_bit = div_u64(burst_max, FIELD_MAX(PPE_PSCH_SHP_W0_CBS));
-+		if (!rate_bit || !burst_bit)
++		if (!rate_max || !burst_bit)
 +			continue;
 +
-+		/* rate_bit is a floor division, so a rate can pass a
-+		 * rate_max comparison yet quantise above the CIR field
-+		 * maximum; admit only what the field can hold.
-+		 */
-+		if (div_u64(rate_bits, rate_bit) <=
-+		    FIELD_MAX(PPE_PSCH_SHP_W0_CIR) &&
++		if (rate_bits <= rate_max &&
 +		    (u64)burst * 1000 <= burst_max)
 +			break;
 +	}
@@ -173,8 +171,13 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 +	if (i == ARRAY_SIZE(ppe_shaper_token_units))
 +		return -ERANGE;
 +
-+	val[0] = FIELD_PREP(PPE_PSCH_SHP_W0_CIR,
-+			    div_u64(rate_bits, rate_bit));
++	/* Scaling against the full range avoids truncating the rate of one
++	 * refresh credit when calculating the CIR field.
++	 */
++	cir = mul_u64_u64_div_u64(rate_bits,
++				  FIELD_MAX(PPE_PSCH_SHP_W0_CIR), rate_max);
++	cir = clamp_t(u64, cir, 1, FIELD_MAX(PPE_PSCH_SHP_W0_CIR));
++	val[0] = FIELD_PREP(PPE_PSCH_SHP_W0_CIR, cir);
 +	val[0] |= FIELD_PREP(PPE_PSCH_SHP_W0_CBS,
 +			     clamp_t(u64, div_u64((u64)burst * 1000, burst_bit),
 +				     1, FIELD_MAX(PPE_PSCH_SHP_W0_CBS)));
@@ -189,7 +192,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   * @ppe_dev: PPE device
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -353,6 +353,8 @@ int ppe_port_bridge_txmac_set(struct ppe
+@@ -353,6 +353,8 @@
  			      bool enable);
  int ppe_port_bridge_learning_set(struct ppe_device *ppe_dev, int port,
  				 bool enable);

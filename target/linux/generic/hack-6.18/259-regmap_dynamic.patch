@@ -3,8 +3,14 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Sat, 15 Jul 2017 21:12:38 +0200
 Subject: kernel: move regmap bloat out of the kernel image if it is only being used in modules
 
+Allow the regmap core to be built as a module so OpenWrt can package it
+independently of its users.
+
 lede-commit: 96f39119815028073583e4fca3a9c5fe9141e998
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/base/regmap/Kconfig  | 15 ++++++++++-----
  drivers/base/regmap/Makefile | 12 ++++++++----

@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: libertas: publish the permanent MAC address
+
+Set the wiphy permanent address from the device MAC address so userspace
+can identify the wireless hardware.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/marvell/libertas/cfg.c
 +++ b/drivers/net/wireless/marvell/libertas/cfg.c
 @@ -2182,6 +2182,8 @@ int lbs_cfg_register(struct lbs_private

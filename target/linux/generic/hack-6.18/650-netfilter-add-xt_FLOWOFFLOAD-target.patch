@@ -2,7 +2,14 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Tue, 20 Feb 2018 15:56:02 +0100
 Subject: [PATCH] netfilter: add xt_FLOWOFFLOAD target
 
+Add the xtables FLOWOFFLOAD target and its flowtable integration so
+eligible forwarded connections can enter the software or hardware
+offload path.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  create mode 100644 net/netfilter/xt_OFFLOAD.c
 

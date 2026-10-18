@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath9k: expose the EEPROM image through debugfs
+
+Add a read-only debugfs view of the EEPROM contents for calibration
+inspection and board diagnostics.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath9k/debug.c
 +++ b/drivers/net/wireless/ath/ath9k/debug.c
 @@ -1430,6 +1430,7 @@ int ath9k_init_debug(struct ath_hw *ah)

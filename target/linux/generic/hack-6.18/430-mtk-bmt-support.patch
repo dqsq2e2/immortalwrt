@@ -3,6 +3,11 @@ From: OpenWrt community <openwrt-devel@lists.openwrt.org>
 Date: Wed, 13 Jul 2022 13:41:44 +0200
 Subject: [PATCH] mtd/nand: add MediaTek NAND bad block managment table
 
+Connect the MediaTek bad-block management implementation to the MTD NAND
+configuration and build rules.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/nand/Kconfig  | 4 ++++
  drivers/mtd/nand/Makefile | 1 +

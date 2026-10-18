@@ -1,13 +1,16 @@
 From: ViKing <viking.yfy@qq.com>
 Date: Thu, 27 Aug 2026 17:06:00 +0800
-Subject: [PATCH] net: phy: qca8084: configure QCA8386 switch clocks and PCS1
+Subject: [PATCH] net: phy: qca8084: initialize QCA8386 clocks and PCS1 SRAM
+ timing
 
-QCA8386 uses the QCA8084 package in switch mode. Configure PCS1 as a
-fixed 2500BASE-X SGMII+ MAC link, enable the switch CPU and user-port
-clocks, and update user-port clock rates when PHY speed changes. The
-sequence follows the QSDK MHT clock and SerDes initialization while
-remaining opt-in through device tree.
+Program the switch SRAM timing before the PCS1 SGMII-plus initialization
+sequence. Keep generic QCA8084 PHY support, SerDes, link forwarding, EEE
+and LED control separate.
 
+Source-patch: 0385-net-phy-qca8084-configure-QCA8386-PCS1-SGMII-plus.patch
+Source-patch: 0397-net-phy-qca8084-initialize-switch-SRAM-timing.patch
+
+[viking.yfy@qq.com: fold only the direct correction into its feature]
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/qcom/qca8084_serdes.c
@@ -24,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QP_USXG_SGMII_FUNC_RESET		BIT(4)
  #define QP_USXG_P3_FUNC_RESET			BIT(3)
  #define QP_USXG_P2_FUNC_RESET			BIT(2)
-@@ -128,6 +133,14 @@ enum pcs_clk_id {
+@@ -128,6 +133,14 @@
  	PCS_CLK_MAX
  };
  
@@ -39,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  enum xpcs_clk_id {
  	XPCS_XGMII_RX_CLK,
  	XPCS_XGMII_TX_CLK,
-@@ -148,7 +161,9 @@ struct qca8084_xpcs_channel_priv {
+@@ -148,7 +161,9 @@
  
  struct qca8084_pcs_data {
  	struct reset_control *rstc;
@@ -49,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct qca8084_xpcs_data {
-@@ -173,6 +188,13 @@ static const char *const pcs_clock_names
+@@ -173,6 +188,13 @@
  	[PCS_TX_ROOT_CLK] =	"pcs_tx_root",
  };
  
@@ -63,7 +66,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const int qca8084_xpcs_ch_mmd[QCA8084_CHANNEL_MAX] = { 31, 26, 27, 28 };
  
  struct mdio_device *qca8084_package_pcs_probe(struct device_node *pcs_np)
-@@ -203,6 +225,14 @@ struct mdio_device *qca8084_package_pcs_
+@@ -203,6 +225,14 @@
  
  	pcs_data->rstc = rstc;
  
@@ -78,7 +81,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for (i = 0; i < ARRAY_SIZE(pcs_clock_names); i++) {
  		clk = devm_clk_get(dev, pcs_clock_names[i]);
  		if (IS_ERR(clk)) {
-@@ -213,6 +243,16 @@ struct mdio_device *qca8084_package_pcs_
+@@ -213,6 +243,16 @@
  		pcs_data->clks[i] = clk;
  	}
  
@@ -95,7 +98,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mdiodev_set_drvdata(mdiodev, pcs_data);
  
  	return mdiodev;
-@@ -333,18 +373,23 @@ put_ch_clk_rst:
+@@ -333,18 +373,23 @@
  void qca8084_package_xpcs_and_pcs_remove(struct mdio_device *xpcs_mdiodev,
  					 struct mdio_device *pcs_mdiodev)
  {
@@ -126,7 +129,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int qca8084_pcs_set_interface_mode(struct mdio_device *mdio_dev,
-@@ -649,6 +694,107 @@ static int qca8084_pcs_ipg_tune_reset(st
+@@ -649,6 +694,107 @@
  				  reset_function, reset_function);
  }
  
@@ -236,7 +239,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/drivers/net/phy/qcom/qca8084_serdes.h
 +++ b/drivers/net/phy/qcom/qca8084_serdes.h
-@@ -17,6 +17,7 @@ void qca8084_package_xpcs_and_pcs_remove
+@@ -17,6 +17,7 @@
  					 struct mdio_device *pcs_mdiodev);
  int qca8084_qxgmii_set_mode(struct mdio_device *xpcs_mdiodev,
  			    struct mdio_device *pcs_mdiodev);
@@ -246,7 +249,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			      int channel, int speed);
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -175,6 +175,10 @@ struct qca808x_priv {
+@@ -154,6 +154,12 @@
+ #define QCA8084_WORK_MODE_SWITCH		BIT(4)
+ #define QCA8084_WORK_MODE_SWITCH_PORT4_SGMII	BIT(5)
+ 
++#define QCA8084_MEM_CTRL			0xc90f044
++#define QCA8084_MEM_CTRL_DVS_MASK		GENMASK(5, 4)
++#define QCA8084_MEM_CTRL_RAWA_ASSERT		BIT(5)
++#define QCA8084_MEM_ACC_0			0xc90f048
++#define QCA8084_MEM_ACC_0_SWITCH			0x000c0c0c
++
+ MODULE_DESCRIPTION("Qualcomm Atheros QCA808X PHY driver");
+ MODULE_AUTHOR("Matus Ujhelyi, Luo Jie");
+ MODULE_LICENSE("GPL");
+@@ -175,6 +181,10 @@
  	int led_polarity_mode;
  	int channel_id;
  	struct qcom_phy_hw_stats hw_stats;
@@ -257,7 +273,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct qca808x_shared_priv {
-@@ -953,6 +957,16 @@ static int qca8084_phy_package_config_in
+@@ -953,6 +963,31 @@
  					      shared_priv->mdiodev[0]);
  		if (ret)
  			return ret;
@@ -268,13 +284,28 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +		if (!shared_priv->mdiodev[0])
 +			return -ENODEV;
 +
++		/* Switch SRAM timing must be configured before enabling PCS1.
++		 * RAWA_ASSERT is set separately from SA_RELAX, as required by
++		 * the hardware; switch mode only needs RAWA_ASSERT.
++		 */
++		ret = qca8084_mii_modify(phydev, QCA8084_MEM_CTRL,
++					 QCA8084_MEM_CTRL_DVS_MASK,
++					 QCA8084_MEM_CTRL_RAWA_ASSERT);
++		if (ret)
++			return ret;
++
++		ret = qca8084_mii_modify(phydev, QCA8084_MEM_ACC_0,
++					 U32_MAX, QCA8084_MEM_ACC_0_SWITCH);
++		if (ret)
++			return ret;
++
 +		ret = qca8084_pcs_set_sgmii_mac_mode(shared_priv->mdiodev[0]);
 +		if (ret)
 +			return ret;
  	}
  
  	/* Initialize the PHY package clock and reset, which is the
-@@ -997,8 +1011,51 @@ static int qca8084_config_init(struct ph
+@@ -997,8 +1032,51 @@
  
  static void qca8084_link_change_notify(struct phy_device *phydev)
  {
@@ -327,7 +358,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Assert the FIFO between PHY and MAC. */
  	ret = phy_modify(phydev, QCA8084_FIFO_CONTROL,
-@@ -1166,6 +1223,7 @@ static void qca8084_phy_package_remove_o
+@@ -1166,6 +1244,7 @@
  
  static int qca8084_probe(struct phy_device *phydev)
  {
@@ -335,7 +366,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct qca808x_shared_priv *shared_priv;
  	struct device *dev = &phydev->mdio.dev;
  	struct reset_control *rstc;
-@@ -1185,6 +1243,7 @@ static int qca8084_probe(struct phy_devi
+@@ -1185,6 +1264,7 @@
  	ret = qca808x_probe(phydev);
  	if (ret)
  		return ret;
@@ -343,7 +374,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Enable clock of PHY device, so that the PHY register
  	 * can be accessed to get PHY features.
-@@ -1194,6 +1253,26 @@ static int qca8084_probe(struct phy_devi
+@@ -1194,6 +1274,26 @@
  		return dev_err_probe(dev, PTR_ERR(clk),
  				     "Enable PHY clock failed\n");
  
@@ -370,7 +401,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* De-assert PHY reset after the clock of PHY enabled. */
  	rstc = devm_reset_control_get_exclusive(dev, NULL);
  	if (IS_ERR(rstc))
-@@ -1205,9 +1284,6 @@ static int qca8084_probe(struct phy_devi
+@@ -1205,9 +1305,6 @@
  
  static void qca8084_remove(struct phy_device *phydev)
  {

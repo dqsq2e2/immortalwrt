@@ -3,7 +3,13 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Sat, 8 Jul 2017 08:20:09 +0200
 Subject: debloat: procfs
 
+Add PROC_STRIPPED to omit selected procfs diagnostics from size-
+constrained embedded builds.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  fs/locks.c               |  2 ++
  fs/proc/Kconfig          |  5 +++++

@@ -1,8 +1,14 @@
 From: Alexandros C. Couloumbis <alex@ozo.com>
 Subject: fs: add jffs2/lzma support (not activated by default yet)
 
+Register the LZMA compressor with JFFS2 and expose the corresponding
+configuration option.
+
 lede-commit: c2c88d315fa0e881f8b19da07b62859b915b11b2
 Signed-off-by: Alexandros C. Couloumbis <alex@ozo.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  fs/jffs2/Kconfig             |    9 +
  fs/jffs2/Makefile            |    3 +

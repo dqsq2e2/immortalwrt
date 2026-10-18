@@ -17,9 +17,9 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 
 Index: linux-6.18.55/net/dsa/user.c
 ===================================================================
---- linux-6.18.55.orig/net/dsa/user.c
-+++ linux-6.18.55/net/dsa/user.c
-@@ -3959,6 +3959,47 @@ static int dsa_user_switchdev_event(stru
+--- a/net/dsa/user.c
++++ b/net/dsa/user.c
+@@ -3937,6 +3937,47 @@
  	return NOTIFY_OK;
  }
  
@@ -67,7 +67,7 @@ Index: linux-6.18.55/net/dsa/user.c
  static int dsa_user_switchdev_blocking_event(struct notifier_block *unused,
  					     unsigned long event, void *ptr)
  {
-@@ -3971,12 +4012,16 @@ static int dsa_user_switchdev_blocking_e
+@@ -3949,12 +3990,16 @@
  							    dsa_user_dev_check,
  							    dsa_foreign_dev_check,
  							    dsa_user_port_obj_add);

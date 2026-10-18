@@ -3,7 +3,13 @@ From: Gabor Juhos <juhosg@openwrt.org>
 Date: Sun, 24 Mar 2013 19:26:26 +0100
 Subject: [PATCH] rt2x00: allow to build rt2800soc module for RT3883
 
+Allow the RT2800 SoC driver to be selected for RT3883 platforms through
+the backports configuration.
+
 Signed-off-by: Gabor Juhos <juhosg@openwrt.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/wireless/ralink/rt2x00/Kconfig |    2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)

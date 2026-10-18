@@ -3,7 +3,13 @@ From: Felix Fietkau <nbd@nbd.name>
 Date: Fri, 7 Jul 2017 17:24:23 +0200
 Subject: net: swconfig: adds openwrt switch layer
 
+Connect the swconfig switch framework and its drivers to the networking
+configuration and build rules.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/phy/Kconfig   | 83 +++++++++++++++++++++++++++++++++++++++++++++++
  drivers/net/phy/Makefile  | 15 +++++++++

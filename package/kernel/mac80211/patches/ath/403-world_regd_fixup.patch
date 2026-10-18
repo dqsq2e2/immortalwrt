@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath: split world regulatory rules at the DFS boundary
+
+Separate the lower 5 GHz range from DFS channels and derive each world
+domain rule count from its initializer.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/regd.c
 +++ b/drivers/net/wireless/ath/regd.c
 @@ -44,7 +44,8 @@ static struct reg_dmn_pair_mapping *ath_

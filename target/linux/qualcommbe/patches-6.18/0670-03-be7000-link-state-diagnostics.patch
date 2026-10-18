@@ -1,0 +1,57 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] qualcommbe: trace BE7000 QCA8084 link-state transitions
+
+Record copper PHY notifications and QXGMII in-band AN status for the
+BE7000 and BE7000 Pro. Limit PCS reports to the first sixteen status
+changes to avoid polling log spam.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
+--- a/drivers/net/pcs/pcs-qcom-ipq9574.c
++++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
+@@ -260,6 +260,7 @@
+ static void ipq_pcs_get_state_usxgmii(struct ipq_pcs *qpcs, int index,
+ 				      struct phylink_link_state *state)
+ {
++	struct ipq_pcs_mii *qpcs_mii = qpcs->qpcs_mii[index];
+ 	unsigned int reg, val;
+ 	int ret;
+ 
+@@ -272,6 +273,21 @@
+ 
+ 	state->link = !!(val & XPCS_USXG_AN_LINK_STS);
+ 
++	if ((of_machine_is_compatible("xiaomi,be7000") ||
++	     of_machine_is_compatible("xiaomi,be7000-pro")) &&
++	    (state->interface == PHY_INTERFACE_MODE_USXGMII ||
++	     state->interface == PHY_INTERFACE_MODE_10G_QXGMII) &&
++	    qpcs_mii->debug_status_count < 16 &&
++	    (!qpcs_mii->debug_status_count || qpcs_mii->debug_last_status != val)) {
++		qpcs_mii->debug_last_status = val;
++		qpcs_mii->debug_last_link = state->link;
++		qpcs_mii->debug_last_interface = state->interface;
++		qpcs_mii->debug_status_count++;
++		dev_info(qpcs->dev,
++			 "BE7000 PCS%d AN status=0x%04x link=%u\n",
++			 index, val, state->link);
++	}
++
+ 	if (!state->link)
+ 		return;
+ 
+--- a/drivers/net/phy/qcom/qca808x.c
++++ b/drivers/net/phy/qcom/qca808x.c
+@@ -1141,6 +1141,11 @@
+ 	unsigned long rate;
+ 	int ret;
+ 
++	if (of_machine_is_compatible("xiaomi,be7000") ||
++	    of_machine_is_compatible("xiaomi,be7000-pro"))
++		phydev_info(phydev, "BE7000 PHY link=%d speed=%d duplex=%d\n",
++			    phydev->link, phydev->speed, phydev->duplex);
++
+ 	if (phydev->link) {
+ 		switch (phydev->speed) {
+ 		case SPEED_2500:

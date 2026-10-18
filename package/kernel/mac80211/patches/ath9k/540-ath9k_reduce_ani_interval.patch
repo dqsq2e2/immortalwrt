@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: ath9k: shorten the ANI polling interval
+
+Run adaptive noise immunity polling every 300 milliseconds so it reacts
+more promptly to changing radio conditions.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/ath/ath9k/ani.h
 +++ b/drivers/net/wireless/ath/ath9k/ani.h
 @@ -42,7 +42,7 @@

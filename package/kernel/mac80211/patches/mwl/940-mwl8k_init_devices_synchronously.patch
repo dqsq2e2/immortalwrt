@@ -1,3 +1,14 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: mwl8k: initialize firmware synchronously during probe
+
+Complete firmware initialization in the probe path instead of deferring
+it to a worker, keeping device availability aligned with probe
+completion.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/marvell/mwl8k.c
 +++ b/drivers/net/wireless/marvell/mwl8k.c
 @@ -6365,6 +6365,8 @@ static int mwl8k_probe(struct pci_dev *p

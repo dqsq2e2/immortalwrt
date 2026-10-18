@@ -21,7 +21,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -39,6 +39,38 @@ static int rx_buff_size;
+@@ -39,6 +39,38 @@
  module_param(rx_buff_size, int, 0640);
  MODULE_PARM_DESC(rx_buff_size, "Rx Buffer size for Jumbo MRU value (default:0)");
  
@@ -60,7 +60,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  /* Priority to multi-queue mapping. */
  static u8 edma_pri_map[PPE_QUEUE_INTER_PRI_NUM] = {
  	0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7};
-@@ -829,7 +861,10 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -843,7 +875,10 @@
  	edma_ctx->hw_info = &ipq9574_hw_info;
  	edma_ctx->ppe_dev = ppe_dev;
  	edma_ctx->rx_buf_size = rx_buff_size;
@@ -73,7 +73,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	ret = edma_clock_init();
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_rx.c
-@@ -166,6 +166,24 @@ static void edma_cfg_rx_desc_ring_config
+@@ -166,6 +166,24 @@
  	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_RING_SIZE(rxdesc_ring->ring_id);
  	regmap_write(regmap, reg, data);
  
@@ -98,7 +98,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	/* Configure the Mitigation timer */
  	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_RX_MITIGATION_TIMER_DEF,
  					   ppe_dev->clk_rate / MHZ);
-@@ -176,7 +194,7 @@ static void edma_cfg_rx_desc_ring_config
+@@ -176,7 +194,7 @@
  	regmap_write(regmap, reg, data);
  
  	/* Configure the Mitigation packet count */
@@ -107,7 +107,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  			<< EDMA_RXDESC_LOW_THRE_SHIFT;
  	pr_debug("EDMA Rx mitigation packet count value: %d\n", data);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_RXDESC_UGT_THRE(rxdesc_ring->ring_id);
-@@ -915,6 +933,13 @@ void edma_cfg_rx_napi_add(void)
+@@ -915,6 +933,13 @@
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i;
  
@@ -121,7 +121,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	for (i = 0; i < rx->num_rings; i++) {
  		struct edma_rxdesc_ring *rxdesc_ring = &edma_ctx->rx_rings[i];
  
-@@ -923,7 +948,7 @@ void edma_cfg_rx_napi_add(void)
+@@ -923,7 +948,7 @@
  		rxdesc_ring->napi_added = true;
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_cfg_tx.c
-@@ -170,6 +170,24 @@ static void edma_cfg_txcmpl_ring_configu
+@@ -170,6 +170,24 @@
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CTRL(txcmpl_ring->id);
  	regmap_write(regmap, reg, EDMA_TXCMPL_RETMODE_OPAQUE);
  
@@ -197,7 +197,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	/* Configure the Mitigation timer. */
  	data = EDMA_MICROSEC_TO_TIMER_UNIT(EDMA_TX_MITIGATION_TIMER_DEF,
  					   ppe_dev->clk_rate / MHZ);
-@@ -180,7 +198,7 @@ static void edma_cfg_txcmpl_ring_configu
+@@ -180,7 +198,7 @@
  	regmap_write(regmap, reg, data);
  
  	/* Configure the Mitigation packet count. */
@@ -206,7 +206,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  		<< EDMA_TXCMPL_LOW_THRE_SHIFT;
  	pr_debug("EDMA Tx mitigation packet count value: %d\n", data);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_UGT_THRE(txcmpl_ring->id);
-@@ -634,6 +652,13 @@ void edma_cfg_tx_napi_add(struct net_dev
+@@ -634,6 +652,13 @@
  	struct edma_txcmpl_ring *txcmpl_ring;
  	u32 i, ring_idx;
  
@@ -220,7 +220,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  	/* Adding tx napi for a interface with each queue. */
  	for_each_possible_cpu(i) {
  		ring_idx = ((port_id - 1) * num_possible_cpus()) + i;
-@@ -644,5 +669,5 @@ void edma_cfg_tx_napi_add(struct net_dev
+@@ -644,5 +669,5 @@
  		netdev_dbg(netdev, "Napi added for txcmpl ring: %u\n", txcmpl_ring->id);
  	}
  
@@ -260,7 +260,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  void edma_cfg_tx_rings_cleanup(void);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_rx.h
-@@ -281,6 +281,10 @@ struct edma_rxdesc_ring {
+@@ -281,6 +281,10 @@
  	struct sk_buff *last;
  };
  
@@ -273,7 +273,7 @@ Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
  int edma_rx_napi_poll(struct napi_struct *napi, int budget);
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.h
-@@ -288,6 +288,10 @@ struct edma_txcmpl_ring {
+@@ -288,6 +288,10 @@
  	bool napi_added;
  };
  

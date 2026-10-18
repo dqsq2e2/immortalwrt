@@ -1,7 +1,13 @@
 From: Felix Fietkau <nbd@nbd.name>
 Subject: jffs2: add RENAME_EXCHANGE support
 
+Implement RENAME_EXCHANGE for JFFS2 so two directory entries can be
+exchanged through the VFS rename interface.
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 
 --- a/fs/jffs2/dir.c

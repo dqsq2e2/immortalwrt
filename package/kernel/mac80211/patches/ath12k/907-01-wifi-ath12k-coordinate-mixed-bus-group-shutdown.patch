@@ -127,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
-@@ -1740,16 +1740,25 @@
+@@ -1746,16 +1746,25 @@
  	if (!ag)
  		return;
  
@@ -154,7 +154,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ag->mutex);
  }
  
-@@ -1759,6 +1768,10 @@
+@@ -1765,6 +1774,10 @@
  	struct ath12k_pci *ab_pci = ath12k_pci_priv(ab);
  
  	ath12k_pci_set_irq_affinity_hint(ab_pci, NULL);

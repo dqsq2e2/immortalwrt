@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: handle the netns_local API transition
+
+Select the appropriate network namespace locality interface for the
+kernel version used by the backports build.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/net/wireless/core.c
 +++ b/net/wireless/core.c
 @@ -165,11 +165,19 @@ int cfg80211_switch_netns(struct cfg8021

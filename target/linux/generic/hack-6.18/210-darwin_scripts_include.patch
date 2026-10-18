@@ -3,8 +3,14 @@ From: Florian Fainelli <f.fainelli@gmail.com>
 Date: Fri, 7 Jul 2017 17:00:49 +0200
 Subject: Add an OSX specific patch to make the kernel be compiled
 
+Provide the ELF definitions needed by kernel host scripts when they are
+compiled on Darwin.
+
 lede-commit: 3fc2a24f0422b2f55f9ed43f116db3111f700526
 Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  scripts/kconfig/Makefile   |    3 +
  scripts/mod/elf.h          | 3007 ++++++++++++++++++++++++++++++++++++++++++++

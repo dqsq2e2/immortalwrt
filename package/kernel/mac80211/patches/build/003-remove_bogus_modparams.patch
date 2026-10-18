@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: omit redundant module version parameters
+
+Remove the backports module version parameters that duplicate build
+metadata without providing a runtime configuration option.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/compat/main.c
 +++ b/compat/main.c
 @@ -19,31 +19,6 @@ MODULE_LICENSE("GPL");

@@ -6,6 +6,9 @@ Fixed layout binding allows specifying "mac-base" NVMEM cells. It's used
 for base MAC address (that can be used for calculating relative
 addresses). It can be stored in a raw binary format or as an ASCII
 string.
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 
 --- a/drivers/nvmem/Kconfig

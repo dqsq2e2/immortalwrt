@@ -1,7 +1,13 @@
 From: Daniel Golle <daniel@makrotopia.org>
 Subject: try auto-mounting ubi0:rootfs in init/do_mounts.c
 
+Try the ubi0 rootfs volume during automatic root filesystem mounting so
+UBI-based images can boot without an explicit root device argument.
+
 Signed-off-by: Daniel Golle <daniel@makrotopia.org>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  init/do_mounts.c | 26 +++++++++++++++++++++++++-
  1 file changed, 25 insertions(+), 1 deletion(-)

@@ -1,7 +1,13 @@
 From: Yousong Zhou <yszhou4tech@gmail.com>
 Subject: MIPS: kexec: Accept command line parameters from userspace.
 
+Accept a userspace-supplied command line when constructing the MIPS
+kexec image arguments.
+
 Signed-off-by: Yousong Zhou <yszhou4tech@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  arch/mips/kernel/machine_kexec.c   |  153 +++++++++++++++++++++++++++++++-----
  arch/mips/kernel/machine_kexec.h   |   20 +++++

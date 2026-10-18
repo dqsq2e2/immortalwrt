@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] wifi: cfg80211: do not create a default station interface
+
+Leave wireless interface creation to OpenWrt userspace instead of
+creating an automatic station interface during device registration.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/net/mac80211/main.c
 +++ b/net/mac80211/main.c
 @@ -1633,24 +1633,6 @@ int ieee80211_register_hw(struct ieee802

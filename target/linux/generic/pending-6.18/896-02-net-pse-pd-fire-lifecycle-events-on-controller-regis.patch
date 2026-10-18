@@ -1,4 +1,5 @@
 From: Corey Leavitt <corey@leavitt.info>
+Subject: [PATCH] net: pse-pd: emit controller lifecycle events
 
 Hook the newly-introduced pse_controller_notifier chain so that
 pse_controller_register() fires PSE_REGISTERED after the controller
@@ -14,6 +15,9 @@ wires the phy subsystem in as the first subscriber.
 Signed-off-by: Corey Leavitt <corey@leavitt.info>
 Signed-off-by: Carlo Szelinsky <github@szelinsky.de>
 Tested-by: Jonas Jelonek <jelonek.jonas@gmail.com>
+
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/net/pse-pd/pse_core.c | 6 ++++++
  1 file changed, 6 insertions(+)

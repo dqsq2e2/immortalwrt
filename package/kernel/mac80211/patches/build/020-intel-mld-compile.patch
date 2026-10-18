@@ -1,9 +1,16 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: adapt Intel MLD thermal callbacks to older kernels
+
 Fix Intel mld thermal compilation
 
 Do the same changes done also in iwlwifi/mvm/tt.c in the iwlwifi/mld/thermal.c file.
 
 This fixes the compilation.
 
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/drivers/net/wireless/intel/iwlwifi/mld/thermal.c
 +++ b/drivers/net/wireless/intel/iwlwifi/mld/thermal.c
 @@ -209,9 +209,15 @@ unlock:

@@ -1,3 +1,14 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: make configuration generation safe for parallel builds
+
+Track configuration generation with a stamp and replace the generated
+autoconf header atomically so parallel build jobs do not race over an
+incomplete header.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/Makefile
 +++ b/Makefile
 @@ -5,7 +5,7 @@

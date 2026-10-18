@@ -6,6 +6,8 @@ Subject: [PATCH] spi-nor/esmt.c: add esmt f25l16pa
 This fixes support for Dongwon T&I DW02-412H which uses F25L16PA(2S)
 flash.
 
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
  drivers/mtd/spi-nor/esmt.c | 2 ++
  1 file changed, 2 insertions(+)

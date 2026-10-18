@@ -1,3 +1,13 @@
+From: OpenWrt community <openwrt-devel@lists.openwrt.org>
+Subject: [PATCH] backports: fix Kconfig host tool warnings
+
+Adjust the Kconfig host tool code and parser declarations to avoid the
+compiler warnings encountered by the OpenWrt host build.
+
+Original author was not recorded in the imported patch.
+[viking.yfy@qq.com: complete imported patch metadata]
+Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
+---
 --- a/kconf/conf.c
 +++ b/kconf/conf.c
 @@ -86,7 +86,7 @@ static int conf_askvalue(struct symbol *
