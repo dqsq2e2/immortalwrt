@@ -10,7 +10,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/phylink.c
 +++ b/drivers/net/phy/phylink.c
-@@ -2447,6 +2447,12 @@
+@@ -2447,6 +2447,12 @@ static int phylink_bringup_phy(struct ph
  			     __ETHTOOL_LINK_MODE_MASK_NBITS, phy->supported,
  			     __ETHTOOL_LINK_MODE_MASK_NBITS, config.advertising,
  			     ERR_PTR(ret));
@@ -23,7 +23,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -2690,13 +2696,23 @@
+@@ -2690,13 +2696,23 @@ int phylink_fwnode_phy_connect(struct ph
  
  	ret = phy_attach_direct(pl->netdev, phy_dev, flags,
  				pl->link_interface);
@@ -50,7 +50,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
 --- a/drivers/net/phy/phy_device.c
 +++ b/drivers/net/phy/phy_device.c
-@@ -1975,8 +1975,11 @@
+@@ -1975,8 +1975,11 @@ int phy_attach_direct(struct net_device
  	 * (dev_flags and interface)
  	 */
  	err = phy_init_hw(phydev);

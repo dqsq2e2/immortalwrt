@@ -18,11 +18,10 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 ---
 --- a/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
 +++ b/Documentation/devicetree/bindings/net/wireless/qcom,ath12k-wsi.yaml
-@@ -51,6 +51,14 @@
- 
+@@ -52,6 +52,14 @@ properties:
    reg:
      maxItems: 1
-+
+ 
 +  qcom,split-phy:
 +    type: boolean
 +    description:
@@ -30,10 +29,11 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 +      PHYs. This property describes the radio topology on designs where
 +      the device's OTP board identifier does not identify that configuration.
 +      Only applicable to QCN9274 hw2.0.
- 
++
    qcom,calibration-variant:
      $ref: /schemas/types.yaml#/definitions/string
-@@ -201,3 +209,23 @@
+     description:
+@@ -201,3 +209,23 @@ examples:
              };
          };
      };

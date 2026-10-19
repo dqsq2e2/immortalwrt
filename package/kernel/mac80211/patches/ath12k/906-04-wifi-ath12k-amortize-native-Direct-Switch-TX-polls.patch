@@ -19,7 +19,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -544,9 +544,15 @@
+@@ -544,9 +544,15 @@ int ath12k_wifi7_ds_service(struct ath12
  	u32 cookie, info;
  	unsigned int completed = 0, acked = 0, dropped = 0;
  	int done = 0;
@@ -36,7 +36,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	__skb_queue_head_init(&reinject);
  	srng = ath12k_ds_srng(ds, &ds->complete);
  	spin_lock_irqsave(&srng->lock, flags);
-@@ -556,7 +562,7 @@
+@@ -556,7 +562,7 @@ int ath12k_wifi7_ds_service(struct ath12
  	 * packet separately; publish the counters once after the batch.
  	 */
  	spin_lock(&ds->tx_lock);
@@ -45,7 +45,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  		status = ath12k_hal_srng_dst_get_next_entry(dp->ab, srng);
  		if (!status)
  			break;
-@@ -617,7 +623,8 @@
+@@ -617,7 +623,8 @@ bad_cookie:
  		WRITE_ONCE(ds->faulted, true);
  	}
  	spin_unlock(&ds->tx_lock);
@@ -55,7 +55,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	spin_unlock_irqrestore(&srng->lock, flags);
  	atomic64_add(completed, &ds->tx_completed);
  	atomic64_add(acked, &ds->tx_acked);
-@@ -632,7 +639,7 @@
+@@ -632,7 +639,7 @@ bad_cookie:
  		qcom_ppe_ds_sync(ds->handle);
  	if (READ_ONCE(ds->faulted))
  		ath12k_ds_fault(ds);

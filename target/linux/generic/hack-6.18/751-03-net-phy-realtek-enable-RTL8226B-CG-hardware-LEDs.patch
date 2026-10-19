@@ -10,7 +10,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/realtek/realtek_main.c
 +++ b/drivers/net/phy/realtek/realtek_main.c
-@@ -4042,6 +4042,10 @@
+@@ -4042,6 +4042,10 @@ static struct phy_driver realtek_drvs[]
  		.write_page	= rtl821x_write_page,
  		.read_mmd	= rtl822xb_read_mmd,
  		.write_mmd	= rtl822xb_write_mmd,

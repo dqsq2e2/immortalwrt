@@ -21,7 +21,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/Makefile
 +++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
-@@ -7,4 +7,4 @@
+@@ -7,4 +7,4 @@ obj-$(CONFIG_QCOM_PPE) += qcom-ppe.o
  qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o ppe_port.o
  
  #EDMA
@@ -29,7 +29,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 +qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -153,6 +153,42 @@
+@@ -153,6 +153,42 @@ static int edma_clock_init(void)
  }
  
  /**
@@ -72,7 +72,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
   * edma_configure_ucast_prio_map_tbl - Configure unicast priority map table.
   *
   * Map int_priority values to priority class and initialize
-@@ -192,11 +228,127 @@
+@@ -192,11 +228,127 @@ static int edma_configure_ucast_prio_map
  	return ret;
  }
  
@@ -200,7 +200,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	int ret;
  	u32 i;
  
-@@ -271,8 +423,25 @@
+@@ -271,8 +423,25 @@ static int edma_irq_register(void)
  			 edma_rxdesc_irq_name[i]);
  	}
  
@@ -226,7 +226,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  rx_desc_ring_intr_req_fail:
  	for (i = 0; i < rx->num_rings; i++)
  		kfree(edma_rxdesc_irq_name[i]);
-@@ -504,6 +673,7 @@
+@@ -504,6 +673,7 @@ static int edma_hw_configure(void)
  		edma_cfg_tx_disable_interrupts(i);
  
  	edma_cfg_rx_disable_interrupts();
@@ -234,7 +234,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	edma_cfg_rx_rings_disable();
  
-@@ -615,6 +785,7 @@
+@@ -615,6 +785,7 @@ void edma_destroy(struct ppe_device *ppe
  		edma_cfg_tx_disable_interrupts(i);
  
  	edma_cfg_rx_disable_interrupts();
@@ -242,7 +242,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	/* Free IRQ for TXCMPL rings. */
  	for (i = 0; i < txcmpl->num_rings; i++) {
-@@ -635,6 +806,10 @@
+@@ -635,6 +806,10 @@ void edma_destroy(struct ppe_device *ppe
  	}
  	kfree(edma_rxdesc_irq_name);
  
@@ -253,7 +253,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	kfree(edma_ctx->intr_info.intr_rx);
  	kfree(edma_ctx->intr_info.intr_txcmpl);
  
-@@ -700,6 +875,7 @@
+@@ -700,6 +875,7 @@ int edma_setup(struct ppe_device *ppe_de
  	}
  
  	edma_cfg_rx_enable_interrupts();
@@ -263,7 +263,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -47,6 +47,30 @@
+@@ -47,6 +47,30 @@ enum ppe_queue_class_type {
  };
  
  /**
@@ -294,7 +294,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
   * struct edma_ring_info - EDMA ring data structure.
   * @max_rings: Maximum number of rings
   * @ring_start: Ring start ID
-@@ -107,6 +131,7 @@
+@@ -107,6 +131,7 @@ struct edma_intr_info {
   * @rx_rings: Rx Desc Rings, SW is consumer
   * @tx_rings: Tx Descriptor Ring, SW is producer
   * @txcmpl_rings: Tx complete Ring, SW is consumer
@@ -302,7 +302,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
   * @rx_page_mode: Page mode enabled or disabled
   * @rx_buf_size: Rx buffer size for Jumbo MRU
   * @tx_requeue_stop: Tx requeue stop enabled or disabled
-@@ -121,6 +146,7 @@
+@@ -121,6 +146,7 @@ struct edma_context {
  	struct edma_rxdesc_ring *rx_rings;
  	struct edma_txdesc_ring *tx_rings;
  	struct edma_txcmpl_ring *txcmpl_rings;
@@ -310,7 +310,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	u32 rx_page_mode;
  	u32 rx_buf_size;
  	bool tx_requeue_stop;
-@@ -129,8 +155,12 @@
+@@ -129,8 +155,12 @@ struct edma_context {
  /* Global EDMA context */
  extern struct edma_context *edma_ctx;
  
@@ -710,7 +710,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  #include "ppe.h"
  #include "ppe_config.h"
  #include "ppe_debugfs.h"
-@@ -820,11 +822,14 @@
+@@ -820,11 +822,14 @@ DEFINE_SHOW_STORE_ATTRIBUTE(ppe_packet_c
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
@@ -726,7 +726,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	for (i = 0; i < ARRAY_SIZE(debugfs_files); i++) {
  		entry = devm_kzalloc(ppe_dev->dev, sizeof(*entry), GFP_KERNEL);
-@@ -838,6 +843,14 @@
+@@ -838,6 +843,14 @@ void ppe_debugfs_setup(struct ppe_device
  				    ppe_dev->debugfs_root, entry,
  				    &ppe_packet_counter_fops);
  	}

@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -630,7 +630,7 @@
+@@ -630,7 +630,7 @@ qca8k_bulk_read(void *ctx, const void *r
  
  	/* loop count times and increment reg of 4 */
  	for (i = 0; i < count; i++, reg += sizeof(u32)) {

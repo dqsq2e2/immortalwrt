@@ -28,7 +28,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 
 --- a/drivers/net/wireless/ath/ath12k/hal.c
 +++ b/drivers/net/wireless/ath/ath12k/hal.c
-@@ -846,26 +846,32 @@
+@@ -846,26 +846,32 @@ void *ath12k_hal_encode_tlv32_hdr(void *
  }
  EXPORT_SYMBOL(ath12k_hal_encode_tlv32_hdr);
  
@@ -73,7 +73,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  EXPORT_SYMBOL(ath12k_hal_decode_tlv32_hdr);
 --- a/drivers/net/wireless/ath/ath12k/hal.h
 +++ b/drivers/net/wireless/ath/ath12k/hal.h
-@@ -1553,6 +1553,6 @@
+@@ -1553,6 +1553,6 @@ void ath12k_hal_rx_reo_ent_buf_paddr_get
  					 u8 *rbm, u32 *msdu_cnt);
  void *ath12k_hal_encode_tlv64_hdr(void *tlv, u64 tag, u64 len);
  void *ath12k_hal_encode_tlv32_hdr(void *tlv, u64 tag, u64 len);
@@ -84,7 +84,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  #endif
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcc2072.c
-@@ -455,7 +455,7 @@
+@@ -455,7 +455,7 @@ static u16 ath12k_hal_reo_status_dec_tlv
  	struct hal_reo_get_queue_stats_status_qcc2072 *status_tlv;
  	u16 tag;
  
@@ -95,7 +95,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  	 * see hal_reo_get_queue_stats_status_qcc2072
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -950,6 +950,15 @@
+@@ -950,6 +950,15 @@ void ath12k_hal_extract_rx_desc_data_qcn
  	rx_desc_data->err_bitmap = ath12k_hal_rx_h_mpdu_err_qcn9274(rx_desc);
  }
  
@@ -111,7 +111,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  const struct ath12k_hw_hal_params ath12k_hw_hal_params_qcn9274 = {
  	.rx_buf_rbm = HAL_RX_BUF_RBM_SW3_BM,
  	.wbm2sw_cc_enable = HAL_WBM_SW_COOKIE_CONV_CFG_WBM2SW0_EN |
-@@ -1510,5 +1519,5 @@
+@@ -1510,5 +1519,5 @@ const struct hal_ops hal_qcn9274_ops = {
  	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
  	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
  	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,
@@ -120,7 +120,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  };
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_wcn7850.c
-@@ -756,6 +756,15 @@
+@@ -756,6 +756,15 @@ int ath12k_hal_srng_create_config_wcn785
  	return 0;
  }
  
@@ -136,7 +136,7 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  const struct ath12k_hal_tcl_to_wbm_rbm_map
  ath12k_hal_tcl_to_wbm_rbm_map_wcn7850[DP_TCL_NUM_RING_MAX] = {
  	{
-@@ -821,5 +830,5 @@
+@@ -821,5 +830,5 @@ const struct hal_ops hal_wcn7850_ops = {
  	.rx_msdu_list_get = ath12k_wifi7_hal_rx_msdu_list_get,
  	.rx_reo_ent_buf_paddr_get = ath12k_wifi7_hal_rx_reo_ent_buf_paddr_get,
  	.reo_cmd_enc_tlv_hdr = ath12k_hal_encode_tlv64_hdr,

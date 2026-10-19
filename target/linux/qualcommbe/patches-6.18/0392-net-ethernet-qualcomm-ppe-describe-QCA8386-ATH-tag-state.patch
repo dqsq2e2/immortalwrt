@@ -30,7 +30,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define PPE_PKT_CNT_TBL_SIZE				3
  #define PPE_DROP_PKT_CNT_TBL_SIZE			5
-@@ -819,6 +821,116 @@
+@@ -819,6 +821,116 @@ static ssize_t ppe_packet_counter_write(
  }
  DEFINE_SHOW_STORE_ATTRIBUTE(ppe_packet_counter);
  
@@ -147,7 +147,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ppe_debugfs_setup(struct ppe_device *ppe_dev)
  {
  	struct ppe_debugfs_entry *entry;
-@@ -844,6 +956,11 @@
+@@ -844,6 +956,11 @@ void ppe_debugfs_setup(struct ppe_device
  				    &ppe_packet_counter_fops);
  	}
  

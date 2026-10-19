@@ -15,7 +15,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.c
-@@ -907,6 +907,7 @@
+@@ -907,6 +907,7 @@ int edma_setup(struct ppe_device *ppe_de
  		edma_ctx->hw_info = &ipq9574_hw_info;
  
  	edma_ctx->ppe_dev = ppe_dev;
@@ -25,7 +25,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	edma_ctx->tx_requeue_stop = false;
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -126,6 +126,7 @@
+@@ -126,6 +126,7 @@ struct edma_intr_info {
   * @rx_page_mode: Page mode enabled or disabled
   * @rx_buf_size: Rx buffer size for Jumbo MRU
   * @tx_requeue_stop: Tx requeue stop enabled or disabled
@@ -33,7 +33,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
   */
  struct edma_context {
  	struct net_device **netdev_arr;
-@@ -142,6 +143,7 @@
+@@ -142,6 +143,7 @@ struct edma_context {
  	u32 rx_page_mode;
  	u32 rx_buf_size;
  	bool tx_requeue_stop;
@@ -57,7 +57,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  static int edma_rx_alloc_buffer_list(struct edma_rxfill_ring *rxfill_ring, int alloc_count)
  {
-@@ -215,6 +222,16 @@
+@@ -215,6 +222,16 @@ static void edma_rx_process_last_segment
  	pr_debug("edma_context:%pK skb:%pK Jumbo pkt_length:%u\n",
  		 edma_ctx, skb_head, skb_head->len);
  
@@ -74,7 +74,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	skb_head->protocol = eth_type_trans(skb_head, dev);
  
  	/* Send packet up the stack. */
-@@ -314,6 +331,65 @@
+@@ -314,6 +331,65 @@ static void edma_rx_handle_nr_frags(stru
  	edma_rx_process_last_segment(rxdesc_ring, rxdesc_pri);
  }
  
@@ -140,7 +140,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static bool edma_rx_handle_linear_packets(struct edma_rxdesc_ring *rxdesc_ring,
  					  struct edma_rxdesc_pri *rxdesc_pri,
  					  struct sk_buff *skb)
-@@ -366,6 +442,12 @@
+@@ -366,6 +442,12 @@ send_to_stack:
  	netdev_dbg(skb->dev, "edma_context:%pK, skb:%pK pkt_length:%u\n",
  		   edma_ctx, skb, skb->len);
  

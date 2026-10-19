@@ -24,11 +24,9 @@ Signed-off-by: Stanislaw Pal <kuncy7@gmail.com>
  from the bridges instead of per-port bitmaps]
 Assisted-by: Claude:claude-opus-5-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
-Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
-===================================================================
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
-@@ -1811,6 +1811,9 @@
+@@ -1811,6 +1811,9 @@ static int qca8k_tag_8021q_set(struct ds
  			return ret;
  	}
  
@@ -48,7 +46,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  
  #include "qca8k.h"
  
-@@ -1106,6 +1107,100 @@
+@@ -1106,6 +1107,100 @@ static int qca8k_port_commit_pvid(struct
  			   QCA8K_PORT_VLAN_SVID(vid));
  }
  
@@ -149,7 +147,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  int qca8k_port_vlan_filtering(struct dsa_switch *ds, int port,
  			      bool vlan_filtering,
  			      struct netlink_ext_ack *extack)
-@@ -1123,10 +1218,18 @@
+@@ -1123,10 +1218,18 @@ int qca8k_port_vlan_filtering(struct dsa
  				QCA8K_PORT_LOOKUP_VLAN_MODE_NONE);
  	}
  
@@ -171,7 +169,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  }
  
  int qca8k_port_vlan_add(struct dsa_switch *ds, int port,
-@@ -1136,17 +1239,28 @@
+@@ -1136,17 +1239,28 @@ int qca8k_port_vlan_add(struct dsa_switc
  	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
  	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
  	struct qca8k_priv *priv = ds->priv;
@@ -202,7 +200,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  	}
  
  	ret = qca8k_vlan_add(priv, port, vlan->vid, untagged);
-@@ -1172,6 +1286,11 @@
+@@ -1172,6 +1286,11 @@ int qca8k_port_vlan_del(struct dsa_switc
  	struct qca8k_priv *priv = ds->priv;
  	int ret;
  
@@ -224,7 +222,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  
  #include "tag.h"
  #include "tag_8021q.h"
-@@ -181,15 +182,26 @@
+@@ -181,15 +182,26 @@ static const struct dsa_device_ops qca_e
  
  DSA_TAG_DRIVER(qca_etype_netdev_ops);
  
@@ -252,7 +250,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  
  	if (skb->offload_fwd_mark) {
  		struct net_device *br = dsa_port_bridge_dev_get(dp);
-@@ -198,11 +210,40 @@
+@@ -198,11 +210,40 @@ static struct sk_buff *qca_8021q_tag_xmi
  			return skb;
  
  		tx_vid = dsa_tag_8021q_bridge_vid(dsa_port_bridge_num_get(dp));
@@ -293,7 +291,7 @@ Index: linux-6.18.55/drivers/net/dsa/qca/qca8k-8xxx.c
  static struct sk_buff *qca_8021q_tag_rcv(struct sk_buff *skb,
  					 struct net_device *dev)
  {
-@@ -219,8 +260,11 @@
+@@ -219,8 +260,11 @@ static struct sk_buff *qca_8021q_tag_rcv
  
  	dsa_8021q_rcv(skb, &src_port, &switch_id, &vbid, &vid);
  

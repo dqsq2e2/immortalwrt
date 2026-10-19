@@ -21,7 +21,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  #define DIG_CONTROL2				0x8001
  #define MII_BIT_CONTROL				BIT(8)
  #define TX_CONFIG				BIT(3)
-@@ -543,6 +546,14 @@
+@@ -543,6 +546,14 @@ static int qca8084_xpcs_set_mode(struct
  					 TX_IPG_CHECK_DISABLE);
  		if (ret)
  			return ret;

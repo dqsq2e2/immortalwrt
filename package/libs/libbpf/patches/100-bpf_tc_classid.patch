@@ -1,6 +1,6 @@
 --- a/src/libbpf.h
 +++ b/src/libbpf.h
-@@ -1396,9 +1396,10 @@ struct bpf_tc_opts {
+@@ -1475,9 +1475,10 @@ struct bpf_tc_opts {
  	__u32 prog_id;
  	__u32 handle;
  	__u32 priority;

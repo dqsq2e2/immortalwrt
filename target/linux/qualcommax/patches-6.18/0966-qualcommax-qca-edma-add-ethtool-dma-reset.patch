@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/qca_edma.c
 +++ b/drivers/net/ethernet/qualcomm/qca_edma.c
-@@ -1506,6 +1506,26 @@
+@@ -1506,6 +1506,26 @@ static int edma_set_ringparam(struct net
  				ring->rx_pending);
  }
  
@@ -38,7 +38,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* A ring interrupts once it holds more frames than its threshold, and its
   * timer interrupts for fewer once they have waited that long. A threshold of
   * zero interrupts on every frame, which leaves the timer nothing to do.
-@@ -1718,6 +1738,7 @@
+@@ -1718,6 +1738,7 @@ static const struct ethtool_ops edma_eth
  	.get_regs_len = edma_get_regs_len,
  	.get_regs = edma_get_regs,
  	.get_channels = edma_get_channels,

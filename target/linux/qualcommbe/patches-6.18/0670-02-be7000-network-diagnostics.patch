@@ -10,7 +10,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1190,16 +1190,27 @@
+@@ -1190,16 +1190,27 @@ int ppe_port_phylink_setup(struct ppe_po
  
  	/* Get PCS instance */
  	pcs_node = of_parse_phandle(ppe_port->np, "pcs-handle", 0);
@@ -42,7 +42,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	/* Port phylink capability */
  	ppe_port->phylink_config.dev = &netdev->dev;
-@@ -1218,8 +1229,10 @@
+@@ -1218,8 +1229,10 @@ int ppe_port_phylink_setup(struct ppe_po
  					   ppe_port->interface,
  					   &ppe_phylink_ops);
  	if (IS_ERR(ppe_port->phylink)) {
@@ -55,7 +55,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  		ret = PTR_ERR(ppe_port->phylink);
  		goto err_free_pcs;
  	}
-@@ -1227,8 +1240,9 @@
+@@ -1227,8 +1240,9 @@ int ppe_port_phylink_setup(struct ppe_po
  	/* Connect phylink */
  	ret = phylink_of_phy_connect(ppe_port->phylink, ppe_port->np, 0);
  	if (ret) {
@@ -69,7 +69,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
 --- a/drivers/net/phy/phylink.c
 +++ b/drivers/net/phy/phylink.c
-@@ -2448,11 +2448,13 @@
+@@ -2448,11 +2448,13 @@ static int phylink_bringup_phy(struct ph
  			     __ETHTOOL_LINK_MODE_MASK_NBITS, config.advertising,
  			     ERR_PTR(ret));
  		dev_err(pl->config->dev,
@@ -85,7 +85,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -2655,16 +2657,25 @@
+@@ -2655,16 +2657,25 @@ int phylink_fwnode_phy_connect(struct ph
  
  	phy_fwnode = fwnode_get_phy_node(fwnode);
  	if (IS_ERR(phy_fwnode)) {
@@ -113,7 +113,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	/* Use PHY device/driver interface */
  	if (pl->link_interface == PHY_INTERFACE_MODE_NA) {
-@@ -2698,9 +2709,11 @@
+@@ -2698,9 +2709,11 @@ int phylink_fwnode_phy_connect(struct ph
  				pl->link_interface);
  	if (ret)
  		dev_err(pl->config->dev,
@@ -130,7 +130,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  		return ret;
 --- a/drivers/net/phy/qcom/qca8084_serdes.c
 +++ b/drivers/net/phy/qcom/qca8084_serdes.c
-@@ -257,6 +257,7 @@
+@@ -257,6 +257,7 @@ struct mdio_device *qca8084_package_pcs_
  	}
  
  	mdiodev_set_drvdata(mdiodev, pcs_data);
@@ -138,7 +138,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	return mdiodev;
  }
-@@ -293,8 +294,12 @@
+@@ -293,8 +294,12 @@ struct mdio_device *qca8084_package_xpcs
  
  	/* Sanity check the number of channel sub nodes */
  	node = of_get_available_child_count(xpcs_np);
@@ -152,7 +152,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	node = 0;
  	for_each_available_child_of_node(xpcs_np, child) {
-@@ -348,6 +353,14 @@
+@@ -348,6 +353,14 @@ struct mdio_device *qca8084_package_xpcs
  	}
  
  	mdiodev_set_drvdata(mdiodev, xpcs_data);
@@ -169,7 +169,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -1309,16 +1309,26 @@
+@@ -1309,16 +1309,26 @@ static int qca8084_phy_package_probe_onc
  
  		if (of_node_name_eq(child, "pcs-phy")) {
  			mdiodev = qca8084_package_pcs_probe(child);
@@ -200,7 +200,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  			shared_priv->mdiodev[1] = mdiodev;
  		}
-@@ -1330,7 +1340,15 @@
+@@ -1330,7 +1340,15 @@ static int qca8084_phy_package_probe_onc
  				     "package reset not ready\n");
  
  	/* Deassert PHY package. */

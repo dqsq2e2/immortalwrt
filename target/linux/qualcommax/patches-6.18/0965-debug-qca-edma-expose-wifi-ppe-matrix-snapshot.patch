@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/tcp.h>
  #include <linux/udp.h>
  #include <net/ip.h>
-@@ -2110,6 +2112,78 @@
+@@ -2110,6 +2112,78 @@ static int edma_get_mac_address(struct n
  	return -ENODEV;
  }
  
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int edma_probe(struct platform_device *pdev)
  {
  	struct clk_bulk_data *clks;
-@@ -2224,6 +2298,7 @@
+@@ -2224,6 +2298,7 @@ static int edma_probe(struct platform_de
  		goto err_irq;
  	}
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = dev_set_threaded(netdev, NETDEV_NAPI_THREADED_ENABLED);
  	if (ret)
  		dev_warn(dev, "failed to enable threaded NAPI: %d\n", ret);
-@@ -2247,6 +2322,7 @@
+@@ -2247,6 +2322,7 @@ static void edma_remove(struct platform_
  	struct edma_priv *priv = platform_get_drvdata(pdev);
  
  	qca_ppe_wifi_inject_unregister(&priv->wifi_inject_ops);
@@ -123,7 +123,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	netif_napi_del(&priv->rx_napi);
 --- a/drivers/net/ethernet/qualcomm/qca_edma.h
 +++ b/drivers/net/ethernet/qualcomm/qca_edma.h
-@@ -333,8 +333,11 @@
+@@ -333,8 +333,11 @@ struct edma_ring {
  	struct page **page_store;
  };
  

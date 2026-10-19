@@ -51,7 +51,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  
  enum ppe_ds_irq {
  	PPE_DS_RX,
-@@ -334,7 +356,8 @@
+@@ -334,7 +356,8 @@ static int ppe_ds_poll(struct napi_struc
  				ppe_ds_write(ds, EDMA_REG_RXDESC_INT_MASK(ds->ring), 1);
  			else {
  				ppe_ds_write(ds, EDMA_REG_RXDESC_INT_MASK(ds->ring), 0);

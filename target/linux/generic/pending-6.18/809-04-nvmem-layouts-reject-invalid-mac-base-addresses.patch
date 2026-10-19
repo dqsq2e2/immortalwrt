@@ -12,7 +12,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/nvmem/layouts.c
 +++ b/drivers/nvmem/layouts.c
-@@ -30,10 +30,13 @@
+@@ -30,10 +30,13 @@ static int nvmem_mac_base_raw_read(void
  	if (WARN_ON(bytes != ETH_ALEN))
  		return -EINVAL;
  
@@ -27,7 +27,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
  
  static int nvmem_mac_base_ascii_read(void *context, const char *id, int index, unsigned int offset,
-@@ -47,9 +50,15 @@
+@@ -47,9 +50,15 @@ static int nvmem_mac_base_ascii_read(voi
  	if (!mac_pton(buf, mac))
  		return -EINVAL;
  
@@ -43,7 +43,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	ether_addr_copy(buf, mac);
  
  	return 0;
-@@ -72,9 +81,15 @@
+@@ -72,9 +81,15 @@ static int nvmem_mac_base_hex_read(void
  		mac[i] = (hex_to_bin(hexstr[i * 2]) << 4) | hex_to_bin(hexstr[i * 2 + 1]);
  	}
  

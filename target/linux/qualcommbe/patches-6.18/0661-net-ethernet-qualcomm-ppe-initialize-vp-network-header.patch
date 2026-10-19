@@ -32,7 +32,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static struct sk_buff *edma_rx_alloc_skb(unsigned int len)
  {
  	struct sk_buff *skb;
-@@ -461,6 +463,7 @@
+@@ -461,6 +463,7 @@ static bool edma_rx_deliver_vp(struct ed
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct net_device *dev;
@@ -40,7 +40,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int vp;
  
  	if (!edma_ctx->has_vports)
-@@ -478,9 +481,27 @@
+@@ -478,9 +481,27 @@ static bool edma_rx_deliver_vp(struct ed
  		return true;
  	}
  

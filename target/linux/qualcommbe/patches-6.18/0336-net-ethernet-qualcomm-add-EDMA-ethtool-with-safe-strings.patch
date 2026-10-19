@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/Makefile
 +++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
-@@ -7,4 +7,4 @@
+@@ -7,4 +7,4 @@ obj-$(CONFIG_QCOM_PPE) += qcom-ppe.o
  qcom-ppe-objs := ppe.o ppe_config.o ppe_debugfs.o ppe_port.o
  
  #EDMA
@@ -26,7 +26,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +qcom-ppe-objs += edma.o edma_cfg_rx.o edma_cfg_tx.o edma_debugfs.o edma_port.o edma_rx.o edma_tx.o edma_ethtool.o
 --- a/drivers/net/ethernet/qualcomm/ppe/edma.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma.h
-@@ -161,6 +161,7 @@
+@@ -161,6 +161,7 @@ void edma_destroy(struct ppe_device *ppe
  int edma_setup(struct ppe_device *ppe_dev);
  void edma_debugfs_teardown(void);
  int edma_debugfs_setup(struct ppe_device *ppe_dev);
@@ -334,7 +334,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +}
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_port.c
-@@ -380,6 +380,7 @@
+@@ -380,6 +380,7 @@ int edma_port_setup(struct ppe_port *por
  	netdev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
  	netdev->netdev_ops = &edma_port_netdev_ops;
  	netdev->gso_max_segs = GSO_MAX_SEGS;

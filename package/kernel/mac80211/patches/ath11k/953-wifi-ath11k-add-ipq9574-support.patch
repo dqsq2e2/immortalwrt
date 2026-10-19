@@ -24,7 +24,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	/* TODO: Should we change the compatible string to something similar
  	 * to one that ath10k uses?
  	 */
-@@ -1184,6 +1187,7 @@
+@@ -1184,6 +1187,7 @@ static int ath11k_ahb_probe(struct platf
  	hw_rev = (uintptr_t)device_get_match_data(&pdev->dev);
  
  	switch (hw_rev) {
@@ -34,11 +34,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  	case ATH11K_HW_IPQ5018_HW10:
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -39,6 +39,89 @@
- MODULE_PARM_DESC(ftm_mode, "Boots up in factory test mode");
+@@ -40,6 +40,89 @@ MODULE_PARM_DESC(ftm_mode, "Boots up in
  
  static const struct ath11k_hw_params ath11k_hw_params[] = {
-+	{
+ 	{
 +		.hw_rev = ATH11K_HW_IPQ9574_HW10,
 +		.name = "ipq9574 hw1.0",
 +		.fw = {
@@ -121,12 +120,13 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +		.support_dual_stations = false,
 +		.pdev_suspend = false,
 +	},
- 	{
++	{
  		.hw_rev = ATH11K_HW_IPQ8074_HW20,
  		.name = "ipq8074 hw2.0",
+ 		.fw = {
 --- a/drivers/net/wireless/ath/ath11k/core.h
 +++ b/drivers/net/wireless/ath/ath11k/core.h
-@@ -157,6 +157,7 @@
+@@ -157,6 +157,7 @@ enum ath11k_hw_rev {
  	ATH11K_HW_QCA2066_HW21,
  	ATH11K_HW_QCA6698AQ_HW21,
  	ATH11K_HW_QCN6122_HW10,
@@ -136,12 +136,10 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  enum ath11k_firmware_mode {
 --- a/drivers/net/wireless/ath/ath11k/hw.c
 +++ b/drivers/net/wireless/ath/ath11k/hw.c
-@@ -32,6 +32,17 @@
- static u8 ath11k_hw_ipq6018_mac_from_pdev_id(int pdev_idx)
- {
+@@ -34,6 +34,17 @@ static u8 ath11k_hw_ipq6018_mac_from_pde
  	return pdev_idx;
-+}
-+
+ }
+ 
 +static u8 ath11k_hw_ipq9574_mac_from_pdev_id(int pdev_idx)
 +{
 +	/* IPQ9574 is a single PHY radio which maps to PHY B/MAC3. */
@@ -151,14 +149,15 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +	default:
 +		return ATH11K_INVALID_HW_MAC_ID;
 +	}
- }
- 
++}
++
  static void ath11k_hw_ipq8074_tx_mesh_enable(struct ath11k_base *ab,
-@@ -899,6 +910,46 @@
- 	 */
+ 					     struct hal_tcl_data_cmd *tcl_cmd)
+ {
+@@ -900,6 +911,46 @@ static u32 ath11k_hw_wcn6750_get_tcl_rin
  	return skb_get_hash(skb);
  }
-+
+ 
 +const struct ath11k_hw_ops ipq9574_ops = {
 +	.get_hw_mac_from_pdev_id = ath11k_hw_ipq9574_mac_from_pdev_id,
 +	.wmi_init_config = ath11k_init_wmi_config_ipq8074,
@@ -198,12 +197,13 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 +	.rx_desc_mpdu_start_addr2 = ath11k_hw_ipq8074_rx_desc_mpdu_start_addr2,
 +	.get_ring_selector = ath11k_hw_ipq8074_get_tcl_ring_selector,
 +};
- 
++
  const struct ath11k_hw_ops ipq8074_ops = {
  	.get_hw_mac_from_pdev_id = ath11k_hw_ipq8074_mac_from_pdev_id,
+ 	.wmi_init_config = ath11k_init_wmi_config_ipq8074,
 --- a/drivers/net/wireless/ath/ath11k/hw.h
 +++ b/drivers/net/wireless/ath/ath11k/hw.h
-@@ -281,6 +281,7 @@
+@@ -281,6 +281,7 @@ struct ath11k_hw_ops {
  	u32 (*get_ring_selector)(struct sk_buff *skb);
  };
  
@@ -213,7 +213,7 @@ Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
  extern const struct ath11k_hw_ops qca6390_ops;
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -1757,7 +1757,8 @@
+@@ -1757,7 +1757,8 @@ int ath11k_qmi_host_cap_send(struct ath1
  	if (ab->hw_params.global_reset)
  		req.nm_modem |= PLATFORM_CAP_PCIE_GLOBAL_RESET;
  

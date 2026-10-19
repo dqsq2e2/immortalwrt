@@ -18,7 +18,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -430,6 +430,8 @@
+@@ -430,6 +430,8 @@ const struct ath12k_hw_regs ipq5332_regs
  	.reo1_sw_cookie_cfg1 = 0x00000070,
  	.reo1_qdesc_lut_base0 = 0x00000074,
  	.reo1_qdesc_lut_base1 = 0x00000078,

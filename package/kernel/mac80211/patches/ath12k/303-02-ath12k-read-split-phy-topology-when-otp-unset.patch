@@ -28,7 +28,7 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
  #include <linux/firmware.h>
  
  #include "core.h"
-@@ -211,8 +212,11 @@
+@@ -211,8 +212,11 @@ int ath12k_mhi_register(struct ath12k_pc
  		}
  
  		if (!board_id || (board_id == OTP_INVALID_BOARD_ID)) {

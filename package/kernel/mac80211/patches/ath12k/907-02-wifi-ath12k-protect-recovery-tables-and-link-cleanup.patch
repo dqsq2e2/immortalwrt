@@ -15,7 +15,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -1727,6 +1727,10 @@
+@@ -1727,6 +1727,10 @@ static void ath12k_core_restart(struct w
  	ret = ath12k_core_reconfigure_on_crash(ab);
  	if (ret) {
  		ath12k_err(ab, "failed to reconfigure driver on crash recovery\n");
@@ -28,7 +28,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -1538,10 +1538,13 @@
+@@ -1538,10 +1538,13 @@ static int ath12k_dp_setup(struct ath12k
  	spin_lock_init(&dp->reo_cmd_lock);
  	spin_lock_init(&dp->reo_rxq_flush_lock);
  
@@ -47,7 +47,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	dp->idle_link_rbm =
 --- a/drivers/net/wireless/ath/ath12k/dp_peer.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_peer.c
-@@ -62,6 +62,10 @@
+@@ -62,6 +62,10 @@ ath12k_dp_link_peer_find_by_addr(struct
  {
  	lockdep_assert_held(&dp->dp_lock);
  
@@ -58,7 +58,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	return rhashtable_lookup_fast(dp->rhead_peer_addr, addr,
  				      dp->rhash_peer_addr_param);
  }
-@@ -251,7 +255,9 @@
+@@ -251,7 +255,9 @@ static int ath12k_dp_link_peer_rhash_add
  		goto err_free;
  	}
  
@@ -68,7 +68,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	return 0;
  
-@@ -274,14 +280,23 @@
+@@ -274,14 +280,23 @@ int ath12k_dp_link_peer_rhash_tbl_init(s
  
  void ath12k_dp_link_peer_rhash_tbl_destroy(struct ath12k_dp *dp)
  {
@@ -96,7 +96,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
  
  static int ath12k_dp_link_peer_rhash_insert(struct ath12k_dp *dp,
-@@ -291,6 +306,9 @@
+@@ -291,6 +306,9 @@ static int ath12k_dp_link_peer_rhash_ins
  
  	lockdep_assert_held(&dp->dp_lock);
  
@@ -106,7 +106,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	tmp = rhashtable_lookup_get_insert_fast(dp->rhead_peer_addr, &peer->rhash_addr,
  						dp->rhash_peer_addr_param);
  	if (!tmp)
-@@ -308,6 +326,9 @@
+@@ -308,6 +326,9 @@ static int ath12k_dp_link_peer_rhash_rem
  
  	lockdep_assert_held(&dp->dp_lock);
  
@@ -118,7 +118,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	if (ret && ret != -ENOENT)
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -5900,7 +5900,7 @@
+@@ -5900,7 +5900,7 @@ abort:
  		links_map = ahvif->links_map;
  		for_each_set_bit(link_id, &links_map, ATH12K_NUM_MAX_LINKS) {
  			arvif = wiphy_dereference(hw->wiphy, ahvif->link[link_id]);
@@ -127,7 +127,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  				continue;
  
  			ar = arvif->ar;
-@@ -7393,7 +7393,7 @@
+@@ -7393,7 +7393,7 @@ static void ath12k_mac_ml_station_remove
  	bool is_recovery = false;
  	unsigned long links;
  	struct ath12k *ar;
@@ -136,7 +136,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	u8 link_id;
  
  	lockdep_assert_wiphy(ah->hw->wiphy);
-@@ -7417,16 +7417,27 @@
+@@ -7417,16 +7417,27 @@ static void ath12k_mac_ml_station_remove
  	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
  		arvif = wiphy_dereference(ah->hw->wiphy, ahvif->link[link_id]);
  		arsta = wiphy_dereference(ah->hw->wiphy, ahsta->link[link_id]);
@@ -174,7 +174,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	}
 --- a/drivers/net/wireless/ath/ath12k/peer.c
 +++ b/drivers/net/wireless/ath/ath12k/peer.c
-@@ -563,6 +563,9 @@
+@@ -563,6 +563,9 @@ static int ath12k_link_sta_rhash_insert(
  
  	lockdep_assert_held(&ab->base_lock);
  
@@ -184,7 +184,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	tmp = rhashtable_lookup_get_insert_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
  						ab->rhash_sta_addr_param);
  	if (!tmp)
-@@ -580,6 +583,9 @@
+@@ -580,6 +583,9 @@ static int ath12k_link_sta_rhash_remove(
  
  	lockdep_assert_held(&ab->base_lock);
  
@@ -194,7 +194,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	ret = rhashtable_remove_fast(ab->rhead_sta_addr, &arsta->rhash_addr,
  				     ab->rhash_sta_addr_param);
  	if (ret && ret != -ENOENT)
-@@ -646,7 +652,9 @@
+@@ -646,7 +652,9 @@ int ath12k_link_sta_rhash_tbl_init(struc
  		goto err_free;
  	}
  
@@ -204,7 +204,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	return 0;
  
-@@ -658,12 +666,19 @@
+@@ -658,12 +666,19 @@ err_free:
  
  void ath12k_link_sta_rhash_tbl_destroy(struct ath12k_base *ab)
  {
@@ -228,7 +228,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
  
  struct ath12k_link_sta *ath12k_link_sta_find_by_addr(struct ath12k_base *ab,
-@@ -671,6 +686,10 @@
+@@ -671,6 +686,10 @@ struct ath12k_link_sta *ath12k_link_sta_
  {
  	lockdep_assert_held(&ab->base_lock);
  
@@ -241,7 +241,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -194,6 +194,10 @@
+@@ -194,6 +194,10 @@ struct ath12k_dp *ath12k_wifi7_dp_device
  
  	dp->ops = &ath12k_wifi7_dp_arch_ops;
  

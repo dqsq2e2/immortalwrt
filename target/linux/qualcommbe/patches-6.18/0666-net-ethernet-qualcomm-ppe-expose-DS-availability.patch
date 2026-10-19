@@ -14,7 +14,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
-@@ -110,6 +110,17 @@
+@@ -110,6 +110,17 @@ static DEFINE_MUTEX(ppe_ds_lock);
  static DEFINE_SPINLOCK(ppe_ds_fault_lock);
  static struct ppe_ds_provider *ppe_ds_provider;
  
@@ -34,7 +34,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	u32 value = 0;
 --- a/include/linux/soc/qcom/ppe-ds.h
 +++ b/include/linux/soc/qcom/ppe-ds.h
-@@ -50,6 +50,10 @@
+@@ -50,6 +50,10 @@ struct qcom_ppe_ds_config {
   * a hardware reset is required before those resources can be reclaimed.
   */
  struct qcom_ppe_ds *qcom_ppe_ds_register(const struct qcom_ppe_ds_config *cfg);

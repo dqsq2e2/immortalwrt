@@ -17,12 +17,10 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 ---
 --- a/arch/arm64/boot/dts/qcom/ipq9574.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq9574.dtsi
-@@ -961,6 +961,117 @@
- 				interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
- 				status = "disabled";
+@@ -963,6 +963,117 @@
  			};
-+		};
-+
+ 		};
+ 
 +		wifi0: wifi@c000000 {
 +			compatible = "qcom,ipq9574-wifi";
 +			reg = <0x0c000000 0x01000000>;
@@ -132,6 +130,8 @@ Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
 +					  "tcl2host-status-ring";
 +			qcom,rproc = <&q6v5_wcss>;
 +			status = "disabled";
- 		};
- 
++		};
++
  		q6v5_wcss: remoteproc@cd00000 {
+ 			compatible = "qcom,ipq9574-wcss-sec-pil";
+ 			reg = <0x0cd00000 0x10000>;

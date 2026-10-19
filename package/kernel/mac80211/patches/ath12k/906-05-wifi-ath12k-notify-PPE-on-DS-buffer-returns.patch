@@ -14,7 +14,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -635,8 +635,11 @@
+@@ -635,8 +635,11 @@ bad_cookie:
  		dev_put(dev);
  	}
  	ath12k_ds_flush_rx(ds);

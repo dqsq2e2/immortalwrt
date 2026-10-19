@@ -13,7 +13,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/clk/qcom/clk-rcg.h
 +++ b/drivers/clk/qcom/clk-rcg.h
-@@ -189,9 +189,11 @@
+@@ -189,9 +189,11 @@ struct clk_rcg2_gfx3d {
  	container_of(to_clk_rcg2(_hw), struct clk_rcg2_gfx3d, rcg)
  
  extern const struct clk_ops clk_rcg2_ops;
@@ -27,7 +27,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  extern const struct clk_ops clk_byte_ops;
 --- a/drivers/clk/qcom/clk-rcg2.c
 +++ b/drivers/clk/qcom/clk-rcg2.c
-@@ -811,6 +811,20 @@
+@@ -811,6 +811,20 @@ const struct clk_ops clk_rcg2_ops = {
  };
  EXPORT_SYMBOL_GPL(clk_rcg2_ops);
  
@@ -48,7 +48,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  const struct clk_ops clk_rcg2_gp_ops = {
  	.is_enabled = clk_rcg2_is_enabled,
  	.get_parent = clk_rcg2_get_parent,
-@@ -849,6 +863,20 @@
+@@ -849,6 +863,20 @@ const struct clk_ops clk_rcg2_fm_ops = {
  };
  EXPORT_SYMBOL_GPL(clk_rcg2_fm_ops);
  
@@ -71,7 +71,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	.get_parent = clk_rcg2_get_parent,
 --- a/drivers/clk/qcom/nsscc-qca8k.c
 +++ b/drivers/clk/qcom/nsscc-qca8k.c
-@@ -314,7 +314,7 @@
+@@ -314,7 +314,7 @@ static struct clk_rcg2 nss_cc_mac1_tx_cl
  		.name = "nss_cc_mac1_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -80,7 +80,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -451,7 +451,7 @@
+@@ -451,7 +451,7 @@ static struct clk_rcg2 nss_cc_mac1_rx_cl
  		.name = "nss_cc_mac1_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -89,7 +89,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -570,7 +570,7 @@
+@@ -570,7 +570,7 @@ static struct clk_rcg2 nss_cc_mac2_tx_cl
  		.name = "nss_cc_mac2_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -98,7 +98,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -689,7 +689,7 @@
+@@ -689,7 +689,7 @@ static struct clk_rcg2 nss_cc_mac2_rx_cl
  		.name = "nss_cc_mac2_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -107,7 +107,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -808,7 +808,7 @@
+@@ -808,7 +808,7 @@ static struct clk_rcg2 nss_cc_mac3_tx_cl
  		.name = "nss_cc_mac3_tx_clk_src",
  		.parent_data = nss_cc_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_rx_tx312p5m_data),
@@ -116,7 +116,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -927,7 +927,7 @@
+@@ -927,7 +927,7 @@ static struct clk_rcg2 nss_cc_mac3_rx_cl
  		.name = "nss_cc_mac3_rx_clk_src",
  		.parent_data = nss_cc_uniphy1_tx312p5m_prx_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_prx_data),
@@ -125,7 +125,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -1088,7 +1088,7 @@
+@@ -1088,7 +1088,7 @@ static struct clk_rcg2 nss_cc_mac4_tx_cl
  		.name = "nss_cc_mac4_tx_clk_src",
  		.parent_data = nss_cc_uniphy0_rx_uniphy1_rx_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy0_rx_uniphy1_rx_tx312p5m_data),
@@ -134,7 +134,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -1244,7 +1244,7 @@
+@@ -1244,7 +1244,7 @@ static struct clk_rcg2 nss_cc_mac4_rx_cl
  		.name = "nss_cc_mac4_rx_clk_src",
  		.parent_data = nss_cc_uniphy0_tx_uniphy1_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy0_tx_uniphy1_tx312p5m_data),
@@ -143,7 +143,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -1577,7 +1577,7 @@
+@@ -1577,7 +1577,7 @@ static struct clk_rcg2 nss_cc_ahb_clk_sr
  		.parent_data = nss_cc_uniphy1_tx312p5m_data,
  		.num_parents = ARRAY_SIZE(nss_cc_uniphy1_tx312p5m_data),
  		.flags = CLK_IS_CRITICAL,
@@ -152,7 +152,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	},
  };
  
-@@ -1730,7 +1730,7 @@
+@@ -1730,7 +1730,7 @@ static struct clk_rcg2 nss_cc_sys_clk_sr
  		.parent_data = nss_cc_xo_data,
  		.num_parents = ARRAY_SIZE(nss_cc_xo_data),
  		.flags = CLK_IS_CRITICAL,

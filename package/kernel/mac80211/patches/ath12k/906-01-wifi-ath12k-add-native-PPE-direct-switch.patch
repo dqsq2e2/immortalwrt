@@ -27,7 +27,7 @@ Keep VP publication ordering, completion classification and safe teardown.
 ---
 --- a/drivers/net/wireless/ath/ath12k/Kconfig
 +++ b/drivers/net/wireless/ath/ath12k/Kconfig
-@@ -67,3 +67,11 @@
+@@ -67,3 +67,11 @@ config ATH12K_THERMAL
          depends on THERMAL
          help
            Enable ath12k thermal sensor support.
@@ -41,7 +41,7 @@ Keep VP publication ordering, completion classification and safe teardown.
 +	  Runtime activation is controlled by the ppe_ds module parameter.
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -736,6 +736,7 @@
+@@ -736,6 +736,7 @@ void ath12k_core_to_group_ref_put(struct
  
  static void ath12k_core_stop(struct ath12k_base *ab)
  {
@@ -49,7 +49,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ath12k_link_sta_rhash_tbl_destroy(ab);
  
  	ath12k_core_to_group_ref_put(ab);
-@@ -1091,6 +1092,7 @@
+@@ -1091,6 +1092,7 @@ static void ath12k_core_hw_group_stop(st
  	lockdep_assert_held(&ag->mutex);
  
  	clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags);
@@ -57,7 +57,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  	for (i = ag->num_devices - 1; i >= 0; i--) {
  		ab = ag->ab[i];
-@@ -1468,6 +1470,8 @@
+@@ -1468,6 +1470,8 @@ static int ath12k_core_reconfigure_on_cr
  {
  	int ret, total_vdev;
  
@@ -66,7 +66,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	mutex_lock(&ab->core_lock);
  	ath12k_link_sta_rhash_tbl_destroy(ab);
  	ath12k_thermal_unregister(ab);
-@@ -1816,6 +1820,7 @@
+@@ -1816,6 +1820,7 @@ static void ath12k_core_reset(struct wor
  	ath12k_core_post_reconfigure_recovery(ab);
  
  	ath12k_dbg(ab, ATH12K_DBG_BOOT, "waiting recovery start...\n");
@@ -76,7 +76,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ath12k_hif_ce_irq_disable(ab);
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -142,6 +142,7 @@
+@@ -142,6 +142,7 @@ struct ath12k_skb_rxcb {
  	bool is_continuation;
  	bool is_mcbc;
  	bool is_eapol;
@@ -84,7 +84,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	struct hal_rx_desc *rx_desc;
  	u8 err_rel_src;
  	u8 err_code;
-@@ -266,6 +267,7 @@
+@@ -266,6 +267,7 @@ enum ath12k_11d_state {
  enum ath12k_hw_group_flags {
  	ATH12K_GROUP_FLAG_REGISTERED,
  	ATH12K_GROUP_FLAG_UNREGISTER,
@@ -92,7 +92,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  };
  
  enum ath12k_dev_flags {
-@@ -1368,6 +1370,11 @@
+@@ -1368,6 +1370,11 @@ static inline struct ath12k_skb_rxcb *AT
  	return (struct ath12k_skb_rxcb *)skb->cb;
  }
  
@@ -106,7 +106,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	return (struct ath12k_vif *)vif->drv_priv;
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -141,6 +141,7 @@
+@@ -141,6 +141,7 @@ void ath12k_dp_srng_cleanup(struct ath12
  
  	ring->vaddr_unaligned = NULL;
  }
@@ -114,7 +114,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  static int ath12k_dp_srng_find_ring_in_mask(int ring_num, const u8 *grp_mask)
  {
-@@ -163,6 +164,12 @@
+@@ -163,6 +164,12 @@ static int ath12k_dp_srng_calculate_msi_
  	const u8 *grp_mask;
  	int i;
  
@@ -127,7 +127,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	switch (type) {
  	case HAL_WBM2SW_RELEASE:
  		if (ring_num == HAL_WBM2SW_REL_ERR_RING_NUM) {
-@@ -290,7 +297,16 @@
+@@ -290,7 +297,16 @@ int ath12k_dp_srng_setup(struct ath12k_b
  	params.num_entries = num_entries;
  	ath12k_dp_srng_msi_setup(ab, &params, type, ring_num + mac_id);
  
@@ -144,7 +144,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	case HAL_REO_DST:
  		params.intr_batch_cntr_thres_entries =
  					HAL_SRNG_INT_BATCH_THRESHOLD_RX;
-@@ -316,7 +332,8 @@
+@@ -316,7 +332,8 @@ int ath12k_dp_srng_setup(struct ath12k_b
  		params.intr_timer_thres_us = HAL_SRNG_INT_TIMER_THRESHOLD_RX;
  		break;
  	case HAL_WBM2SW_RELEASE:
@@ -154,7 +154,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  			params.intr_batch_cntr_thres_entries =
  					HAL_SRNG_INT_BATCH_THRESHOLD_TX;
  			params.intr_timer_thres_us =
-@@ -359,19 +376,15 @@
+@@ -359,19 +376,15 @@ int ath12k_dp_srng_setup(struct ath12k_b
  
  	return 0;
  }
@@ -177,7 +177,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	spin_lock_bh(&dp->tx_bank_lock);
  	/* TODO: implement using idr kernel framework*/
  	for (i = 0; i < dp->num_bank_profiles; i++) {
-@@ -411,6 +424,15 @@
+@@ -411,6 +424,15 @@ inc_ref_and_return:
  
  	return bank_id;
  }
@@ -193,7 +193,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  void ath12k_dp_tx_put_bank_profile(struct ath12k_dp *dp, u8 bank_id)
  {
-@@ -418,6 +440,7 @@
+@@ -418,6 +440,7 @@ void ath12k_dp_tx_put_bank_profile(struc
  	dp->bank_profiles[bank_id].num_users--;
  	spin_unlock_bh(&dp->tx_bank_lock);
  }
@@ -201,7 +201,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  static void ath12k_dp_deinit_bank_profiles(struct ath12k_base *ab)
  {
-@@ -1030,7 +1053,7 @@
+@@ -1030,7 +1053,7 @@ static void ath12k_dp_cc_cleanup(struct
  				dma_unmap_single(ab->dev,
  						 ATH12K_SKB_RXCB(skb)->paddr,
  						 skb->len + skb_tailroom(skb),
@@ -210,7 +210,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  				dev_kfree_skb_any(skb);
  			}
  
-@@ -1145,6 +1168,11 @@
+@@ -1145,6 +1168,11 @@ static void ath12k_dp_cleanup(struct ath
  	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
  	int i;
  
@@ -222,7 +222,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ath12k_dp_link_peer_rhash_tbl_destroy(dp);
  
  	if (!dp->ab)
-@@ -1580,6 +1608,12 @@
+@@ -1580,6 +1608,12 @@ static int ath12k_dp_setup(struct ath12k
  	for (i = 0; i < HAL_DSCP_TID_MAP_TBL_NUM_ENTRIES_MAX; i++)
  		ath12k_hal_tx_set_dscp_tid_map(ab, i);
  
@@ -235,7 +235,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ret = ath12k_dp_rx_alloc(ab);
  	if (ret)
  		goto fail_dp_rx_free;
-@@ -1589,6 +1623,8 @@
+@@ -1589,6 +1623,8 @@ static int ath12k_dp_setup(struct ath12k
  	return 0;
  
  fail_dp_rx_free:
@@ -244,7 +244,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ath12k_dp_rx_free(ab);
  
  fail_cmn_reoq_cleanup:
-@@ -1618,6 +1654,33 @@
+@@ -1618,6 +1654,33 @@ rhash_destroy:
  	return ret;
  }
  
@@ -280,7 +280,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	ath12k_dp_cleanup(dp->ab);
 --- a/drivers/net/wireless/ath/ath12k/dp.h
 +++ b/drivers/net/wireless/ath/ath12k/dp.h
-@@ -18,7 +18,9 @@
+@@ -18,7 +18,9 @@ struct ath12k_base;
  struct ath12k_dp_link_peer;
  struct ath12k_dp;
  struct ath12k_vif;
@@ -290,7 +290,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  struct ath12k_ext_irq_grp;
  struct ath12k_dp_rx_tid;
  struct ath12k_dp_rx_tid_rxq;
-@@ -338,7 +340,8 @@
+@@ -338,7 +340,8 @@ struct ath12k_rx_desc_info {
  	u32 magic;
  	u8 in_use	: 1,
  	   device_id	: 3,
@@ -300,7 +300,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  };
  
  struct ath12k_tx_desc_info {
-@@ -348,6 +351,7 @@
+@@ -348,6 +351,7 @@ struct ath12k_tx_desc_info {
  	u32 desc_id; /* Cookie */
  	u8 mac_id;
  	u8 pool_id;
@@ -308,7 +308,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  };
  
  struct ath12k_tx_desc_params {
-@@ -388,6 +392,12 @@
+@@ -388,6 +392,12 @@ struct ath12k_link_stats {
   * to arch specific module
   */
  struct ath12k_dp_arch_ops {
@@ -321,7 +321,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	int (*service_srng)(struct ath12k_dp *dp,
  			    struct ath12k_ext_irq_grp *irq_grp,
  			    int budget);
-@@ -453,6 +463,9 @@
+@@ -453,6 +463,9 @@ struct ath12k_device_dp_stats {
  };
  
  struct ath12k_dp {
@@ -331,7 +331,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	struct ath12k_base *ab;
  	u32 mon_dest_ring_stuck_cnt;
  	u8 num_bank_profiles;
-@@ -681,6 +694,7 @@
+@@ -681,6 +694,7 @@ ath12k_dp_to_pdev_dp(struct ath12k_dp *d
  }
  
  void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
@@ -341,7 +341,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  void ath12k_dp_pdev_pre_alloc(struct ath12k *ar);
 --- a/drivers/net/wireless/ath/ath12k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
-@@ -68,6 +68,28 @@
+@@ -68,6 +68,28 @@ static void ath12k_dp_rx_enqueue_free(st
  	spin_unlock_bh(&dp->rx_desc_lock);
  }
  
@@ -370,7 +370,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  /* Returns number of Rx buffers replenished */
  int ath12k_dp_rx_bufs_replenish(struct ath12k_dp *dp,
  				struct dp_rxdma_ring *rx_ring,
-@@ -126,9 +148,10 @@
+@@ -126,9 +148,10 @@ int ath12k_dp_rx_bufs_replenish(struct a
  				 skb->data);
  		}
  
@@ -382,7 +382,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  		if (dma_mapping_error(dp->dev, paddr))
  			goto fail_free_skb;
  
-@@ -158,7 +181,7 @@
+@@ -158,7 +181,7 @@ int ath12k_dp_rx_bufs_replenish(struct a
  
  fail_dma_unmap:
  	dma_unmap_single(dp->dev, paddr, skb->len + skb_tailroom(skb),
@@ -404,7 +404,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  #define DP_MAX_NWIFI_HDR_LEN	30
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.h
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.h
-@@ -15,6 +15,7 @@
+@@ -15,6 +15,7 @@ struct ath12k_dp_htt_wbm_tx_status {
  };
  
  void ath12k_dp_tx_put_bank_profile(struct ath12k_dp *dp, u8 bank_id);
@@ -414,7 +414,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  void ath12k_dp_tx_encap_nwifi(struct sk_buff *skb);
 --- a/drivers/net/wireless/ath/ath12k/hal.c
 +++ b/drivers/net/wireless/ath/ath12k/hal.c
-@@ -113,6 +113,7 @@
+@@ -113,6 +113,7 @@ void ath12k_hal_rx_buf_addr_info_set(str
  {
  	hal->ops->rx_buf_addr_info_set(binfo, paddr, cookie, manager);
  }
@@ -424,7 +424,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  				     struct ath12k_buffer_addr *binfo,
 --- a/drivers/net/wireless/ath/ath12k/hal.h
 +++ b/drivers/net/wireless/ath/ath12k/hal.h
-@@ -314,6 +314,7 @@
+@@ -314,6 +314,7 @@ enum hal_ring_type {
  	HAL_RXDMA_DIR_BUF,
  	HAL_PPE2TCL,
  	HAL_PPE_RELEASE,
@@ -434,7 +434,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	HAL_MAX_RING_TYPES,
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -7512,6 +7512,13 @@
+@@ -7512,6 +7512,13 @@ static int ath12k_mac_handle_link_sta_st
  				    arsta->addr);
  			goto exit;
  		}
@@ -448,7 +448,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  		if (ath12k_wmi_supports_6ghz_cc_ext(ar) &&
  		    arvif->ahvif->vdev_type == WMI_VDEV_TYPE_STA) {
-@@ -7528,6 +7535,8 @@
+@@ -7528,6 +7535,8 @@ static int ath12k_mac_handle_link_sta_st
  	 */
  	} else if (old_state == IEEE80211_STA_AUTHORIZED &&
  		   new_state == IEEE80211_STA_ASSOC) {
@@ -457,7 +457,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  		ath12k_mac_station_unauthorize(ar, arvif, arsta);
  
  	/* IEEE80211_STA_ASSOC -> IEEE80211_STA_AUTH: disassoc peer connected to
-@@ -11127,11 +11136,15 @@
+@@ -11127,11 +11136,15 @@ static int ath12k_mac_vdev_delete(struct
  	struct ath12k_base *ab = ar->ab;
  	unsigned long time_left;
  	int ret = 0;
@@ -473,7 +473,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	if (test_bit(ATH12K_FLAG_RECOVERY, &ab->dev_flags) &&
  	    list_empty(&arvif->list))
  		goto err_vdev_del;
-@@ -11161,8 +11174,12 @@
+@@ -11161,8 +11174,12 @@ static int ath12k_mac_vdev_delete(struct
  
  	ath12k_dbg(ab, ATH12K_DBG_MAC, "vdev %pM deleted, vdev_id %d\n",
  		   vif->addr, arvif->vdev_id);
@@ -488,7 +488,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  		list_del_init(&arvif->list);
 --- a/drivers/net/wireless/ath/ath12k/wifi7/Makefile
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/Makefile
-@@ -18,3 +18,4 @@
+@@ -18,3 +18,4 @@ ath12k_wifi7-y += core.o \
  		  hal_qcc2072.o
  
  ath12k_wifi7-$(CPTCFG_ATH12K_AHB) += ahb.o
@@ -503,7 +503,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  static int ath12k_wifi7_dp_service_srng(struct ath12k_dp *dp,
  					struct ath12k_ext_irq_grp *irq_grp,
-@@ -28,6 +29,14 @@
+@@ -28,6 +29,14 @@ static int ath12k_wifi7_dp_service_srng(
  	enum dp_monitor_mode monitor_mode;
  	u8 ring_mask;
  
@@ -518,7 +518,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	if (dp->hw_params->ring_mask->tx[grp_id]) {
  		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
  		if (i < dp->hw_params->max_tx_ring)
-@@ -148,6 +157,11 @@
+@@ -148,6 +157,11 @@ done:
  }
  
  static struct ath12k_dp_arch_ops ath12k_wifi7_dp_arch_ops = {
@@ -530,7 +530,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	.service_srng = ath12k_wifi7_dp_service_srng,
  	.tx_get_vdev_bank_config = ath12k_wifi7_dp_tx_get_vdev_bank_config,
  	.reo_cmd_send = ath12k_wifi7_dp_reo_cmd_send,
-@@ -185,5 +199,8 @@
+@@ -185,5 +199,8 @@ struct ath12k_dp *ath12k_wifi7_dp_device
  
  void ath12k_wifi7_dp_device_free(struct ath12k_dp *dp)
  {
@@ -541,7 +541,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  }
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -732,7 +732,7 @@
+@@ -732,7 +732,7 @@ try_again:
  		rxcb = ATH12K_SKB_RXCB(msdu);
  		dma_unmap_single(partner_dp->dev, rxcb->paddr,
  				 msdu->len + skb_tailroom(msdu),
@@ -550,7 +550,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  		num_buffs_reaped[device_id]++;
  		dp->device_stats.reo_rx[ring_id][dp->device_id]++;
-@@ -1320,7 +1320,7 @@
+@@ -1320,7 +1320,7 @@ ath12k_wifi7_dp_process_rx_err_buf(struc
  	rxcb = ATH12K_SKB_RXCB(msdu);
  	dma_unmap_single(dp->dev, rxcb->paddr,
  			 msdu->len + skb_tailroom(msdu),
@@ -559,7 +559,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  	if (drop) {
  		dev_kfree_skb_any(msdu);
-@@ -1400,7 +1400,7 @@
+@@ -1400,7 +1400,7 @@ static int ath12k_dp_h_msdu_buffer_type(
  	list_add_tail(&desc_info->list, list);
  	rxcb = ATH12K_SKB_RXCB(msdu);
  	dma_unmap_single(dp->dev, rxcb->paddr, msdu->len + skb_tailroom(msdu),
@@ -568,7 +568,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	dev_kfree_skb_any(msdu);
  
  	return 0;
-@@ -1975,7 +1975,7 @@
+@@ -1975,7 +1975,7 @@ int ath12k_wifi7_dp_rx_process_wbm_err(s
  		rxcb = ATH12K_SKB_RXCB(msdu);
  		dma_unmap_single(partner_dp->dev, rxcb->paddr,
  				 msdu->len + skb_tailroom(msdu),
@@ -587,7 +587,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  
  static const struct ath12k_hw_version_map ath12k_wifi7_hw_ver_map[] = {
  	[ATH12K_HW_QCN9274_HW10] = {
-@@ -123,6 +124,60 @@
+@@ -123,6 +124,60 @@ static unsigned int ath12k_wifi7_hal_reo
  	return HAL_REO1_RING_MISC(hal) - HAL_REO1_RING_BASE_LSB(hal);
  }
  
@@ -671,7 +671,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	((hal)->regs->wbm_idle_ring_base_lsb)
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_desc.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_desc.h
-@@ -2671,6 +2671,12 @@
+@@ -2671,6 +2671,12 @@ struct hal_reo_desc_thresh_reached_statu
  struct hal_tcl_entrance_from_ppe_ring {
  	__le32 buffer_addr;
  	__le32 info0;
@@ -686,7 +686,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  #define HAL_MON_DEST_COOKIE_BUF_ID      GENMASK(17, 0)
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -174,7 +174,7 @@
+@@ -174,7 +174,7 @@ static const struct hal_srng_config hw_s
  		.start_ring_id = HAL_SRNG_RING_ID_PPE2TCL1,
  		.max_rings = 1,
  		.entry_size = sizeof(struct hal_tcl_entrance_from_ppe_ring) >> 2,
@@ -695,7 +695,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  		.ring_dir = HAL_SRNG_DIR_SRC,
  		.max_size = HAL_SW2TCL1_RING_BASE_MSB_RING_SIZE,
  	},
-@@ -182,10 +182,18 @@
+@@ -182,10 +182,18 @@ static const struct hal_srng_config hw_s
  		.start_ring_id = HAL_SRNG_RING_ID_WBM_PPE_RELEASE,
  		.max_rings = 1,
  		.entry_size = sizeof(struct hal_wbm_release_ring) >> 2,
@@ -715,7 +715,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	[HAL_TX_MONITOR_BUF] = {
  		.start_ring_id = HAL_SRNG_RING_ID_WMAC1_SW2TXMON_BUF0,
  		.max_rings = 1,
-@@ -1011,6 +1019,10 @@
+@@ -1011,6 +1019,10 @@ static int ath12k_hal_srng_create_config
  	s->reg_start[0] = HAL_SEQ_WCSS_UMAC_REO_REG + HAL_REO_STATUS_RING_BASE_LSB(hal);
  	s->reg_start[1] = HAL_SEQ_WCSS_UMAC_REO_REG + HAL_REO_STATUS_HP;
  
@@ -1923,7 +1923,7 @@ Keep VP publication ordering, completion classification and safe teardown.
 +#endif
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -760,6 +760,36 @@
+@@ -760,6 +760,36 @@ static u32 ath12k_wmi_mgmt_get_freq(stru
  	return freq;
  }
  
@@ -1962,7 +1962,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	struct sk_buff *skb;
 --- a/drivers/net/wireless/ath/ath12k/wmi.h
 +++ b/drivers/net/wireless/ath/ath12k/wmi.h
-@@ -448,6 +448,7 @@
+@@ -448,6 +448,7 @@ enum wmi_tlv_cmd_id {
  	WMI_PEER_REORDER_QUEUE_REMOVE_CMDID,
  	WMI_PEER_SET_RX_BLOCKSIZE_CMDID,
  	WMI_PEER_ANTDIV_INFO_REQ_CMDID,
@@ -1970,7 +1970,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  	WMI_BCN_TX_CMDID = WMI_TLV_CMD(WMI_GRP_MGMT),
  	WMI_PDEV_SEND_BCN_CMDID,
  	WMI_BCN_TMPL_CMDID,
-@@ -6544,6 +6545,8 @@
+@@ -6544,6 +6545,8 @@ struct ath12k_wmi_obss_pd_arg {
  
  int ath12k_wmi_cmd_send(struct ath12k_wmi_pdev *wmi, struct sk_buff *skb,
  			u32 cmd_id);
@@ -1981,7 +1981,7 @@ Keep VP publication ordering, completion classification and safe teardown.
  			 struct sk_buff *frame);
 --- a/local-symbols
 +++ b/local-symbols
-@@ -168,6 +168,7 @@
+@@ -168,6 +168,7 @@ ATH11K_SPECTRAL=
  ATH11K_THERMAL=
  ATH11K_CFR=
  ATH12K=

@@ -19,7 +19,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  
  struct wcss_sec {
  	struct device *dev;
-@@ -42,6 +43,7 @@
+@@ -42,6 +43,7 @@ struct wcss_sec {
  	void *mem_region;
  	size_t mem_size;
  	const struct wcss_data *desc;
@@ -27,7 +27,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  };
  
  struct wcss_data {
-@@ -244,7 +246,8 @@
+@@ -244,7 +246,8 @@ static int wcss_sec_load(struct rproc *r
  {
  	struct wcss_sec *wcss = rproc->priv;
  	struct device *dev = wcss->dev;
@@ -37,11 +37,10 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  
  	ret = wcss_sec_prepare_userpd_bootargs(rproc);
  	if (ret) {
-@@ -256,6 +259,24 @@
- 			    wcss->mem_phys, wcss->mem_size, &wcss->mem_reloc);
+@@ -257,6 +260,24 @@ static int wcss_sec_load(struct rproc *r
  	if (ret)
  		return ret;
-+
+ 
 +	for (i = 1; i < ARRAY_SIZE(wcss->firmware); i++) {
 +		if (!wcss->firmware[i])
 +			break;
@@ -59,10 +58,11 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
 +			return dev_err_probe(dev, ret, "failed to load firmware %s\n",
 +					     wcss->firmware[i]);
 +	}
- 
++
  	qcom_pil_info_store("wcss", wcss->mem_phys, wcss->mem_size);
  
-@@ -373,20 +394,26 @@
+ 	return 0;
+@@ -373,20 +394,26 @@ static int wcss_sec_alloc_memory_region(
  static int wcss_sec_probe(struct platform_device *pdev)
  {
  	const struct wcss_data *desc = of_device_get_match_data(&pdev->dev);
@@ -77,15 +77,15 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
 -	ret = of_property_read_string(pdev->dev.of_node, "firmware-name",
 -				      &fw_name);
 +	ret = of_property_count_strings(pdev->dev.of_node, "firmware-name");
- 	if (ret < 0)
- 		return ret;
++	if (ret < 0)
++		return ret;
 +	if (!ret || ret > ARRAY_SIZE(firmware))
 +		return -EINVAL;
 +
 +	ret = of_property_read_string_array(pdev->dev.of_node, "firmware-name",
 +					    firmware, ret);
-+	if (ret < 0)
-+		return ret;
+ 	if (ret < 0)
+ 		return ret;
  
  	rproc = devm_rproc_alloc(&pdev->dev, desc->ss_name, &wcss_sec_ops,
 -				 fw_name, sizeof(*wcss));
@@ -93,7 +93,7 @@ Signed-off-by: George Moussalem <george.moussalem@outlook.com>
  	if (!rproc) {
  		dev_err(&pdev->dev, "failed to allocate rproc\n");
  		return -ENOMEM;
-@@ -395,6 +422,7 @@
+@@ -395,6 +422,7 @@ static int wcss_sec_probe(struct platfor
  	wcss = rproc->priv;
  	wcss->dev = &pdev->dev;
  	wcss->desc = desc;

@@ -18,7 +18,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -89,6 +89,11 @@
+@@ -89,6 +89,11 @@ struct ath12k_ds {
  	struct work_struct fault_work;
  	struct dentry *debugfs;
  	struct list_head pending_rx[ATH12K_MAX_DEVICES];
@@ -30,7 +30,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	u32 buffer_count;
  	u32 reo_map[ATH12K_MAX_DEVICES];
  	unsigned long reo_mapped;
-@@ -231,9 +236,23 @@
+@@ -231,9 +236,23 @@ ath12k_ds_rx_cookie(struct ath12k_ds *ds
  	size_t size = sizeof(struct ath12k_rx_desc_info) * ATH12K_MAX_SPT_ENTRIES;
  	int i, page;
  
@@ -54,7 +54,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	for (i = 0; i < ATH12K_MAX_DEVICES; i++) {
  		dp = group->dp[i];
  		if (!dp || !dp->rxbaddr || !dp->ds_rx_bidir)
-@@ -244,6 +263,8 @@
+@@ -244,6 +263,8 @@ ath12k_ds_rx_cookie(struct ath12k_ds *ds
  			    (addr - base) % sizeof(struct ath12k_rx_desc_info))
  				continue;
  			*owner = dp;
@@ -63,7 +63,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  			return (struct ath12k_rx_desc_info *)addr;
  		}
  	}
-@@ -257,6 +278,7 @@
+@@ -257,6 +278,7 @@ static void ath12k_ds_flush_rx(struct at
  	struct ath12k_dp *dp;
  	struct hal_srng *srng;
  	unsigned long flags;
@@ -71,7 +71,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  	int i;
  
  	spin_lock_irqsave(&ds->rx_lock, flags);
-@@ -280,12 +302,14 @@
+@@ -280,12 +302,14 @@ static void ath12k_ds_flush_rx(struct at
  			ath12k_hal_rx_buf_addr_info_set(dp->hal, entry,
  						       ATH12K_SKB_RXCB(rx->skb)->paddr,
  						       rx->cookie, dp->hal->hal_params->rx_buf_rbm);

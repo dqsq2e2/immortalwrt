@@ -11,7 +11,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mhi.c
 +++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -188,7 +188,7 @@
+@@ -188,7 +188,7 @@ int ath12k_mhi_register(struct ath12k_pc
  {
  	struct ath12k_base *ab = ab_pci->ab;
  	struct mhi_controller *mhi_ctrl;
@@ -20,7 +20,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	int ret;
  	bool dualmac = false;
  
-@@ -242,6 +242,14 @@
+@@ -242,6 +242,14 @@ int ath12k_mhi_register(struct ath12k_pc
  		}
  	}
  
@@ -45,7 +45,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  #include "../hif.h"
  #include "../mhi.h"
  #include "hw.h"
-@@ -86,6 +87,8 @@
+@@ -86,6 +87,8 @@ void ath12k_wifi7_pci_read_hw_version(st
  	soc_hw_version = ath12k_pci_read32(ab, TCSR_SOC_HW_VERSION);
  	*major = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MAJOR_MASK);
  	*minor = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MINOR_MASK);

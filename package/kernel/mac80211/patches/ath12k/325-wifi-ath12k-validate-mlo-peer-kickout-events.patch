@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -7614,9 +7614,16 @@
+@@ -7614,9 +7614,16 @@ static void ath12k_peer_sta_kickout_even
  	struct wmi_peer_sta_kickout_arg arg = {};
  	struct ath12k_link_vif *arvif;
  	struct ieee80211_sta *sta;
@@ -28,7 +28,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (ath12k_pull_peer_sta_kickout_ev(ab, skb, &arg) != 0) {
  		ath12k_warn(ab, "failed to extract peer sta kickout event");
-@@ -7625,6 +7632,18 @@
+@@ -7625,6 +7632,18 @@ static void ath12k_peer_sta_kickout_even
  
  	rcu_read_lock();
  
@@ -47,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	spin_lock_bh(&ab->base_lock);
  
  	arsta = ath12k_link_sta_find_by_addr(ab, arg.mac_addr);
-@@ -7646,6 +7665,42 @@
+@@ -7646,6 +7665,42 @@ static void ath12k_peer_sta_kickout_even
  	ahsta = arsta->ahsta;
  	sta = ath12k_ahsta_to_sta(ahsta);
  

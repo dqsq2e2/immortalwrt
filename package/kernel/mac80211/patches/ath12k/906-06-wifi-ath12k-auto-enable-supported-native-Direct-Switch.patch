@@ -17,7 +17,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 ---
 --- a/drivers/net/wireless/ath/ath12k/Kconfig
 +++ b/drivers/net/wireless/ath/ath12k/Kconfig
-@@ -74,4 +74,4 @@
+@@ -74,4 +74,4 @@ config ATH12K_PPE_DS_SUPPORT
  	help
  	  Build the native PPE shared-ring client on Qualcomm platforms.
  	  Requires the matching qcom-ppe Direct Switch API in the kernel.
@@ -25,7 +25,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
 +	  Automatically activate on platforms with a supported transport.
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -40,11 +40,6 @@
+@@ -40,11 +40,6 @@ static const char * const ath12k_ds_fall
  	"none", "unsupported-mlo", "control-submit",
  };
  
@@ -37,7 +37,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  struct ath12k_ds_buffer {
  	struct list_head list;
  	struct ath12k_tx_desc_info *desc;
-@@ -815,7 +810,7 @@
+@@ -815,7 +810,7 @@ int ath12k_wifi7_ds_sta_state(struct ath
  	enum ath12k_ds_fallback fallback;
  	int port, i, error, ret = 0;
  
@@ -46,7 +46,7 @@ Retain the local VP lifecycle and AHB RX completion/refill protections.
  		return 0;
  	/* AHB and MLO peers keep the ordinary WiFi/PPE path. */
  	ds = ath12k_ab_to_dp(ar->ab)->ds;
-@@ -1098,7 +1093,7 @@
+@@ -1098,7 +1093,7 @@ int ath12k_wifi7_ds_setup(struct ath12k_
  	struct ath12k_ds *ds;
  	int ret, i;
  

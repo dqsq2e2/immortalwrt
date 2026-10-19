@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * struct userpd_boot_info_header - header of user pd bootinfo
   * @type:		type of bootinfo passing over smem
-@@ -83,10 +78,17 @@
+@@ -83,10 +78,17 @@ struct q6_wcss {
  	phys_addr_t mem_reloc;
  	void *mem_region;
  	size_t mem_size;
@@ -59,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
  
  struct wcss_data {
-@@ -102,8 +104,8 @@
+@@ -102,8 +104,8 @@ struct wcss_data {
   */
  static u8 qcom_get_pd_asid(struct rproc *rproc)
  {
@@ -70,7 +70,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return bit / 8;
  }
-@@ -138,37 +140,37 @@
+@@ -138,37 +140,37 @@ static int q6_wcss_start(struct rproc *r
  static int q6_wcss_spawn_pd(struct rproc *rproc)
  {
  	int ret;
@@ -119,7 +119,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ret = q6_wcss_spawn_pd(rproc);
  		if (ret)
  			return ret;
-@@ -220,22 +222,22 @@
+@@ -220,22 +222,22 @@ static int q6_wcss_stop(struct rproc *rp
   */
  static int wcss_pd_stop(struct rproc *rproc)
  {
@@ -149,7 +149,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ret;
  	}
  
-@@ -276,12 +278,12 @@
+@@ -276,12 +278,12 @@ static void *q6_wcss_da_to_va(struct rpr
   */
  static int share_upd_bootinfo_to_q6(struct rproc *rproc)
  {
@@ -165,7 +165,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct userpd_boot_info upd_bootinfo = {0};
  	const struct firmware *fw;
  
-@@ -306,16 +308,19 @@
+@@ -306,16 +308,19 @@ static int share_upd_bootinfo_to_q6(stru
  	memcpy_toio(ptr, &version, sizeof(version));
  	ptr += sizeof(version);
  
@@ -189,7 +189,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* TYPE */
  		upd_bootinfo.header.type = UPD_BOOT_INFO_HEADER_TYPE;
-@@ -325,16 +330,16 @@
+@@ -325,16 +330,16 @@ static int share_upd_bootinfo_to_q6(stru
  			sizeof(upd_bootinfo) - sizeof(upd_bootinfo.header);
  
  		/* Process ID */
@@ -210,7 +210,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  		/* Firmware mem size */
  		upd_bootinfo.data_size = qcom_mdt_get_size(fw);
-@@ -428,19 +433,20 @@
+@@ -428,19 +433,20 @@ static int q6_wcss_load(struct rproc *rp
   */
  static int wcss_pd_load(struct rproc *rproc, const struct firmware *fw)
  {
@@ -236,7 +236,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static unsigned long q6_wcss_panic(struct rproc *rproc)
-@@ -472,26 +478,15 @@
+@@ -472,26 +478,15 @@ static int q6_alloc_memory_region(struct
  	struct device_node *node;
  	struct device *dev = wcss->dev;
  
@@ -272,7 +272,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	wcss->mem_phys = rmem->base;
-@@ -515,7 +510,7 @@
+@@ -515,7 +510,7 @@ static int q6_get_inbound_irq(struct qco
  {
  	int ret, irq;
  	char *interrupt, *tmp = (char *)int_name;
@@ -281,7 +281,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	irq = platform_get_irq(pdev, index);
  	if (irq < 0)
-@@ -527,7 +522,7 @@
+@@ -527,7 +522,7 @@ static int q6_get_inbound_irq(struct qco
  	if (!interrupt)
  		return -ENOMEM;
  
@@ -290,7 +290,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = devm_request_threaded_irq(&pdev->dev, *pirq,
  					NULL, handler,
-@@ -546,7 +541,7 @@
+@@ -546,7 +541,7 @@ static int q6_get_outbound_irq(struct qc
  	struct qcom_smem_state *tmp_state;
  	unsigned  bit;
  
@@ -299,7 +299,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (IS_ERR(tmp_state))
  		return dev_err_probe(&pdev->dev, PTR_ERR(tmp_state),
  				     "failed to acquire %s state\n", int_name);
-@@ -568,7 +563,7 @@
+@@ -568,7 +563,7 @@ static int init_irq(struct qcom_q6v5 *q6
  		    void (*handover)(struct qcom_q6v5 *q6))
  {
  	int ret;
@@ -308,7 +308,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	q6->rproc = rproc;
  	q6->dev = &pdev->dev;
-@@ -588,7 +583,7 @@
+@@ -588,7 +583,7 @@ static int init_irq(struct qcom_q6v5 *q6
  		return ret;
  
  	/* Get pd_asid to prepare interrupt names */
@@ -317,7 +317,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = q6_get_inbound_irq(q6, pdev, "fatal", 0, &q6->fatal_irq,
  				 q6v5_fatal_interrupt);
-@@ -612,21 +607,35 @@
+@@ -612,21 +607,35 @@ static int init_irq(struct qcom_q6v5 *q6
  	return 0;
  }
  
@@ -361,7 +361,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct rproc *rproc = NULL;
  	int ret;
  	struct platform_device *userpd_pdev;
-@@ -648,51 +657,68 @@
+@@ -648,51 +657,68 @@ static int q6_register_userpd(struct pla
  		return ret;
  	}
  
@@ -446,7 +446,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int q6_wcss_probe(struct platform_device *pdev)
  {
  	struct q6_wcss *wcss;
-@@ -717,11 +743,15 @@
+@@ -717,11 +743,15 @@ static int q6_wcss_probe(struct platform
  	if (!rproc)
  		return -ENOMEM;
  
@@ -463,7 +463,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = q6_alloc_memory_region(wcss);
  	if (ret)
-@@ -738,26 +768,30 @@
+@@ -738,26 +768,30 @@ static int q6_wcss_probe(struct platform
  	rproc->auto_boot = false;
  	ret = rproc_add(rproc);
  	if (ret)
@@ -503,7 +503,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return ret;
  }
  
-@@ -766,10 +800,12 @@
+@@ -766,10 +800,12 @@ static void q6_wcss_remove(struct platfo
  	struct rproc *rproc = platform_get_drvdata(pdev);
  	struct q6_wcss *wcss = rproc->priv;
  

@@ -10,7 +10,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -99,6 +99,7 @@
+@@ -99,6 +99,7 @@ struct ppe_device {
  	u8 fdb_cmd_id;
  	/* Serialize the L3 flow operation registers. */
  	struct mutex flow_lock;
@@ -20,7 +20,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	struct mutex tunnel_lock;
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flow.c
-@@ -546,10 +546,12 @@
+@@ -546,10 +546,12 @@ int ppe_l3_if_set(struct ppe_device *ppe
  	u32 reg;
  	int ret;
  
@@ -34,7 +34,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	in[0] &= ~(PPE_IN_L3_IF_W0_MRU | PPE_IN_L3_IF_W0_MTU |
  		   PPE_IN_L3_IF_W0_TTL_DEC_BYPASS |
-@@ -580,7 +582,7 @@
+@@ -580,7 +582,7 @@ int ppe_l3_if_set(struct ppe_device *ppe
  
  	ret = regmap_bulk_write(ppe_dev->regmap, reg, in, ARRAY_SIZE(in));
  	if (ret)
@@ -43,7 +43,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	eg[0] = (u32)addr[2] << 24 | addr[3] << 16 | addr[4] << 8 | addr[5];
  	eg[1] = FIELD_PREP(PPE_EG_L3_IF_W1_MAC_ADDR_HI,
-@@ -593,26 +595,32 @@
+@@ -593,26 +595,32 @@ int ppe_l3_if_set(struct ppe_device *ppe
  
  	reg = PPE_EG_L3_IF_TBL_ADDR + PPE_EG_L3_IF_TBL_INC * index;
  
@@ -81,7 +81,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
  	/* Use the SSDK table transaction, preserving route/MTU/PPPoE state.
  	 * A successful MMIO write alone does not prove that the binding stuck.
-@@ -620,18 +628,21 @@
+@@ -620,18 +628,21 @@ int ppe_l3_if_my_mac_set(struct ppe_devi
  	val[1] = (val[1] & ~mask) | (enable ? mask : 0);
  	ret = regmap_bulk_write(ppe_dev->regmap, reg, val, ARRAY_SIZE(val));
  	if (ret)
@@ -110,7 +110,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
  
  int ppe_l3_if_clear(struct ppe_device *ppe_dev, int index)
-@@ -640,13 +651,18 @@
+@@ -640,13 +651,18 @@ int ppe_l3_if_clear(struct ppe_device *p
  	u32 reg;
  	int ret;
  
@@ -131,7 +131,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  }
  
  /**
-@@ -888,6 +904,7 @@
+@@ -888,6 +904,7 @@ int ppe_flow_hw_init(struct ppe_device *
  	int type, ret;
  
  	mutex_init(&ppe_dev->flow_lock);

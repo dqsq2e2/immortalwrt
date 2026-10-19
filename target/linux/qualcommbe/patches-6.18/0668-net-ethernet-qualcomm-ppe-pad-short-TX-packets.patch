@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/edma_tx.c
-@@ -724,6 +724,20 @@
+@@ -724,6 +724,20 @@ static enum edma_tx_status edma_tx_ring_
  	int port_id = port->port_id;
  	u32 hw_next_to_use = 0, start_idx, queue_id;
  

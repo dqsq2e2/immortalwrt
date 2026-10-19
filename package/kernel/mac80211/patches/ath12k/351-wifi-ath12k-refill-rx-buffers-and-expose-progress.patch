@@ -22,7 +22,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -705,13 +705,28 @@
+@@ -705,13 +705,28 @@ static int ath12k_ahb_config_ext_irq(str
  				irq_grp->irqs[num_irq++] = reo2host_exception;
  
  			if (ring_mask->rx_wbm_rel[i] & BIT(j) &&
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ring_mask->rx_mon_dest[i] & BIT(j) &&
  			    num_irq < ATH12K_EXT_IRQ_NUM_MAX)
  				irq_grp->irqs[num_irq++] =
-@@ -725,14 +740,18 @@
+@@ -725,14 +740,18 @@ static int ath12k_ahb_config_ext_irq(str
  
  			irq = platform_get_irq_byname(ab->pdev,
  						      irq_name[irq_idx]);
@@ -75,7 +75,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -127,16 +127,23 @@
+@@ -127,16 +127,23 @@ static int ath12k_wifi7_dp_service_srng(
  	if (dp->hw_params->ring_mask->reo_status[grp_id])
  		ath12k_wifi7_dp_rx_process_reo_status(dp);
  
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp_rx.c
-@@ -2052,7 +2052,7 @@
+@@ -2052,7 +2052,7 @@ int ath12k_wifi7_dp_rx_process_wbm_err(s
  		partner_dp = ath12k_dp_hw_grp_to_dp(dp_hw_grp, device_id);
  		rx_ring = &partner_dp->rx_refill_buf_ring;
  

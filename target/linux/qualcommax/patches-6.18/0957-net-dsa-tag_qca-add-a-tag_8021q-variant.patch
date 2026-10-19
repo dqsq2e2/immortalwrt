@@ -16,7 +16,7 @@ Assisted-by: Claude:claude-opus-5-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -61,6 +61,7 @@
+@@ -61,6 +61,7 @@ struct tc_action;
  #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  #define DSA_TAG_PROTO_QCA_ETYPE_VALUE		36
@@ -24,7 +24,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -99,6 +100,7 @@
+@@ -99,6 +100,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
  	DSA_TAG_PROTO_OOB		= DSA_TAG_PROTO_OOB_VALUE,
  	DSA_TAG_PROTO_QCA_ETYPE		= DSA_TAG_PROTO_QCA_ETYPE_VALUE,

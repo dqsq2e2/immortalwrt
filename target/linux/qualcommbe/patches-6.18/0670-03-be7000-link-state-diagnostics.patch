@@ -11,7 +11,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -260,6 +260,7 @@
+@@ -260,6 +260,7 @@ static void ipq_pcs_get_state_2500basex(
  static void ipq_pcs_get_state_usxgmii(struct ipq_pcs *qpcs, int index,
  				      struct phylink_link_state *state)
  {
@@ -19,7 +19,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  	unsigned int reg, val;
  	int ret;
  
-@@ -272,6 +273,21 @@
+@@ -272,6 +273,21 @@ static void ipq_pcs_get_state_usxgmii(st
  
  	state->link = !!(val & XPCS_USXG_AN_LINK_STS);
  
@@ -43,7 +43,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -1141,6 +1141,11 @@
+@@ -1141,6 +1141,11 @@ static void qca8084_link_change_notify(s
  	unsigned long rate;
  	int ret;
  

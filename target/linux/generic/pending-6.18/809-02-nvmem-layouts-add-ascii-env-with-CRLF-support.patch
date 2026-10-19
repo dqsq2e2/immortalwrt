@@ -18,7 +18,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
 --- a/drivers/nvmem/layouts/Kconfig
 +++ b/drivers/nvmem/layouts/Kconfig
-@@ -37,6 +37,19 @@
+@@ -37,6 +37,19 @@ config NVMEM_LAYOUT_U_BOOT_ENV
  
  	  If unsure, say N.
  
@@ -40,7 +40,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  endif
 --- a/drivers/nvmem/layouts/Makefile
 +++ b/drivers/nvmem/layouts/Makefile
-@@ -7,3 +7,4 @@
+@@ -7,3 +7,4 @@ obj-$(CONFIG_NVMEM_LAYOUTS) += fixed-lay
  obj-$(CONFIG_NVMEM_LAYOUT_SL28_VPD) += sl28vpd.o
  obj-$(CONFIG_NVMEM_LAYOUT_ONIE_TLV) += onie-tlv.o
  obj-$(CONFIG_NVMEM_LAYOUT_U_BOOT_ENV) += u-boot-env.o

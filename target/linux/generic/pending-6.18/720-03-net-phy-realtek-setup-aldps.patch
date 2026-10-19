@@ -28,7 +28,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  #define RTL8366RB_POWER_SAVE			0x15
  #define RTL8366RB_POWER_SAVE_ON			BIT(12)
  
-@@ -1739,6 +1743,19 @@
+@@ -1739,6 +1743,19 @@ static int rtl822xb_write_mmd(struct phy
  	return write_ret;
  }
  
@@ -48,7 +48,7 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  static int rtl822x_set_serdes_option_mode(struct phy_device *phydev, bool gen1)
  {
  	bool has_2500, has_sgmii;
-@@ -1796,7 +1813,15 @@
+@@ -1796,7 +1813,15 @@ static int rtl822x_set_serdes_option_mod
  	if (ret < 0)
  		return ret;
  
