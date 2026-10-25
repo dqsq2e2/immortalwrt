@@ -14,12 +14,9 @@ working.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
- drivers/net/pcs/pcs-qcom-ipq9574.c | 24 ++++++++++++++++++++++++
- 1 file changed, 24 insertions(+)
-
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -157,6 +157,8 @@ struct ipq_pcs {
+@@ -158,6 +158,8 @@ struct ipq_pcs {
  
  	struct ipq_pcs_mii *qpcs_mii[PCS_MAX_MII_NRS];
  	struct reset_control *xpcs_rstc;
@@ -28,7 +25,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  };
  
  #define phylink_pcs_to_qpcs_mii(_pcs)	\
-@@ -361,6 +363,18 @@ static int ipq_pcs_config_mode(struct ip
+@@ -362,6 +364,18 @@ static int ipq_pcs_config_mode(struct ip
  			return ret;
  	}
  
@@ -47,7 +44,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	/* PCS PLL reset */
  	ret = regmap_clear_bits(qpcs->regmap, PCS_PLL_RESET, PCS_ANA_SW_RESET);
  	if (ret)
-@@ -1075,6 +1089,16 @@ static int ipq9574_pcs_probe(struct plat
+@@ -1092,6 +1106,16 @@ static int ipq9574_pcs_probe(struct plat
  		return dev_err_probe(dev, PTR_ERR(qpcs->xpcs_rstc),
  				     "Failed to get XPCS reset\n");
  

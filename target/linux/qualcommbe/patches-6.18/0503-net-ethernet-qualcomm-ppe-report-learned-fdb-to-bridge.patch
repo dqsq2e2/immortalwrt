@@ -280,7 +280,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  }
  
  static int ppe_bridge_stp_state_set(struct ppe_bridge *pb,
-@@ -556,6 +737,9 @@ int ppe_bridge_setup(struct ppe_device *
+@@ -569,6 +750,9 @@ int ppe_bridge_setup(struct ppe_device *
  	for (i = 0; i < ppe_dev->num_ports; i++)
  		pb->ports[i].vsi = -1;
  
@@ -290,7 +290,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	pb->fdb_wq = alloc_ordered_workqueue("ppe_bridge_fdb", 0);
  	if (!pb->fdb_wq) {
  		ret = -ENOMEM;
-@@ -607,6 +791,9 @@ err_trap:
+@@ -620,6 +804,9 @@ err_trap:
  void ppe_bridge_destroy(struct ppe_device *ppe_dev)
  {
  	struct ppe_bridge *pb = ppe_dev->bridge;
@@ -300,7 +300,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  
  	if (!pb)
  		return;
-@@ -614,7 +801,21 @@ void ppe_bridge_destroy(struct ppe_devic
+@@ -627,7 +814,21 @@ void ppe_bridge_destroy(struct ppe_devic
  	unregister_switchdev_blocking_notifier(&pb->switchdev_blocking_nb);
  	unregister_switchdev_notifier(&pb->switchdev_nb);
  	unregister_netdevice_notifier(&pb->netdev_nb);

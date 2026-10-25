@@ -11,20 +11,28 @@ Validate completion TLV size, correlate pdev and retain firmware status.
 Report teardown timeout or firmware errors. Preserve
 the local PCI fallback when the group was not initialized or QMI failed.
 
+Skip group teardown if setup failed before radio registration: the error
+path has already destroyed the radio objects and cannot free their DP again.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/core.c
 +++ b/drivers/net/wireless/ath/ath12k/core.c
-@@ -1093,6 +1093,8 @@ static void ath12k_core_hw_group_stop(st
+@@ -1091,8 +1091,12 @@ static void ath12k_core_hw_group_stop(st
  
- 	clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags);
+ 	lockdep_assert_held(&ag->mutex);
+ 
+-	clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags);
++	/* Setup can fail and destroy radios before this group is registered. */
++	if (!test_and_clear_bit(ATH12K_GROUP_FLAG_REGISTERED, &ag->flags))
++		return;
  	ath12k_dp_ds_stop_group(ag);
 +	/* Keep every partner and its WMI event path live until teardown ACKs. */
 +	ath12k_mac_mlo_teardown(ag);
  
  	for (i = ag->num_devices - 1; i >= 0; i--) {
  		ab = ag->ab[i];
-@@ -1107,9 +1109,6 @@ static void ath12k_core_hw_group_stop(st
+@@ -1107,9 +1111,6 @@ static void ath12k_core_hw_group_stop(st
  	/* Unregister MAC (drops wiphys) only after per-device cleanup */
  	ath12k_mac_unregister(ag);
  

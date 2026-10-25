@@ -82,12 +82,6 @@
 
 &qca8386 {
 	ports {
-		port@0 {
-			fixed-link {
-				pause;
-			};
-		};
-
 		port@1 {
 			label = "lan1";
 		};
@@ -108,25 +102,9 @@
 	};
 };
 
-&qcom_ppe {
-	status = "okay";
-	/* Default EDMA page-fragment RX allocator for comparison build. */
-
-	ethernet-ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-	};
-};
-
 &ppe_qca8386 {
 	nvmem-cells = <&macaddr_art_0 1>;
 	nvmem-cell-names = "mac-address";
-
-	/* Match the switch CPU PAUSE so DS uplink cannot overrun it. */
-	fixed-link {
-		full-duplex;
-		pause;
-	};
 };
 
 &qpic_nand {
@@ -197,16 +175,14 @@
 	};
 };
 
-&wifi1 {
-	qcom,board-id = <2>;
-
-	nvmem-cells = <&macaddr_art_c 0>;
+&wifi0 {
+	qcom,board-id = <18>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
-&wifi0 {
-	qcom,board-id = <18>;
-
-	nvmem-cells = <&macaddr_art_6 0>;
+&wifi1 {
+	qcom,board-id = <2>;
+	nvmem-cells = <&macaddr_art_c 0>;
 	nvmem-cell-names = "mac-address";
 };

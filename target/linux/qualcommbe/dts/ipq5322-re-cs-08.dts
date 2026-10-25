@@ -85,10 +85,6 @@
 	pinctrl-names = "default";
 };
 
-&q6_region {
-	reg = <0x0 0x4a900000 0x0 0x800000>;
-};
-
 &ref_48mhz_clk {
 	clock-div = <1>;
 	clock-mult = <2>;
@@ -107,7 +103,7 @@
 	ports {
 		port@1 {
 			label = "wan";
-			nvmem-cells = <&wan_macaddr>;
+			nvmem-cells = <&wan_macaddr 0>;
 			nvmem-cell-names = "mac-address";
 		};
 
@@ -129,9 +125,6 @@
 	status = "okay";
 
 	ethernet-ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
 		ppe_sfp: port@2 {
 			reg = <2>;
 			label = "sfp";
@@ -221,7 +214,9 @@
 						};
 
 						wan_macaddr: macaddr@6 {
+							compatible = "mac-base";
 							reg = <0x6 0x6>;
+							#nvmem-cell-cells = <1>;
 						};
 					};
 				};
@@ -267,4 +262,12 @@
 		drive-strength = <8>;
 		bias-pull-down;
 	};
+};
+
+&q6_region {
+	reg = <0x0 0x4a900000 0x0 0x800000>;
+};
+
+&tzapp {
+	reg = <0x0 0x4b100000 0x0 0x800000>;
 };

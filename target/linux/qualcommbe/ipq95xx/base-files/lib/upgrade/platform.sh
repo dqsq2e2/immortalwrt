@@ -21,7 +21,8 @@ platform_check_image() {
 
 platform_do_upgrade() {
 	case "$(board_name)" in
-	8devices,kiwi-dvk)
+	8devices,kiwi-dvk|\
+	nokia,beacon10)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
 		emmc_do_upgrade "$1"
@@ -48,6 +49,7 @@ platform_do_upgrade() {
 platform_copy_config() {
 	case "$(board_name)" in
 	8devices,kiwi-dvk|\
+	nokia,beacon10|\
 	askey,sbe1v1k)
 		emmc_copy_config
 		;;

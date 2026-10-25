@@ -4,7 +4,10 @@
 START=99
 
 start() {
-	rfc=4096
+	rfc="$(uci -q get network.@globals[0].steering_flows)"
+	case "$rfc" in
+		''|*[!0-9]*) rfc=4096 ;;
+	esac
 	threads="$(grep -c "processor" "/proc/cpuinfo")"
 
 	sysctl -w net.core.rps_sock_flow_entries="$(( rfc * threads ))"

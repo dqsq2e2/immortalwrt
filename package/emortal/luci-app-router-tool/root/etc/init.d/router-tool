@@ -1,0 +1,94 @@
+#!/bin/sh /etc/rc.common
+
+START=18
+USE_PROCD=1
+
+RELOAD_PLAN=/var/run/router-tool-reload-pending
+
+save_reload_plan() {
+	local plan="$1" temporary="${RELOAD_PLAN}.$$"
+	if [ -z "$plan" ]; then
+		rm -f "$RELOAD_PLAN"
+	else
+		(umask 077; printf '%s\n' "$plan" > "$temporary") &&
+			mv "$temporary" "$RELOAD_PLAN"
+	fi
+}
+
+reload_step() {
+	local name="$1" result
+	shift
+	"$@"
+	result=$?
+	if [ "$result" -ne 0 ]; then
+		logger -t router-tool -p daemon.err "$name reload failed (exit $result)"
+		return "$result"
+	fi
+	logger -t router-tool -p daemon.info "$name reload requested"
+	return 0
+}
+
+start_service() {
+	# Before netifd during boot, or reload when installing on a running router.
+	if [ -n "$(ubus -S list network 2>/dev/null)" ]; then
+		reload_service
+	else
+		/usr/libexec/router-tool-auto >/dev/null
+	fi
+}
+
+reload_service() {
+	local changed result plan remaining service config
+	changed="$(/usr/libexec/router-tool-auto)"
+	result=$?
+	plan="$(cat "$RELOAD_PLAN" 2>/dev/null)"
+	for config in $changed; do
+		case "$config" in
+			network) plan="$plan netifd odhcpd dnsmasq" ;;
+			wireless) plan="$plan netifd" ;;
+			firewall) plan="$plan firewall" ;;
+			dhcp) plan="$plan odhcpd dnsmasq" ;;
+		esac
+	done
+	remaining=
+	for service in netifd firewall odhcpd dnsmasq; do
+		[ "$service" != dnsmasq ] || [ -x /etc/init.d/dnsmasq ] || continue
+		case " $plan " in *" $service "*) remaining="${remaining:+$remaining }$service" ;; esac
+	done
+	save_reload_plan "$remaining" || return 1
+	[ "$result" -eq 0 ] || return "$result"
+	[ -n "$remaining" ] || return 0
+	# Reloads also read the shared UCI delta directory. An older queued
+	# request must not apply edits which the helper deliberately deferred.
+	for config in network dhcp firewall; do
+		[ ! -s "/tmp/.uci/$config" ] || return 0
+	done
+	# PHY events can arrive before S20network starts netifd. Keep the plan;
+	# the first interface event will dispatch it once the object is present.
+	case " $remaining " in
+		*" netifd "*)
+			[ ! -s /tmp/.uci/wireless ] || return 0
+			[ -n "$(ubus -S list network 2>/dev/null)" ] || return 0
+			;;
+	esac
+	logger -t router-tool -p daemon.info "Requesting service reloads: $remaining"
+	for service in $remaining; do
+		case "$service" in
+			netifd) reload_step netifd ubus call network reload >/dev/null || return 1 ;;
+			firewall) reload_step firewall /etc/init.d/firewall reload || return 1 ;;
+			odhcpd) reload_step odhcpd /etc/init.d/odhcpd reload || return 1 ;;
+			dnsmasq) reload_step dnsmasq /etc/init.d/dnsmasq reload || return 1 ;;
+		esac
+		remaining="${remaining#"$service"}"
+		remaining="${remaining# }"
+		save_reload_plan "$remaining" || return 1
+	done
+	return 0
+}
+
+service_triggers() {
+	procd_add_reload_trigger network
+	# Includes changes applied outside LuCI and a newly acquired WAN lease.
+	procd_add_raw_trigger "interface.*" 1000 /etc/init.d/router-tool reload
+	procd_add_raw_trigger "router-tool.wireless" 1000 /etc/init.d/router-tool reload
+}

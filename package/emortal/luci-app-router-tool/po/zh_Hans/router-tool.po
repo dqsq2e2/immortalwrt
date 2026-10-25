@@ -1,0 +1,62 @@
+msgid ""
+msgstr ""
+"Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:167
+msgid ""
+"Automatic AP conversion requires plain Ethernet ports. Configure VLAN or "
+"switch topologies manually."
+msgstr "自动 AP 转换适用于普通以太网端口，VLAN 或传统交换机拓扑请手动配置。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:160
+msgid ""
+"Cannot identify the Ethernet WAN device. Configure LAN/WAN devices first."
+msgstr "无法确定有线 WAN 设备，请先配置 LAN/WAN 设备。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:158
+msgid "Cannot read board port assignments. Configure AP ports manually."
+msgstr "无法读取板级网口配置，请手动配置 AP 网口。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:378
+msgid ""
+"Manually enable to bridge all Ethernet ports and obtain IPv4/IPv6 from the "
+"upstream router; disable to restore the previous settings. When disabled, "
+"PPPoE automatically uses main-router mode and other WAN protocols use sub-"
+"router mode."
+msgstr ""
+"手动启用后将全部网口桥接，从上级获取 IPv4/IPv6；取消后恢复之前的设置。未启用"
+"时，PPPoE 自动采用主路由模式，其他 WAN 协议采用子路由模式。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:116
+msgid ""
+"Mode switch refused: configuration changed while this page was open. Reload "
+"the page."
+msgstr "已停止模式切换：打开页面后设备配置已发生变化，请刷新页面。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:88
+msgid ""
+"Mode switch refused: saved configuration snapshot is missing or invalid."
+msgstr "已停止模式切换：配置快照缺失或无效。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:105
+msgid "Mode switch refused: user changed related options:"
+msgstr "已停止模式切换：以下相关选项已被用户修改："
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:379
+msgid "Mode switches stop if related settings have been edited."
+msgstr "相关设置被修改后，插件会停止模式切换。"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:241
+msgid ""
+"No free LAN subnet was found. Configure a non-overlapping IPv4 subnet "
+"manually."
+msgstr "未找到可用 LAN 网段，请手动设置与上级不重叠的 IPv4 网段。"
+
+#: luci-app-router-tool/root/usr/share/rpcd/acl.d/luci-app-router-tool.json:3
+msgid "Read board Ethernet port assignments for router tool presets"
+msgstr "读取板级以太网端口配置，用于路由器工具预设"
+
+#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:377
+msgid "Relay AP mode"
+msgstr "中继AP模式"

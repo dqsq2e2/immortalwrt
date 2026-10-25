@@ -2,7 +2,7 @@ From: JiaY-shi <shi05275@163.com>
 Subject: [PATCH] wifi: ath12k: automatically enable supported native Direct Switch
 
 Remove the experimental ppe_ds runtime switch. When the native transport
-is built and its supported IPQ5332 provider is available, register the
+is built and a supported native PPE provider is available, register the
 QCN9274 shared rings and enable authorized AP peers automatically.
 
 Check transport availability before allocating WLAN rings or selecting

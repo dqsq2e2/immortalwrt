@@ -12,9 +12,6 @@ configuration rather than at probe time.
 
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 ---
- drivers/net/pcs/pcs-qcom-ipq9574.c | 17 +++++++++++++++++
- 1 file changed, 17 insertions(+)
-
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
 @@ -23,6 +23,11 @@
@@ -29,7 +26,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  #define PCS_MISC2			0x218
  #define PCS_MISC2_MODE_MASK		GENMASK(6, 5)
  #define PCS_MISC2_MODE_SGMII		FIELD_PREP(PCS_MISC2_MODE_MASK, 0x1)
-@@ -377,6 +382,18 @@ static int ipq_pcs_config_mode(struct ip
+@@ -378,6 +383,18 @@ static int ipq_pcs_config_mode(struct ip
  
  	qpcs->interface = interface;
  

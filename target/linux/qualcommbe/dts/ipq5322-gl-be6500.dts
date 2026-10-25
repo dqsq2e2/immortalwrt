@@ -13,21 +13,6 @@
 		bootargs-append = " root=/dev/ubiblock0_1";
 	};
 
-	reserved-memory {
-		tzapp: tzapp@49600000 {
-			reg = <0x0 0x49600000 0x0 0x00600000>;
-			no-map;
-		};
-
-		ramoops@4da00000 {
-			compatible = "ramoops";
-			reg = <0x0 0x4da00000 0x0 0x00100000>;
-			record-size = <0x00080000>;
-			console-size = <0x00080000>;
-			no-map;
-		};
-	};
-
 	keys {
 		compatible = "gpio-keys";
 		pinctrl-0 = <&button_pins>;

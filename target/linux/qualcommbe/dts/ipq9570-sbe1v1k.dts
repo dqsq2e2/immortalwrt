@@ -15,13 +15,6 @@
 		led-upgrade = &led_blue;
 	};
 
-	reserved-memory {
-		tzapp:tzapp@49B00000 {
-			no-map;
-			reg = <0x0 0x49B00000 0x0 0x00600000>;
-		};
-	};
-
 	regulator_fixed_3p3: s3300 {
 		compatible = "regulator-fixed";
 		regulator-min-microvolt = <3300000>;

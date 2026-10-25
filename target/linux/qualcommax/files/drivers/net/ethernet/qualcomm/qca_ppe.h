@@ -737,12 +737,15 @@
 /* Per exception: what happens to the frame, and whether the exception is
  * raised at all for a packet that hit a routed flow entry.
  */
+#define PPE_L3_EXCEPTIONS		72
 #define PPE_EXCEP_TCP_FLAGS(n)		(46 + (n))
 #define PPE_EXCEP_IPV4_OPTION		6
 #define PPE_EXCEP_IPV6_EXT_HDR		25
 #define PPE_EXCEP_IPV6_MORE_EXT_HDR	32
+#define PPE_EXCEP_TCP_HDR_SHORT		42
+#define PPE_EXCEP_UDP_HDR_SHORT		55
 /* The TCP flags trapped from offloaded flows, one pattern each. */
-#define PPE_FLOW_TCP_TRAP		(TCPHDR_FIN | TCPHDR_RST)
+#define PPE_FLOW_TCP_TRAP		(TCPHDR_FIN | TCPHDR_SYN | TCPHDR_RST)
 #define PPE_L3_EXCEP_CMD(e)		(PPE_L3_BASE + 0x544 + (e) * 0x4)
 #define   PPE_L3_EXCEP_ACTION		GENMASK(1, 0)
 #define     PPE_L3_EXCEP_RDT_TO_CPU	3
@@ -865,6 +868,9 @@
 #define   PPE_FLOW_E_FWD_TYPE_LEN	3
 #define   PPE_FLOW_E_NEXTHOP_OFF	32
 #define   PPE_FLOW_E_NEXTHOP_LEN	12
+/* Native bridge forwarding overlays the next-hop with an 8-bit port. */
+#define   PPE_FLOW_E_BRIDGE_PORT_OFF	32
+#define   PPE_FLOW_E_BRIDGE_PORT_LEN	8
 #define   PPE_FLOW_E_PORT_VALID_OFF	44
 #define   PPE_FLOW_E_PORT_VALID_LEN	1
 #define   PPE_FLOW_E_PORT_OFF		45
@@ -1338,6 +1344,7 @@ enum ppe_type {
 
 struct ppe_data {
 	enum ppe_type type;
+	bool bridge_flow;
 	u8 num_ports;
 	u8 num_gmacs;
 	u8 mru_mtu_ctrl_stride;
@@ -1642,6 +1649,8 @@ struct qca_ppe_priv {
 	u16 mirror_ref[2];
 	u8 mirror_dir_ref[QCA_PPE_MAX_PORTS][2];
 	struct ppe_port_shaper shaper[QCA_PPE_MAX_PORTS];
+	/* Negotiated link pause, suppressed while a shaper is active. */
+	bool port_tx_pause[PPE_NUM_PORTS];
 	/* Owner of each egress admission group: port * 2 + kind + 1, or 0. */
 	u8 ac_grp_owner[PPE_AC_GROUPS];
 	struct ppe_sb_occ sb_occ_ing[PPE_NUM_PORTS];
@@ -1693,6 +1702,7 @@ struct qca_ppe_priv {
 	struct mutex mtu_lock;
 	u32 port_frame_size[QCA_PPE_MAX_PORTS];
 	struct notifier_block netdev_nb;
+	struct notifier_block flow_switchdev_nb;
 	u16 port_pvid[QCA_PPE_MAX_PORTS];
 	struct clk *ppe_clk;
 	struct clk *port_rx_clk[QCA_PPE_MAX_PORTS];
@@ -1790,6 +1800,7 @@ int ppe_trap_policer_set(struct qca_ppe_priv *priv, u32 id, u64 rate,
 			 u64 burst);
 u64 ppe_trap_policer_drops(struct qca_ppe_priv *priv, u32 id);
 void ppe_port_queues_enable(struct qca_ppe_priv *priv, int port, bool en);
+void ppe_pause_update(struct qca_ppe_priv *priv);
 void ppe_port_queue_drops(struct qca_ppe_priv *priv, int port, u32 *early,
 			  u32 *tail);
 int ppe_port_qstats(struct qca_ppe_priv *priv, int port, u8 **names,
@@ -1934,6 +1945,7 @@ int ppe_setup_ft_block(struct qca_ppe_priv *priv,
 		       struct flow_block_offload *f);
 int ppe_flow_offload_init(struct qca_ppe_priv *priv);
 void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi);
+void ppe_flow_purge_bridge_port(struct qca_ppe_priv *priv, int port);
 void ppe_flow_offload_exit(struct qca_ppe_priv *priv);
 
 #endif

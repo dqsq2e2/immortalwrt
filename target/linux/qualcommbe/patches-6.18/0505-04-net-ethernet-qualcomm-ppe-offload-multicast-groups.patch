@@ -387,7 +387,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	case SWITCHDEV_ATTR_ID_BRIDGE_AGEING_TIME:
  		return ppe_bridge_ageing_time_set(pb, dev,
  						  attr->u.ageing_time);
-@@ -1270,7 +1536,9 @@ static int ppe_bridge_obj_add(struct net
+@@ -1283,7 +1549,9 @@ static int ppe_bridge_obj_add(struct net
  	struct ppe_bridge *pb = port_priv->ppe_port->ppe_dev->bridge;
  
  	/* VLANs of the bridge device itself terminate at the CPU port,
@@ -398,7 +398,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	 */
  	if (netif_is_bridge_master(obj->orig_dev))
  		return 0;
-@@ -1280,6 +1548,9 @@ static int ppe_bridge_obj_add(struct net
+@@ -1293,6 +1561,9 @@ static int ppe_bridge_obj_add(struct net
  		return ppe_bridge_port_vlan_add(pb, dev,
  						SWITCHDEV_OBJ_PORT_VLAN(obj),
  						extack);
@@ -408,7 +408,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -1298,6 +1569,9 @@ static int ppe_bridge_obj_del(struct net
+@@ -1311,6 +1582,9 @@ static int ppe_bridge_obj_del(struct net
  	case SWITCHDEV_OBJ_ID_PORT_VLAN:
  		return ppe_bridge_port_vlan_del(pb, dev,
  						SWITCHDEV_OBJ_PORT_VLAN(obj));
@@ -418,7 +418,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	default:
  		return -EOPNOTSUPP;
  	}
-@@ -1366,6 +1640,7 @@ int ppe_bridge_setup(struct ppe_device *
+@@ -1379,6 +1653,7 @@ int ppe_bridge_setup(struct ppe_device *
  		pb->ports[i].vsi = -1;
  
  	hash_init(pb->fdb_ht);
@@ -426,7 +426,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	INIT_DELAYED_WORK(&pb->fdb_sync, ppe_bridge_fdb_sync_work);
  
  	pb->fdb_wq = alloc_ordered_workqueue("ppe_bridge_fdb", 0);
-@@ -1444,6 +1719,8 @@ void ppe_bridge_destroy(struct ppe_devic
+@@ -1457,6 +1732,8 @@ void ppe_bridge_destroy(struct ppe_devic
  		kfree(fdb);
  	}
  

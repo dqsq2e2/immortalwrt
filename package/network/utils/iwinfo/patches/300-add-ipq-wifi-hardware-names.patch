@@ -1,9 +1,12 @@
 From: VIKINGYFY <viking.yfy@qq.com>
-Subject: [PATCH] iwinfo: recognize IPQ5332 and IPQ9574 embedded radios
+Subject: [PATCH] iwinfo: resolve embedded families and radio capabilities
 
 Keep the libiwinfo hardware database used by rpcd/LuCI aligned with
-wifi-scripts. Recognize the IPQ5332 and IPQ9574 embedded radios by their
-Device Tree compatible strings instead of reporting Generic MAC80211.
+wifi-scripts. Recognize IPQ embedded radios by their Device Tree
+compatible strings. When a shared WSI endpoint links that wiphy to a
+PCI radio, resolve the PCI family from the existing hardware database.
+Filter channels and modes by the selected radio's frequency ranges on
+multi-radio wiphys, while leaving unlinked or ambiguous hardware unchanged.
 
 Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
 ---
@@ -20,3 +23,598 @@ Signed-off-by: VIKINGYFY <viking.yfy@qq.com>
  "qcom,qcn6122-wifi"     0      0  "Qualcomm Atheros" "QCN6102/QCN6122"
  "mediatek,mt7622-wmac"  0      0  "MediaTek" "MT7622"
  "mediatek,mt7628-wmac"  0      0  "MediaTek" "MT7628"
+--- a/iwinfo_nl80211.c
++++ b/iwinfo_nl80211.c
+@@ -40,8 +40,11 @@ static struct nl80211_state *nls = NULL;
+ struct nl80211_if_data {
+ 	int mode;
+ 	int radio_idx;
++	uint32_t radio_mask;
+ };
+ 
++static int nl80211_get_mode_cb(struct nl_msg *msg, void *arg);
++
+ static void nl80211_close(void)
+ {
+ 	if (nls)
+@@ -434,6 +437,25 @@ out:
+ 	return idx;
+ }
+ 
++static int nl80211_radio_idx_from_uci(const char *name)
++{
++	struct uci_section *s;
++	const char *opt;
++	char *end;
++	long index = -1;
++
++	s = iwinfo_uci_get_radio(name, "mac80211");
++	if (s && (opt = uci_lookup_option_string(uci_ctx, s, "radio")))
++	{
++		index = strtol(opt, &end, 10);
++		if (!*opt || *end || index < 0 || index >= 32)
++			index = -1;
++	}
++
++	iwinfo_uci_free();
++	return index;
++}
++
+ static bool nl80211_is_ifname(const char *name)
+ {
+ 	struct stat st;
+@@ -814,6 +836,7 @@ nla_put_failure:
+ static char * nl80211_phy2ifname(const char *ifname)
+ {
+ 	int ifidx = -1, cifidx, lmode = 1, clmode, phyidx;
++	int radio_idx;
+ 	char buffer[512];
+ 	static char nif[IFNAMSIZ] = { 0 };
+ 	DIR *d;
+@@ -828,6 +851,7 @@ static char * nl80211_phy2ifname(const c
+ 		phyidx = nl80211_phy_idx_from_uci(ifname);;
+ 	if (phyidx < 0)
+ 		return NULL;
++	radio_idx = nl80211_radio_idx_from_uci(ifname);
+ 
+ 	memset(nif, 0, sizeof(nif));
+ 
+@@ -840,6 +864,16 @@ static char * nl80211_phy2ifname(const c
+ 			if (nl80211_readint(buffer) != phyidx)
+ 				continue;
+ 
++			if (radio_idx >= 0)
++			{
++				struct nl80211_if_data data = {};
++
++				nl80211_request(e->d_name, NL80211_CMD_GET_INTERFACE, 0,
++				                nl80211_get_mode_cb, &data);
++				if (!(data.radio_mask & (1U << radio_idx)))
++					continue;
++			}
++
+ 			snprintf(buffer, sizeof(buffer),
+ 			         "/sys/class/net/%s/ifindex", e->d_name);
+ 			cifidx = nl80211_readint(buffer);
+@@ -888,6 +922,7 @@ static int nl80211_get_mode_cb(struct nl
+ 
+ 	if (tb[NL80211_ATTR_VIF_RADIO_MASK]) {
+ 		uint32_t mask = nla_get_u32(tb[NL80211_ATTR_VIF_RADIO_MASK]);
++		data->radio_mask = mask;
+ 
+ 		for (int i = 0; mask && i < 32; i++, mask >>= 1)
+ 			if (mask & 1)
+@@ -906,6 +941,7 @@ static int nl80211_get_if_data(const cha
+ 
+ 	data->mode = IWINFO_OPMODE_UNKNOWN;
+ 	data->radio_idx = -1;
++	data->radio_mask = 0;
+ 	nl80211_request(res ? res : ifname, NL80211_CMD_GET_INTERFACE, 0,
+ 	                nl80211_get_mode_cb, data);
+ 
+@@ -3227,11 +3263,174 @@ static int nl80211_get_scanlist(const ch
+ 	return -1;
+ }
+ 
++struct nl80211_radio_range {
++	uint32_t start;
++	uint32_t end;
++	struct nl80211_radio_range *next;
++};
++
++struct nl80211_radio_filter {
++	uint32_t mask;
++	bool found;
++	bool failed;
++	struct nl80211_radio_range *ranges;
++};
++
++static void nl80211_radio_filter_free(struct nl80211_radio_filter *filter)
++{
++	struct nl80211_radio_range *range;
++
++	while ((range = filter->ranges))
++	{
++		filter->ranges = range->next;
++		free(range);
++	}
++}
++
++static int nl80211_get_radio_filter_cb(struct nl_msg *msg, void *arg)
++{
++	struct nl80211_radio_filter *filter = arg;
++	struct nlattr **attr = nl80211_parse(msg);
++	struct nlattr *tb[NL80211_WIPHY_RADIO_ATTR_MAX + 1];
++	struct nlattr *freq[NL80211_WIPHY_RADIO_FREQ_ATTR_MAX + 1];
++	struct nlattr *radio, *item;
++	int rem, rem_item;
++	uint32_t index;
++
++	if (!attr[NL80211_ATTR_WIPHY_RADIOS])
++		return NL_SKIP;
++
++	nla_for_each_nested(radio, attr[NL80211_ATTR_WIPHY_RADIOS], rem)
++	{
++		nla_parse(tb, NL80211_WIPHY_RADIO_ATTR_MAX,
++		          nla_data(radio), nla_len(radio), NULL);
++		if (!tb[NL80211_WIPHY_RADIO_ATTR_INDEX])
++			continue;
++
++		index = nla_get_u32(tb[NL80211_WIPHY_RADIO_ATTR_INDEX]);
++		if (index >= 32 || !(filter->mask & (1U << index)))
++			continue;
++
++		filter->found = true;
++		nla_for_each_nested(item, radio, rem_item)
++		{
++			struct nl80211_radio_range *range;
++
++			if (nla_type(item) != NL80211_WIPHY_RADIO_ATTR_FREQ_RANGE)
++				continue;
++
++			nla_parse(freq, NL80211_WIPHY_RADIO_FREQ_ATTR_MAX,
++			          nla_data(item), nla_len(item), NULL);
++			if (!freq[NL80211_WIPHY_RADIO_FREQ_ATTR_START] ||
++			    !freq[NL80211_WIPHY_RADIO_FREQ_ATTR_END])
++				continue;
++
++			range = calloc(1, sizeof(*range));
++			if (!range)
++			{
++				filter->failed = true;
++				return NL_SKIP;
++			}
++
++			range->start = nla_get_u32(freq[NL80211_WIPHY_RADIO_FREQ_ATTR_START]);
++			range->end = nla_get_u32(freq[NL80211_WIPHY_RADIO_FREQ_ATTR_END]);
++			range->next = filter->ranges;
++			filter->ranges = range;
++		}
++	}
++
++	return NL_SKIP;
++}
++
++static int nl80211_get_radio_filter(const char *ifname,
++				   struct nl80211_radio_filter *filter)
++{
++	struct nl80211_msg_conveyor *cv;
++	struct nl80211_if_data data = {};
++	int index = nl80211_radio_idx_from_uci(ifname);
++	int flags, ret;
++
++	if (index >= 0)
++		filter->mask = 1U << index;
++	else if (nl80211_is_ifname(ifname))
++	{
++		nl80211_get_if_data(ifname, &data);
++		filter->mask = data.radio_mask;
++	}
++
++	if (!filter->mask)
++		return 0;
++
++	flags = nl80211_get_protocol_features(ifname) &
++		NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP ? NLM_F_DUMP : 0;
++	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
++	if (!cv)
++		return -1;
++
++	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
++	ret = nl80211_send(cv, nl80211_get_radio_filter_cb, filter);
++	return ret || filter->failed ? -1 : 0;
++
++nla_put_failure:
++	nl80211_free(cv);
++	return -1;
++}
++
++static bool nl80211_radio_freq_allowed(const struct nl80211_radio_filter *filter,
++				      uint32_t mhz)
++{
++	struct nl80211_radio_range *range;
++	uint64_t khz = (uint64_t)mhz * 1000;
++
++	if (!filter->found)
++		return true;
++
++	for (range = filter->ranges; range; range = range->next)
++		if (khz >= range->start && khz <= range->end)
++			return true;
++
++	return false;
++}
++
++static bool nl80211_radio_band_allowed(const struct nl80211_radio_filter *filter,
++				      struct nlattr *band)
++{
++	struct nlattr *tb[NL80211_BAND_ATTR_MAX + 1];
++	struct nlattr *freq[NL80211_FREQUENCY_ATTR_MAX + 1];
++	struct nlattr *item;
++	int rem;
++
++	if (!filter->found)
++		return true;
++
++	nla_parse(tb, NL80211_BAND_ATTR_MAX, nla_data(band), nla_len(band), NULL);
++	if (!tb[NL80211_BAND_ATTR_FREQS])
++		return false;
++
++	nla_for_each_nested(item, tb[NL80211_BAND_ATTR_FREQS], rem)
++	{
++		nla_parse(freq, NL80211_FREQUENCY_ATTR_MAX,
++		          nla_data(item), nla_len(item), NULL);
++		if (freq[NL80211_FREQUENCY_ATTR_FREQ] &&
++		    nl80211_radio_freq_allowed(filter,
++		        nla_get_u32(freq[NL80211_FREQUENCY_ATTR_FREQ])))
++			return true;
++	}
++
++	return false;
++}
++
++struct nl80211_freqlist_data {
++	struct nl80211_array_buf arr;
++	struct nl80211_radio_filter filter;
++};
++
+ static int nl80211_get_freqlist_cb(struct nl_msg *msg, void *arg)
+ {
+ 	int bands_remain, freqs_remain;
+ 
+-	struct nl80211_array_buf *arr = arg;
++	struct nl80211_freqlist_data *data = arg;
++	struct nl80211_array_buf *arr = &data->arr;
+ 	struct iwinfo_freqlist_entry *e;
+ 
+ 	struct nlattr **attr = nl80211_parse(msg);
+@@ -3257,6 +3456,9 @@ static int nl80211_get_freqlist_cb(struc
+ 					if (!freqs[NL80211_FREQUENCY_ATTR_FREQ] ||
+ 					    freqs[NL80211_FREQUENCY_ATTR_DISABLED])
+ 						continue;
++					if (!nl80211_radio_freq_allowed(&data->filter,
++					        nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_FREQ])))
++						continue;
+ 
+ 					e->band = nl80211_get_band(band->nla_type);
+ 					e->mhz = nla_get_u32(freqs[NL80211_FREQUENCY_ATTR_FREQ]);
+@@ -3298,25 +3500,30 @@ static int nl80211_get_freqlist_cb(struc
+ static int nl80211_get_freqlist(const char *ifname, char *buf, int *len)
+ {
+ 	struct nl80211_msg_conveyor *cv;
+-	struct nl80211_array_buf arr = { .buf = buf, .count = 0 };
++	struct nl80211_freqlist_data data = { .arr = { .buf = buf } };
+ 	uint32_t features = nl80211_get_protocol_features(ifname);
+ 	int flags;
+ 
++	if (nl80211_get_radio_filter(ifname, &data.filter))
++		goto out;
++
+ 	flags = features & NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP ? NLM_F_DUMP : 0;
+ 	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
+ 	if (!cv)
+ 		goto out;
+ 
+ 	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
+-	if (nl80211_send(cv, nl80211_get_freqlist_cb, &arr))
++	if (nl80211_send(cv, nl80211_get_freqlist_cb, &data))
+ 		goto out;
+ 
+-	*len = arr.count * sizeof(struct iwinfo_freqlist_entry);
++	*len = data.arr.count * sizeof(struct iwinfo_freqlist_entry);
++	nl80211_radio_filter_free(&data.filter);
+ 	return 0;
+ 
+ nla_put_failure:
+ 	nl80211_free(cv);
+ out:
++	nl80211_radio_filter_free(&data.filter);
+ 	*len = 0;
+ 	return -1;
+ }
+@@ -3455,10 +3662,16 @@ static void nl80211_eval_modelist(struct
+ 
+ }
+ 
++struct nl80211_modelist_data {
++	struct nl80211_modes modes[NUM_NL80211_BANDS];
++	struct nl80211_radio_filter filter;
++};
++
+ static int nl80211_get_modelist_cb(struct nl_msg *msg, void *arg)
+ {
+-	struct nl80211_modes *m = arg;
+-	int bands_remain;
++	struct nl80211_modelist_data *data = arg;
++	struct nl80211_modes *m;
++	int bands_remain, index;
+ 	struct nlattr **attr = nl80211_parse(msg);
+ 	struct nlattr *bands[NL80211_BAND_ATTR_MAX + 1];
+ 	struct nlattr *band;
+@@ -3467,7 +3680,16 @@ static int nl80211_get_modelist_cb(struc
+ 	{
+ 		nla_for_each_nested(band, attr[NL80211_ATTR_WIPHY_BANDS], bands_remain)
+ 		{
+-			m->bands |= nl80211_get_band(band->nla_type);
++			index = nla_type(band);
++			if (index >= NUM_NL80211_BANDS)
++				continue;
++
++			m = &data->modes[index];
++			m->bands |= nl80211_get_band(index);
++			/* Split dumps send capabilities before frequencies. Keep each
++			 * band's capabilities until a permitted frequency is seen.
++			 */
++			m->ok |= nl80211_radio_band_allowed(&data->filter, band);
+ 
+ 			nla_parse(bands, NL80211_BAND_ATTR_MAX,
+ 			          nla_data(band), nla_len(band), NULL);
+@@ -3512,8 +3734,6 @@ static int nl80211_get_modelist_cb(struc
+ 				}
+ 			}
+ 		}
+-
+-		m->ok = 1;
+ 	}
+ 
+ 	return NL_SKIP;
+@@ -3522,9 +3742,12 @@ static int nl80211_get_modelist_cb(struc
+ static int nl80211_get_hwmodelist(const char *ifname, int *buf)
+ {
+ 	struct nl80211_msg_conveyor *cv;
+-	struct nl80211_modes m = {};
++	struct nl80211_modelist_data data = {};
+ 	uint32_t features = nl80211_get_protocol_features(ifname);
+-	int flags;
++	int flags, i;
++
++	if (nl80211_get_radio_filter(ifname, &data.filter))
++		goto out;
+ 
+ 	flags = features & NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP ? NLM_F_DUMP : 0;
+ 	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
+@@ -3532,18 +3755,25 @@ static int nl80211_get_hwmodelist(const
+ 		goto out;
+ 
+ 	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
+-	if (nl80211_send(cv, nl80211_get_modelist_cb, &m))
+-		goto nla_put_failure;
+-
+-	nl80211_eval_modelist(&m);
++	if (nl80211_send(cv, nl80211_get_modelist_cb, &data))
++		goto out;
+ 
+-	*buf = m.hw;
++	*buf = 0;
++	for (i = 0; i < ARRAY_SIZE(data.modes); i++)
++	{
++		if (!data.modes[i].ok)
++			continue;
++		nl80211_eval_modelist(&data.modes[i]);
++		*buf |= data.modes[i].hw;
++	}
++	nl80211_radio_filter_free(&data.filter);
+ 
+ 	return 0;
+ 
+ nla_put_failure:
+ 	nl80211_free(cv);
+ out:
++	nl80211_radio_filter_free(&data.filter);
+ 	return -1;
+ }
+ 
+@@ -3657,9 +3887,12 @@ static int nl80211_get_htmode(const char
+ static int nl80211_get_htmodelist(const char *ifname, int *buf)
+ {
+ 	struct nl80211_msg_conveyor *cv;
+-	struct nl80211_modes m = {};
++	struct nl80211_modelist_data data = {};
+ 	uint32_t features = nl80211_get_protocol_features(ifname);
+-	int flags;
++	int flags, i;
++
++	if (nl80211_get_radio_filter(ifname, &data.filter))
++		goto out;
+ 
+ 	flags = features & NL80211_PROTOCOL_FEATURE_SPLIT_WIPHY_DUMP ? NLM_F_DUMP : 0;
+ 	cv = nl80211_msg(ifname, NL80211_CMD_GET_WIPHY, flags);
+@@ -3667,18 +3900,25 @@ static int nl80211_get_htmodelist(const
+ 		goto out;
+ 
+ 	NLA_PUT_FLAG(cv->msg, NL80211_ATTR_SPLIT_WIPHY_DUMP);
+-	if (nl80211_send(cv, nl80211_get_modelist_cb, &m))
+-		goto nla_put_failure;
+-
+-	nl80211_eval_modelist(&m);
++	if (nl80211_send(cv, nl80211_get_modelist_cb, &data))
++		goto out;
+ 
+-	*buf = m.ht;
++	*buf = 0;
++	for (i = 0; i < ARRAY_SIZE(data.modes); i++)
++	{
++		if (!data.modes[i].ok)
++			continue;
++		nl80211_eval_modelist(&data.modes[i]);
++		*buf |= data.modes[i].ht;
++	}
++	nl80211_radio_filter_free(&data.filter);
+ 
+ 	return 0;
+ 
+ nla_put_failure:
+ 	nl80211_free(cv);
+ out:
++	nl80211_radio_filter_free(&data.filter);
+ 	return -1;
+ }
+ 
+@@ -3814,14 +4054,146 @@ nl80211_get_hardware_entry(const char *i
+ 	return iwinfo_hardware(&id);
+ }
+ 
++static bool nl80211_read_phandle(const char *path, uint32_t *phandle)
++{
++	int fd = open(path, O_RDONLY);
++	ssize_t n;
++
++	if (fd < 0)
++		return false;
++
++	n = read(fd, phandle, sizeof(*phandle));
++	close(fd);
++	return n == sizeof(*phandle);
++}
++
++static bool nl80211_pci_is_wsi_peer(const char *phy, const char *pci_path)
++{
++	glob_t local_endpoints, peer_endpoints;
++	char path[PATH_MAX];
++	int i, j;
++	bool linked = false;
++
++	snprintf(path, sizeof(path),
++	         "/sys/class/ieee80211/%s/device/of_node/ports/*/endpoint*/remote-endpoint",
++	         phy);
++	if (glob(path, 0, NULL, &local_endpoints))
++		return false;
++
++	snprintf(path, sizeof(path), "%s/of_node/ports/*/endpoint*/phandle", pci_path);
++	if (glob(path, 0, NULL, &peer_endpoints))
++	{
++		globfree(&local_endpoints);
++		return false;
++	}
++
++	for (i = 0; i < local_endpoints.gl_pathc && !linked; i++)
++	{
++		uint32_t remote;
++
++		if (!nl80211_read_phandle(local_endpoints.gl_pathv[i], &remote))
++			continue;
++
++		for (j = 0; j < peer_endpoints.gl_pathc; j++)
++		{
++			uint32_t peer;
++
++			if (nl80211_read_phandle(peer_endpoints.gl_pathv[j], &peer) &&
++			    remote == peer)
++			{
++				linked = true;
++				break;
++			}
++		}
++	}
++
++	globfree(&peer_endpoints);
++	globfree(&local_endpoints);
++	return linked;
++}
++
++static bool nl80211_get_wsi_pci_hardware(const char *ifname,
++					 struct iwinfo_hardware_entry *result)
++{
++	char path[PATH_MAX], value[16];
++	char *phy = nl80211_ifname2phy(ifname);
++	glob_t devices;
++	int i;
++	bool found = false;
++	bool ambiguous = false;
++
++	if (!phy || glob("/sys/bus/pci/devices/*", 0, NULL, &devices))
++		return false;
++
++	for (i = 0; i < devices.gl_pathc; i++)
++	{
++		struct iwinfo_hardware_id id = {};
++		const struct iwinfo_hardware_entry *hw;
++		struct iwinfo_hardware_entry candidate;
++		const char *pci_path = devices.gl_pathv[i];
++
++		if (!nl80211_pci_is_wsi_peer(phy, pci_path))
++			continue;
++
++		snprintf(path, sizeof(path), "%s/vendor", pci_path);
++		if (nl80211_readstr(path, value, sizeof(value)) <= 0 ||
++		    !(id.vendor_id = strtoul(value, NULL, 16)))
++			continue;
++
++		snprintf(path, sizeof(path), "%s/device", pci_path);
++		if (nl80211_readstr(path, value, sizeof(value)) <= 0 ||
++		    !(id.device_id = strtoul(value, NULL, 16)))
++			continue;
++
++		snprintf(path, sizeof(path), "%s/subsystem_vendor", pci_path);
++		if (nl80211_readstr(path, value, sizeof(value)) > 0)
++			id.subsystem_vendor_id = strtoul(value, NULL, 16);
++
++		snprintf(path, sizeof(path), "%s/subsystem_device", pci_path);
++		if (nl80211_readstr(path, value, sizeof(value)) > 0)
++			id.subsystem_device_id = strtoul(value, NULL, 16);
++
++		hw = iwinfo_hardware(&id);
++		if (!hw || !hw->vendor_name[0] || !hw->device_name[0] || hw->compatible[0])
++			continue;
++
++		candidate = *hw;
++		if (!found)
++		{
++			*result = candidate;
++			found = true;
++		}
++		else if (strcmp(result->vendor_name, candidate.vendor_name) ||
++		         strcmp(result->device_name, candidate.device_name))
++		{
++			ambiguous = true;
++			break;
++		}
++	}
++
++	globfree(&devices);
++	return found && !ambiguous;
++}
++
+ static int nl80211_get_hardware_name(const char *ifname, char *buf)
+ {
+ 	const struct iwinfo_hardware_entry *hw;
++	struct iwinfo_hardware_entry embedded, pci;
++	int frequency;
+ 
+ 	if (!(hw = nl80211_get_hardware_entry(ifname)))
+ 		sprintf(buf, "Generic MAC80211");
+ 	else
+-		sprintf(buf, "%s %s", hw->vendor_name, hw->device_name);
++	{
++		embedded = *hw;
++		if (embedded.compatible[0] &&
++		    !nl80211_get_frequency(ifname, &frequency) &&
++		    frequency >= 4900 && frequency < 7125 &&
++		    nl80211_get_wsi_pci_hardware(ifname, &pci))
++			sprintf(buf, "%s %s", pci.vendor_name, pci.device_name);
++		else
++			sprintf(buf, "%s %s", embedded.vendor_name, embedded.device_name);
++	}
+ 
+ 	return 0;
+ }

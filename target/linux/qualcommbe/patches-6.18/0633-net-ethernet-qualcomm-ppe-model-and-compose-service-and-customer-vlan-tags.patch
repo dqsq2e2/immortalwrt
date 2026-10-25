@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  };
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -579,7 +579,7 @@ static bool ppe_ft_nexthop_match(const v
+@@ -586,7 +586,7 @@ static bool ppe_ft_nexthop_match(const v
  
  	return slot->key.port == nh->port && slot->key.l3_if == nh->l3_if &&
  	       ether_addr_equal(slot->key.mac, nh->mac) &&
@@ -58,7 +58,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       slot->key.pub_ip_index == nh->pub_ip_index &&
  	       slot->key.dnat_ip == nh->dnat_ip;
  }
-@@ -2052,7 +2052,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2061,7 +2061,8 @@ static int ppe_ft_flow_replace(struct pp
  	flow->tunnel = -1;
  	flow->vp = -1;
  	flow->ivp = -1;
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	data.pppoe_sid = -1;
  	data.ingress_vid = -1;
  	data.ingress_dsa = false;
-@@ -2250,11 +2251,11 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2259,11 +2260,11 @@ static int ppe_ft_flow_replace(struct pp
  		case FLOW_ACTION_VLAN_PUSH:
  			if (vlan_pushes++ ||
  			    act->vlan.proto != htons(ETH_P_8021Q) ||
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		case FLOW_ACTION_VLAN_POP:
  			if (vlan_pops++) {
-@@ -2313,7 +2314,8 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2322,7 +2323,8 @@ static int ppe_ft_flow_replace(struct pp
  			ret = -EOPNOTSUPP;
  			goto err_free;
  		}
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		    data.ingress_vid >= 0) {
  			ret = -EOPNOTSUPP;
  			goto err_free;
-@@ -2462,14 +2464,10 @@ put_idev:
+@@ -2471,14 +2473,10 @@ put_idev:
  			struct dsa_port *dp;
  			int dsa_ovid, dsa_mode;
  
@@ -110,7 +110,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			dsa_mode = ppe_ft_dsa_resolve(odev, &dp, &dsa_ovid);
  			if (dsa_mode < 0) {
  				ret = dsa_mode;
-@@ -2487,7 +2485,19 @@ put_idev:
+@@ -2496,7 +2494,19 @@ put_idev:
  				port_priv = netdev_priv(dsa_port_to_conduit(dp));
  				nh.port = port_priv->ppe_port->port_id;
  				nh.l3_if = nh.port;
@@ -131,7 +131,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			}
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
-@@ -2693,7 +2703,8 @@ put_idev:
+@@ -2702,7 +2712,8 @@ put_idev:
  
  		flow->pppoe = ppe_ft_pppoe_get(ft, data.pppoe_sid,
  					       data.eth.dst, data.eth.src,

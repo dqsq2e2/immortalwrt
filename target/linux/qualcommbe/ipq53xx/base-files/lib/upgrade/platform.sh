@@ -38,10 +38,10 @@ platform_do_upgrade() {
 		remove_oem_ubi_rootfs || return 1
 		nand_do_upgrade "$1"
 		;;
+	jdcloud,re-cs-06|\
 	jdcloud,re-cs-08)
 		CI_KERNPART="0:HLOS"
 		CI_ROOTPART="rootfs"
-		CI_DATAPART="rootfs_data"
 		emmc_do_upgrade "$1"
 		;;
 	xiaomi,be6500|\
@@ -63,6 +63,7 @@ platform_check_image() {
 		fit_check_image "$1"
 		;;
 	gl.inet,gl-be6500|\
+	jdcloud,re-cs-06|\
 	jdcloud,re-cs-08|\
 	xiaomi,be3600-pro-wired-*|\
 	xiaomi,be6500)
@@ -78,6 +79,7 @@ platform_check_image() {
 platform_copy_config() {
 	case "$(board_name)" in
 	ubnt,u7-pro-xgs|\
+	jdcloud,re-cs-06|\
 	jdcloud,re-cs-08)
 		emmc_copy_config
 		;;

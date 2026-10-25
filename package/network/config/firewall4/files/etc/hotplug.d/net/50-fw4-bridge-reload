@@ -7,7 +7,7 @@
 [ "$ACTION" = "add" ] || exit 0
 
 case "${DEVICENAME}" in
-	phy*-ap*|ap-mld*) ;;
+	phy*-ap*|wl*-ap*|ap-mld*) ;;
 	*) exit 0 ;;
 esac
 

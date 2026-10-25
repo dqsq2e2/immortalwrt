@@ -25,12 +25,6 @@ struct flow_offload grows from 296 to 328 bytes.
 Assisted-by: Claude:claude-fable-5-1
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
- include/net/netfilter/nf_flow_table.h |  8 ++++-
- net/netfilter/nf_flow_table_core.c    |  3 ++
- net/netfilter/nf_flow_table_ip.c      | 53 +++++++++++++++++++++++++++++
- net/netfilter/nf_flow_table_path.c    |  9 +++++
- 4 files changed, 72 insertions(+), 1 deletion(-)
-
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
 @@ -109,6 +109,8 @@ enum flow_offload_xmit_type {
@@ -121,7 +115,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  static struct flow_offload_tuple_rhash *
  nf_flow_offload_lookup(struct nf_flowtable_ctx *ctx,
  		       struct nf_flowtable *flow_table, struct sk_buff *skb)
-@@ -449,6 +492,14 @@ static int nf_flow_offload_forward(struc
+@@ -451,6 +494,14 @@ static int nf_flow_offload_forward(struc
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
@@ -136,7 +130,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	return 1;
  }
  
-@@ -743,6 +794,14 @@ static int nf_flow_offload_ipv6_forward(
+@@ -747,6 +798,14 @@ static int nf_flow_offload_ipv6_forward(
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  

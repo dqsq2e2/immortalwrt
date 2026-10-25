@@ -27,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -1994,6 +1994,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2002,6 +2002,7 @@ static int ppe_ft_flow_replace(struct pp
  	int vlan_pops = 0;
  	struct in6_addr lwt_local = {}, lwt_remote = {};
  	u8 lwt_hop_limit = 0;
@@ -35,7 +35,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	bool tunnel_flow, tunnel_encap = false, lwt_tunnel = false;
  	int i, nexthop, ret, redirects = 0, vlan_pushes = 0;
  	int pppoe_pushes = 0, csums = 0;
-@@ -2412,17 +2413,23 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2421,17 +2422,23 @@ static int ppe_ft_flow_replace(struct pp
  				goto put_idev;
  			}
  
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				if (vp_ret >= 0)
  					flow->ivp = vp_ret;
  			} else {
-@@ -2448,7 +2455,8 @@ put_idev:
+@@ -2457,7 +2464,8 @@ put_idev:
  			goto err_prelock_ivp;
  		}
  
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ret = -EOPNOTSUPP;
  			goto err_prelock_ivp;
  		}
-@@ -2474,7 +2482,8 @@ put_idev:
+@@ -2483,7 +2491,8 @@ put_idev:
  				goto err_prelock_ivp;
  			}
  			if (dsa_mode == PPE_FT_DSA_QCA4B) {
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  				if (ret < 0)
  					goto err_prelock_ivp;
  				flow->vp = ret;
-@@ -2529,6 +2538,10 @@ put_idev:
+@@ -2538,6 +2547,10 @@ put_idev:
  			flow->vp_flow.key.sip.ip4 = flow->entry.sip.ip4;
  			flow->vp_flow.key.dip.ip4 = flow->entry.dip.ip4;
  		}
@@ -94,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (tunnel_flow && !lwt_tunnel) {
-@@ -2666,7 +2679,7 @@ put_idev:
+@@ -2675,7 +2688,7 @@ put_idev:
  			goto err_ingress_my_mac;
  	}
  

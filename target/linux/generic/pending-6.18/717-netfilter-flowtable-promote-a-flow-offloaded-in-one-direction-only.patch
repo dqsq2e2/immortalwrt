@@ -12,10 +12,6 @@ either.
 Assisted-by: Claude:claude-opus-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
- net/netfilter/nf_flow_table_bpf.c |  4 ++++
- net/netfilter/nf_flow_table_ip.c  | 26 ++++++++++++++++++++++++++
- 2 files changed, 30 insertions(+)
-
 --- a/net/netfilter/nf_flow_table_bpf.c
 +++ b/net/netfilter/nf_flow_table_bpf.c
 @@ -50,6 +50,10 @@ bpf_xdp_flow_tuple_lookup(struct net_dev
@@ -68,7 +64,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	mtu = flow->tuplehash[dir].tuple.mtu + ctx->offset;
  	if (unlikely(nf_flow_exceeds_mtu(skb, mtu)))
  		return 0;
-@@ -684,6 +707,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -686,6 +709,9 @@ static int nf_flow_offload_ipv6_forward(
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  

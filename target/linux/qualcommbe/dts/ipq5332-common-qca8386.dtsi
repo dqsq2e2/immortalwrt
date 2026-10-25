@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 
 /* QCA8386 with four integrated PHYs and a PCS1 2.5G CPU link.
- * Reset GPIOs, front-panel names, MAC cells and PAUSE are board wiring.
+ * Reset GPIOs, front-panel names and MAC cells are board wiring.
+ * Both ends of the internal CPU link share symmetric PAUSE.
  */
 #include <dt-bindings/clock/qcom,qca8k-nsscc.h>
 #include <dt-bindings/net/qcom,qca808x.h>
@@ -43,6 +44,27 @@
 			 <&qca8386_rx_312p5m>, <&qca8386_tx_312p5m>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
+
+		/* Switch mode uses UNIPHY1 TX for both directions on MAC1-4.
+		 * Select it before PHY initialization requests idle MAC rates;
+		 * these RCGs retain their selected parent during rate changes.
+		 */
+		assigned-clocks = <&qca8386_nsscc NSS_CC_MAC1_TX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC1_RX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC2_TX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC2_RX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC3_TX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC3_RX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC4_TX_CLK_SRC>,
+				  <&qca8386_nsscc NSS_CC_MAC4_RX_CLK_SRC>;
+		assigned-clock-parents = <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>,
+					 <&qca8386_tx_312p5m>;
 	};
 
 	qca8386_phy_package: ethernet-phy-package@1 {
@@ -143,6 +165,19 @@
 	qca8386: switch@10 {
 		compatible = "qca,qca8386";
 		reg = <0x10>;
+		resets = <&qca8386_nsscc NSS_CC_SWITCH_CORE_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC0_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC0_RX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC1_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC1_RX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC2_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC2_RX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC3_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC3_RX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC4_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC4_RX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC5_TX_ARES>,
+			 <&qca8386_nsscc NSS_CC_MAC5_RX_ARES>;
 
 		ports {
 			#address-cells = <1>;
@@ -158,6 +193,7 @@
 				fixed-link {
 					speed = <2500>;
 					full-duplex;
+					pause;
 				};
 			};
 
@@ -189,7 +225,12 @@
 };
 
 &qcom_ppe {
+	status = "okay";
+
 	ethernet-ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
 		ppe_qca8386: port@1 {
 			reg = <1>;
 			label = "switch";
@@ -211,6 +252,7 @@
 			fixed-link {
 				speed = <2500>;
 				full-duplex;
+				pause;
 			};
 		};
 	};

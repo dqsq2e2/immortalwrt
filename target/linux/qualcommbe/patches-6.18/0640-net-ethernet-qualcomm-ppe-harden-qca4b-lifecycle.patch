@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -2941,6 +2941,53 @@ static void ppe_ft_flow_drain(struct ppe
+@@ -2950,6 +2950,53 @@ static void ppe_ft_flow_drain(struct ppe
  	rhashtable_walk_exit(&iter);
  }
  

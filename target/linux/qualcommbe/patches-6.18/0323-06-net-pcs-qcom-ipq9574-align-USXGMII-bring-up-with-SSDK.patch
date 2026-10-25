@@ -46,7 +46,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  #define XPCS_INDIRECT_ADDR		0x8000
  #define XPCS_INDIRECT_AHB_ADDR		0x83fc
-@@ -299,6 +305,22 @@ static void ipq_pcs_get_state_10gbaser(s
+@@ -300,6 +306,22 @@ static void ipq_pcs_get_state_10gbaser(s
  	state->pause |= MLO_PAUSE_TXRX_MASK;
  }
  
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ipq_pcs_config_mode(struct ipq_pcs *qpcs,
  			       phy_interface_t interface)
  {
-@@ -307,6 +329,12 @@ static int ipq_pcs_config_mode(struct ip
+@@ -308,6 +330,12 @@ static int ipq_pcs_config_mode(struct ip
  	bool xpcs_mode = false;
  	int ret;
  
@@ -82,7 +82,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* Assert XPCS reset */
  	reset_control_assert(qpcs->xpcs_rstc);
  
-@@ -344,18 +372,19 @@ static int ipq_pcs_config_mode(struct ip
+@@ -345,18 +373,19 @@ static int ipq_pcs_config_mode(struct ip
  		xpcs_mode = true;
  		break;
  	default:
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (interface == PHY_INTERFACE_MODE_USXGMII)
-@@ -366,7 +395,15 @@ static int ipq_pcs_config_mode(struct ip
+@@ -367,7 +396,15 @@ static int ipq_pcs_config_mode(struct ip
  					 PCS_MISC2_MODE_MASK |
  					 PCS_MISC2_RATE_MASK, misc2);
  		if (ret)
@@ -122,7 +122,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	/* Pulse the resets as the vendor SSDK does: both held for
-@@ -382,14 +419,34 @@ static int ipq_pcs_config_mode(struct ip
+@@ -383,14 +420,34 @@ static int ipq_pcs_config_mode(struct ip
  	}
  
  	/* PCS PLL reset */
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Wait for calibration completion */
  	ret = regmap_read_poll_timeout(qpcs->regmap, PCS_CALIBRATION,
-@@ -397,9 +454,14 @@ static int ipq_pcs_config_mode(struct ip
+@@ -398,9 +455,14 @@ static int ipq_pcs_config_mode(struct ip
  				       1000, 100000);
  	if (ret) {
  		dev_err(qpcs->dev, "PCS calibration timed-out\n");
@@ -180,7 +180,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	qpcs->interface = interface;
  
  	/* The clock output register is only writable after PLL reset
-@@ -434,6 +496,12 @@ static int ipq_pcs_config_mode(struct ip
+@@ -435,6 +497,12 @@ static int ipq_pcs_config_mode(struct ip
  		reset_control_deassert(qpcs->xpcs_rstc);
  
  	return 0;
@@ -193,18 +193,18 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ipq_pcs_config_sgmii(struct ipq_pcs *qpcs,
-@@ -472,7 +540,7 @@ static int ipq_pcs_config_usxgmii(struct
+@@ -473,7 +541,7 @@ static int ipq_pcs_config_usxgmii(struct
  				  int index,
  				  phy_interface_t interface)
  {
 -	unsigned int reg;
 +	unsigned int reg, val;
- 	int ret;
+ 	int i, ret;
  
  	/* Configure the XPCS for USXGMII mode if required */
-@@ -481,6 +549,16 @@ static int ipq_pcs_config_usxgmii(struct
- 		if (ret)
- 			return ret;
+@@ -487,6 +555,16 @@ static int ipq_pcs_config_usxgmii(struct
+ 			if (qpcs->qpcs_mii[i])
+ 				qpcs->qpcs_mii[i]->usxgmii_initialized = false;
  
 +		/* Best-effort wait for the receiver to link before enabling
 +		 * adaptation; the PHY SerDes may only come up later.

@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -307,6 +307,8 @@ struct ppe_flowtable {
+@@ -308,6 +308,8 @@ struct ppe_flowtable {
  	struct dentry *debugfs_active;
  	struct dentry *debugfs_reasons;
  	struct dentry *debugfs_resources;
@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	atomic_long_t replace_calls;
  	atomic_long_t replace_unsupported;
  	atomic_long_t replace_failed;
-@@ -336,6 +338,24 @@ static const struct rhashtable_params pp
+@@ -343,6 +345,24 @@ static const struct rhashtable_params pp
  	.automatic_shrinking = true,
  };
  
@@ -45,7 +45,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The mangle words of an offloaded rule, collected before translation.
   * The Ethernet buffer overlays the destination and source addresses as
   * they appear in the header.
-@@ -2678,6 +2698,7 @@ put_idev:
+@@ -2687,6 +2707,7 @@ put_idev:
  					    ppe_ft_params);
  	if (ret)
  		goto err_hw_flow;
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (flow->ivp >= 0) {
  		ret = ppe_vp_flow_add(ft->ppe_dev, flow->ivp,
-@@ -2685,6 +2706,7 @@ put_idev:
+@@ -2694,6 +2715,7 @@ put_idev:
  		if (ret) {
  			rhashtable_remove_fast(&ft->flows, &flow->node,
  					       ppe_ft_params);
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			goto err_hw_flow;
  		}
  	}
-@@ -2761,6 +2783,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2770,6 +2792,7 @@ static int ppe_ft_flow_destroy(struct pp
  	}
  
  	rhashtable_remove_fast(&ft->flows, &flow->node, ppe_ft_params);
@@ -69,7 +69,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ppe_vp_flow_del(ft->ppe_dev, flow->ivp, &flow->vp_flow);
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
-@@ -3035,10 +3058,14 @@ static int ppe_ft_active_flows_show(stru
+@@ -3044,10 +3067,14 @@ static int ppe_ft_active_flows_show(stru
  {
  	struct ppe_flowtable *ft = seq->private;
  	unsigned int capacity;
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return 0;
  }
-@@ -3236,6 +3263,8 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3304,6 +3331,8 @@ int ppe_flowtable_setup(struct ppe_devic
  	}
  
  	mutex_init(&ft->lock);

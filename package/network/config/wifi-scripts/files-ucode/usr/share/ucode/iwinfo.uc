@@ -2,7 +2,7 @@
 
 import * as nl80211 from 'nl80211';
 import * as libubus from 'ubus';
-import { readfile, stat } from "fs";
+import { glob, readfile, stat } from "fs";
 
 let wifi_devices = json(readfile('/usr/share/wifi_devices.json'));
 let countries = json(readfile('/usr/share/iso3166.json'));
@@ -13,6 +13,7 @@ let ubus = libubus.connect();
 export let phys;
 let interfaces;
 let wireless_status;
+let wsi_pci_families = {};
 
 function find_phy(wiphy) {
 	for (let k,  phy in phys)
@@ -31,6 +32,38 @@ function get_survey(iface) {
 
 function get_noise(iface) {
 	return iface.survey?.noise ?? -100;
+}
+
+function get_wsi_pci_family(phy_name) {
+	if (phy_name in wsi_pci_families)
+		return wsi_pci_families[phy_name];
+
+	let peers = map(glob(`/sys/class/ieee80211/${phy_name}/device/of_node/ports/*/endpoint*/remote-endpoint`) ?? [], path => readfile(path));
+	let family = null;
+	for (let path in glob('/sys/bus/pci/devices/*') ?? []) {
+		let linked = false;
+		for (let endpoint in glob(path + '/of_node/ports/*/endpoint*/phandle') ?? []) {
+			let phandle = readfile(endpoint);
+			if (length(phandle) == 4 && index(peers, phandle) >= 0)
+				linked = true;
+		}
+		if (!linked)
+			continue;
+
+		let ids = map([ 'vendor', 'device', 'subsystem_vendor', 'subsystem_device' ],
+			key => lc(trim(readfile(path + '/' + key) ?? '', '\n')));
+		for (let device in wifi_devices.pci) {
+			if (length(filter([ 0, 1, 2, 3 ], i =>
+				ids[i] == lc(device[i]) || lc(device[i]) == '0xffff')) != 4)
+				continue;
+			let candidate = `${device[6]} ${device[7]}`;
+			if (family != null && family != candidate)
+				return wsi_pci_families[phy_name] = null;
+			family = candidate;
+		}
+	}
+
+	return wsi_pci_families[phy_name] = family;
 }
 
 function get_country(iface) {
@@ -84,6 +117,9 @@ function get_hardware_id(iface) {
 		hw.id = wifi_devices.compatible[compatible][0] + ' ' + wifi_devices.compatible[compatible][1];
 		hw.compatible = compatible;
 		hw.type = 'embedded';
+
+		if (iface.wiphy_freq >= 4900 && iface.wiphy_freq < 7125)
+			hw.id = get_wsi_pci_family(phy_name) ?? hw.id;
 	}
 
 	return hw;
@@ -100,6 +136,7 @@ export function update() {
 	phys = nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY, nl80211.const.NLM_F_DUMP, { split_wiphy_dump: true });
 	interfaces = nl80211.request(nl80211.const.NL80211_CMD_GET_INTERFACE, nl80211.const.NLM_F_DUMP);
 	wireless_status = ubus.call('network.wireless', 'status');
+	wsi_pci_families = {};
 
 	ifaces = {};
 	for (let k, v in interfaces) {

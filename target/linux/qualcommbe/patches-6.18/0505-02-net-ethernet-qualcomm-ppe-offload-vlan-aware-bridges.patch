@@ -1046,7 +1046,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  	fdb_work->host_addr = host_addr;
  	fdb_work->notify_offloaded = !host_addr &&
  				     event == SWITCHDEV_FDB_ADD_TO_DEVICE;
-@@ -763,6 +1194,47 @@ static int ppe_bridge_switchdev_event(st
+@@ -776,6 +1207,47 @@ static int ppe_bridge_switchdev_event(st
  	return NOTIFY_DONE;
  }
  
@@ -1094,7 +1094,7 @@ Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
  static int ppe_bridge_switchdev_blocking_event(struct notifier_block *nb,
  					       unsigned long event, void *ptr)
  {
-@@ -770,6 +1242,16 @@ static int ppe_bridge_switchdev_blocking
+@@ -783,6 +1255,16 @@ static int ppe_bridge_switchdev_blocking
  	int ret;
  
  	switch (event) {

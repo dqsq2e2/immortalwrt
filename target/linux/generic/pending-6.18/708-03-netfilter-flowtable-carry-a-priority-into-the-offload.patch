@@ -63,8 +63,8 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	if (ret < 0)
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -417,6 +417,9 @@ static int nf_flow_offload_forward(struc
- 	ip_decrease_ttl(iph);
+@@ -419,6 +419,9 @@ static int nf_flow_offload_forward(struc
+ 		ip_decrease_ttl(iph);
  	skb_clear_tstamp(skb);
  
 +	if (flow->priority)
@@ -73,8 +73,8 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	if (flow_table->flags & NF_FLOWTABLE_COUNTER)
  		nf_ct_acct_update(flow->ct, tuplehash->tuple.dir, skb->len);
  
-@@ -705,6 +708,9 @@ static int nf_flow_offload_ipv6_forward(
- 	ip6h->hop_limit--;
+@@ -709,6 +712,9 @@ static int nf_flow_offload_ipv6_forward(
+ 		ip6h->hop_limit--;
  	skb_clear_tstamp(skb);
  
 +	if (flow->priority)

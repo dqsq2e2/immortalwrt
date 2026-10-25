@@ -138,11 +138,11 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
  	.remove = qcom_ppe_remove,
 --- /dev/null
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
-@@ -0,0 +1,1026 @@
+@@ -0,0 +1,1027 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/* Native PPE Direct Switch ring transport.
 + *
-+ * The IPQ5332 resource layout and ring aliasing follow the Qualcomm QSDK
++ * The EDMA v2 resource layout and ring aliasing follow the Qualcomm QSDK
 + * nss-dp EDMA v2 PPE-DS implementation. PPE RXDESC aliases WLAN PPE2TCL;
 + * PPE TXDESC aliases WLAN REO2PPE. CPU work is limited to index handoff,
 + * batched buffer refill and completion, never per-packet skb transmission.
@@ -1074,7 +1074,8 @@ Signed-off-by: JiaY-shi <shi05275@163.com>
 +	char name[24];
 +	int node, i, ret = 0;
 +
-+	if (!of_device_is_compatible(ppe_dev->dev->of_node, "qcom,ipq5332-ppe"))
++	if (!of_device_is_compatible(ppe_dev->dev->of_node, "qcom,ipq5332-ppe") &&
++	    !of_device_is_compatible(ppe_dev->dev->of_node, "qcom,ipq9574-ppe"))
 +		return 0;
 +	provider = kzalloc(sizeof(*provider), GFP_KERNEL);
 +	if (!provider)

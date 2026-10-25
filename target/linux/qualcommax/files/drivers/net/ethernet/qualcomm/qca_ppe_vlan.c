@@ -243,6 +243,8 @@ int qca_ppe_port_vlan_filtering(struct dsa_switch *ds, int port,
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
 
+	ppe_flow_purge_bridge_port(priv, port);
+
 	regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
 			   PPE_PORT_EG_VSI_TAG_EN,
 			   vlan_filtering ? PPE_PORT_EG_VSI_TAG_EN : 0);

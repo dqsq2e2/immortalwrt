@@ -16,12 +16,9 @@ mapping as downstream QSDK for the IPQ5332 USXGMII clock path.
 
 Signed-off-by: Til Kaiser <mail@tk154.de>
 ---
- drivers/net/pcs/pcs-qcom-ipq9574.c | 43 +++++++++++++++++++++++++++++++++++++
- 1 file changed, 43 insertions(+)
-
 --- a/drivers/net/pcs/pcs-qcom-ipq9574.c
 +++ b/drivers/net/pcs/pcs-qcom-ipq9574.c
-@@ -879,6 +879,43 @@ static void ipq_pcs_an_restart(struct ph
+@@ -896,6 +896,43 @@ static void ipq_pcs_an_restart(struct ph
  	/* Currently not used */
  }
  
@@ -65,7 +62,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  static void ipq_pcs_link_up(struct phylink_pcs *pcs,
  			    unsigned int neg_mode,
  			    phy_interface_t interface,
-@@ -889,6 +926,12 @@ static void ipq_pcs_link_up(struct phyli
+@@ -906,6 +943,12 @@ static void ipq_pcs_link_up(struct phyli
  	int index = qpcs_mii->index;
  	int ret;
  
@@ -78,7 +75,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	switch (interface) {
  	case PHY_INTERFACE_MODE_SGMII:
  	case PHY_INTERFACE_MODE_QSGMII:
-@@ -911,6 +954,7 @@ static void ipq_pcs_link_up(struct phyli
+@@ -928,6 +971,7 @@ static void ipq_pcs_link_up(struct phyli
  		return;
  	}
  
@@ -86,7 +83,7 @@ Signed-off-by: Til Kaiser <mail@tk154.de>
  	if (ret)
  		dev_err(qpcs->dev, "PCS link up fail for interface %s\n",
  			phy_modes(interface));
-@@ -1197,6 +1241,7 @@ static int ipq9574_pcs_probe(struct plat
+@@ -1214,6 +1258,7 @@ static int ipq9574_pcs_probe(struct plat
  }
  
  static const struct of_device_id ipq9574_pcs_of_mtable[] = {

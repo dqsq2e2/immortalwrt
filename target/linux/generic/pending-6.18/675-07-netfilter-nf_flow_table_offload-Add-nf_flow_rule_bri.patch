@@ -10,13 +10,14 @@ It only calls the common rule and adds the redirect.
 
 Based on commit bb7f64bc456d from ericwoud/bpir-nftflow-nf-next-20260707.
 
+
+[viking.yfy@qq.com: propagate redirect setup failures instead of accepting
+ a bridge rule without its redirect action]
+
 Signed-off-by: Eric Woudstra <ericwouds@gmail.com>
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
- include/net/netfilter/nf_flow_table.h |  3 +++
- net/netfilter/nf_flow_table_offload.c | 13 +++++++++++++
- 2 files changed, 16 insertions(+)
-
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
 @@ -349,6 +349,9 @@ void nf_flow_table_offload_flush_cleanup
@@ -31,7 +32,7 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
  			    struct nf_flow_rule *flow_rule);
 --- a/net/netfilter/nf_flow_table_offload.c
 +++ b/net/netfilter/nf_flow_table_offload.c
-@@ -792,6 +792,19 @@ int nf_flow_rule_route_ipv6(struct net *
+@@ -792,6 +792,17 @@ int nf_flow_rule_route_ipv6(struct net *
  }
  EXPORT_SYMBOL_GPL(nf_flow_rule_route_ipv6);
  
@@ -42,9 +43,7 @@ Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 +	if (nf_flow_rule_route_common(net, flow, dir, flow_rule) < 0)
 +		return -1;
 +
-+	flow_offload_redirect(net, flow, dir, flow_rule);
-+
-+	return 0;
++	return flow_offload_redirect(net, flow, dir, flow_rule);
 +}
 +EXPORT_SYMBOL_GPL(nf_flow_rule_bridge);
 +

@@ -19,7 +19,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
-@@ -32,6 +32,7 @@ struct nf_flow_key {
+@@ -32,6 +32,7 @@
  		struct flow_dissector_key_ipv4_addrs	ipv4;
  		struct flow_dissector_key_ipv6_addrs	ipv6;
  	};
@@ -27,7 +27,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct flow_dissector_key_keyid			enc_key_id;
  	union {
  		struct flow_dissector_key_ipv4_addrs	enc_ipv4;
-@@ -144,6 +145,7 @@ struct flow_offload_tuple {
+@@ -144,6 +145,7 @@
  					in_vlan_ingress:2,
  					num_uppers:3;
  	u16				mtu;
@@ -37,7 +37,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			struct dst_entry *dst_cache;
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -451,6 +451,7 @@ static int nf_flow_offload_forward(struc
+@@ -451,6 +451,7 @@
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct iphdr *iph;
@@ -45,7 +45,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -483,6 +484,12 @@ static int nf_flow_offload_forward(struc
+@@ -483,6 +484,12 @@
  	iph = ip_hdr(skb);
  	nf_flow_nat_ip(flow, skb, thoff, dir, iph);
  
@@ -55,10 +55,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +				    FIELD_PREP(INET_DSCP_MASK,
 +					       tuplehash->tuple.dscp));
 +
- 	ip_decrease_ttl(iph);
- 	skb_clear_tstamp(skb);
- 
-@@ -754,6 +761,7 @@ static int nf_flow_offload_ipv6_forward(
+ 	/* A transparent bridge does not consume an L3 hop. */
+ 	if (!flow_table->type || flow_table->type->family != NFPROTO_BRIDGE)
+ 		ip_decrease_ttl(iph);
+@@ -756,6 +763,7 @@
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct ipv6hdr *ip6h;
@@ -66,7 +66,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -785,6 +793,12 @@ static int nf_flow_offload_ipv6_forward(
+@@ -787,6 +795,12 @@
  	ip6h = ipv6_hdr(skb);
  	nf_flow_nat_ipv6(flow, skb, dir, ip6h);
  
@@ -76,12 +76,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +				    FIELD_PREP(INET_DSCP_MASK,
 +					       tuplehash->tuple.dscp));
 +
- 	ip6h->hop_limit--;
- 	skb_clear_tstamp(skb);
- 
+ 	/* A transparent bridge does not consume an L3 hop. */
+ 	if (!flow_table->type || flow_table->type->family != NFPROTO_BRIDGE)
+ 		ip6h->hop_limit--;
 --- a/net/netfilter/nf_flow_table_offload.c
 +++ b/net/netfilter/nf_flow_table_offload.c
-@@ -104,6 +104,7 @@ static int nf_flow_rule_match(struct nf_
+@@ -104,6 +104,7 @@
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_BASIC, basic);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV4_ADDRS, ipv4);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_IPV6_ADDRS, ipv6);
@@ -89,7 +89,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_TCP, tcp);
  	NF_FLOW_DISSECTOR(match, FLOW_DISSECTOR_KEY_PORTS, tp);
  
-@@ -191,6 +192,10 @@ static int nf_flow_rule_match(struct nf_
+@@ -191,6 +192,10 @@
  	match->dissector.used_keys |= BIT_ULL(key->control.addr_type);
  	mask->basic.n_proto = 0xffff;
  
@@ -110,7 +110,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #include <net/ip.h>
  #include <net/flow.h>
  #include <net/netfilter/nf_tables.h>
-@@ -21,6 +22,27 @@ struct nft_flow_offload {
+@@ -21,6 +22,27 @@
  	struct nft_flowtable	*flowtable;
  };
  
@@ -138,7 +138,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static bool nft_flow_offload_skip(struct sk_buff *skb, int family)
  {
  	if (skb_sec_path(skb))
-@@ -120,6 +142,9 @@ static void nft_flow_offload_eval(const
+@@ -120,6 +142,9 @@
  	if (!flow)
  		goto err_flow_alloc;
  

@@ -12,26 +12,26 @@
 	 * 17cb:1109) and keeps its firmware in a separate host-DDR window.
 	 */
 	reserved-memory {
-		m3_dump: m3-dump@4d400000 {
-			reg = <0x0 0x4d400000 0x0 0x00100000>;
+		m3_dump: m3-dump@4da00000 {
+			reg = <0x0 0x4da00000 0x0 0x00100000>;
 			no-map;
 		};
 
-		q6_caldb: q6-caldb@4d500000 {
-			reg = <0x0 0x4d500000 0x0 0x00500000>;
+		q6_caldb: q6-caldb@4db00000 {
+			reg = <0x0 0x4db00000 0x0 0x00500000>;
 			no-map;
 		};
 
-		mlo_mem: mlo-global-mem@4db00000 {
-			reg = <0x0 0x4db00000 0x0 0x01200000>;
+		mlo_mem: mlo-global-mem@4e000000 {
+			reg = <0x0 0x4e000000 0x0 0x01200000>;
 			no-map;
 		};
 
-		qcn9274_host_ddr: qcn9274-host-ddr@4ed00000 {
+		qcn9274_host_ddr: qcn9274-host-ddr@4f200000 {
 			/* Firmware mode 1 uses 0x02402000 bytes (log-02). Keep
 			 * almost 2 MiB headroom without reserving the old 50 MiB.
 			 */
-			reg = <0x0 0x4ed00000 0x0 0x02600000>;
+			reg = <0x0 0x4f200000 0x0 0x02600000>;
 			no-map;
 		};
 	};

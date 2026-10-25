@@ -54,7 +54,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	skb->dev = dev;
  	dev_hard_header(skb, dev, ntohs(skb->protocol),
  			xmit->dest, xmit->source, skb->len);
-@@ -531,6 +551,8 @@ nf_flow_offload_ip_hook(void *priv, stru
+@@ -533,6 +553,8 @@ nf_flow_offload_ip_hook(void *priv, stru
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rtable(tuplehash->tuple.dst_cache);
@@ -63,7 +63,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		memset(skb->cb, 0, sizeof(struct inet_skb_parm));
  		IPCB(skb)->iif = skb->dev->ifindex;
  		IPCB(skb)->flags = IPSKB_FORWARDED;
-@@ -850,6 +872,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
+@@ -854,6 +876,8 @@ nf_flow_offload_ipv6_hook(void *priv, st
  
  	if (unlikely(tuplehash->tuple.xmit_type == FLOW_OFFLOAD_XMIT_XFRM)) {
  		rt = dst_rt6_info(tuplehash->tuple.dst_cache);

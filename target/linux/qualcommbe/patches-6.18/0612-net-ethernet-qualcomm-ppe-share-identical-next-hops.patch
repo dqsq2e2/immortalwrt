@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * struct ppe_ft_pppoe - A refcounted PPPoE session.
   * @ref: Reference count of the session.
   * @sid: PPPoE session ID.
-@@ -276,7 +288,7 @@ struct ppe_ft_host {
+@@ -277,7 +289,7 @@ struct ppe_ft_host {
   * @ppe_dev: Back pointer to the PPE device.
   * @lock: Serializes rule installation, removal and the allocators.
   * @flows: Offloaded flows, keyed by flow cookie.
@@ -48,7 +48,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @my_macs: Refcounted router MAC slots.
   * @pub_ips: Refcounted public IP slots.
   * @pppoe: Refcounted PPPoE session slots.
-@@ -294,13 +306,18 @@ struct ppe_flowtable {
+@@ -295,13 +307,18 @@ struct ppe_flowtable {
  	struct dentry *debugfs;
  	struct dentry *debugfs_active;
  	struct dentry *debugfs_reasons;
@@ -68,7 +68,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ppe_ft_my_mac my_macs[PPE_MY_MAC_TBL_ENTRIES];
  	struct ppe_ft_pub_ip pub_ips[PPE_PUB_IP_TBL_ENTRIES];
  	struct ppe_ft_pppoe pppoe[PPE_FT_PPPOE_SESSIONS];
-@@ -535,6 +552,67 @@ static bool ppe_ft_pub_ip_match(const vo
+@@ -542,6 +559,67 @@ static bool ppe_ft_pub_ip_match(const vo
  	return slot->ip == *(const __be32 *)key;
  }
  
@@ -136,7 +136,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* Get a refcounted public IP slot for the address, programming the
   * hardware entry on first use. Must be called with the flowtable lock
   * held.
-@@ -2574,23 +2652,18 @@ put_idev:
+@@ -2583,23 +2661,18 @@ put_idev:
  			goto err_my_mac;
  	}
  
@@ -164,7 +164,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ret = ppe_flow_entry_add(ft->ppe_dev, &flow->entry);
  	if (ret < 0)
-@@ -2616,7 +2689,6 @@ put_idev:
+@@ -2625,7 +2698,6 @@ put_idev:
  		}
  	}
  
@@ -172,7 +172,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	mutex_unlock(&ft->lock);
  	if (tdev)
  		dev_put(tdev);
-@@ -2625,19 +2697,19 @@ put_idev:
+@@ -2634,19 +2706,19 @@ put_idev:
  
  err_hw_flow:
  	if (!ppe_ft_flow_hw_del(ft, flow)) {
@@ -197,7 +197,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  err_my_mac:
  	ppe_ft_my_mac_put(ft, flow->my_mac);
  err_pppoe:
-@@ -2693,7 +2765,7 @@ static int ppe_ft_flow_destroy(struct pp
+@@ -2702,7 +2774,7 @@ static int ppe_ft_flow_destroy(struct pp
  
  	if (ppe_ft_flow_hw_del(ft, flow)) {
  		ppe_ft_host_put(ft, &flow->entry);
@@ -206,7 +206,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ppe_ft_my_mac_put(ft, flow->my_mac);
  		ppe_ft_my_mac_put(ft, flow->ingress_my_mac);
  		ppe_ft_pppoe_put(ft, flow->pppoe);
-@@ -2964,15 +3036,30 @@ static int ppe_ft_active_flows_show(stru
+@@ -2973,15 +3045,30 @@ static int ppe_ft_active_flows_show(stru
  	struct ppe_flowtable *ft = seq->private;
  	unsigned int capacity;
  
@@ -240,7 +240,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /**
   * ppe_flowtable_debugfs_init - Expose the flowtable state in debugfs
   * @ppe_dev: PPE device
-@@ -2998,6 +3085,9 @@ void ppe_flowtable_debugfs_init(struct p
+@@ -3007,6 +3094,9 @@ void ppe_flowtable_debugfs_init(struct p
  	ft->debugfs_reasons = debugfs_create_file("reason_counters", 0400,
  						  ppe_dev->debugfs_root, ft,
  						  &ppe_ft_reason_counters_fops);
@@ -250,7 +250,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_ft_block_cb(enum tc_setup_type type, void *type_data,
-@@ -3127,13 +3217,20 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3195,13 +3285,20 @@ int ppe_flowtable_setup(struct ppe_devic
  		return -ENOMEM;
  
  	ft->ppe_dev = ppe_dev;
@@ -272,7 +272,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft);
  		return -ERANGE;
  	}
-@@ -3144,6 +3241,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3212,6 +3309,7 @@ int ppe_flowtable_setup(struct ppe_devic
  
  	ret = rhashtable_init(&ft->flows, &ppe_ft_params);
  	if (ret) {
@@ -280,7 +280,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft);
  		return ret;
  	}
-@@ -3156,6 +3254,7 @@ int ppe_flowtable_setup(struct ppe_devic
+@@ -3224,6 +3322,7 @@ int ppe_flowtable_setup(struct ppe_devic
  	if (ret) {
  		ppe_dev->flowtable = NULL;
  		rhashtable_destroy(&ft->flows);
@@ -288,7 +288,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		kfree(ft);
  		return ret;
  	}
-@@ -3213,6 +3312,7 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3281,6 +3380,7 @@ void ppe_flowtable_destroy(struct ppe_de
  	}
  	mutex_unlock(&ft->lock);
  
@@ -296,7 +296,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	debugfs_remove(ft->debugfs_reasons);
  	debugfs_remove(ft->debugfs_active);
  	debugfs_remove(ft->debugfs);
-@@ -3232,5 +3332,6 @@ void ppe_flowtable_destroy(struct ppe_de
+@@ -3300,5 +3400,6 @@ void ppe_flowtable_destroy(struct ppe_de
  		if (ft->tunnels[i].dev)
  			dev_put(ft->tunnels[i].dev);
  

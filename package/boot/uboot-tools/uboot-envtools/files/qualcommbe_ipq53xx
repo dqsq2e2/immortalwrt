@@ -8,6 +8,10 @@ touch /etc/config/ubootenv
 board=$(board_name)
 
 case "$board" in
+jdcloud,re-cs-06|\
+jdcloud,re-cs-08)
+	ubootenv_add_mmc "0:APPSBLENV" "" "0x0" "0x40000" "0x40000"
+	;;
 gl.inet,gl-be6500)
 	ubootenv_add_mtd "0:appsblenv" "0x0" "0x40000" "0x40000"
 	;;

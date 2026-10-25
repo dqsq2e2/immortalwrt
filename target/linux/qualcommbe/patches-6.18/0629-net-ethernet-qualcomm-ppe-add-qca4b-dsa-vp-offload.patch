@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		   tx_enabled);
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_flowtable.c
-@@ -690,7 +690,14 @@ struct ppe_ft_pppoe_topo {
+@@ -697,7 +697,14 @@ struct ppe_ft_pppoe_topo {
  static int ppe_ft_vlan_get(struct ppe_flowtable *ft, int port, u16 vid,
  			   int mtu, bool keep_tag);
  static void ppe_ft_vlan_put(struct ppe_flowtable *ft, int index);
@@ -120,7 +120,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  static int ppe_ft_pppoe_path(struct net_device *ppp_dev,
  			     struct ppe_ft_pppoe_topo *topo)
-@@ -735,19 +742,25 @@ static int ppe_ft_pppoe_path(struct net_
+@@ -742,19 +749,25 @@ static int ppe_ft_pppoe_path(struct net_
  			topo->vlan_mtu = path->dev->mtu;
  			break;
  		case DEV_PATH_DSA:
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		case DEV_PATH_ETHERNET: {
  			struct edma_port_priv *port_priv;
  
-@@ -1921,7 +1934,8 @@ static void ppe_ft_flow_release(struct p
+@@ -1928,7 +1941,8 @@ static void ppe_ft_flow_release(struct p
  	kfree(flow);
  }
  
@@ -161,7 +161,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct dsa_port *dp;
  
-@@ -1932,7 +1946,7 @@ static int ppe_ft_dsa_port(struct net_de
+@@ -1939,7 +1953,7 @@ static int ppe_ft_dsa_port(struct net_de
  	if (IS_ERR(dp))
  		return PTR_ERR(dp);
  
@@ -170,7 +170,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return -EOPNOTSUPP;
  
  	if (!edma_port_dev_check(dsa_port_to_conduit(dp)))
-@@ -1944,10 +1958,24 @@ static int ppe_ft_dsa_port(struct net_de
+@@ -1951,10 +1965,24 @@ static int ppe_ft_dsa_port(struct net_de
  	if (dpp)
  		*dpp = dp;
  
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ppe_ft_flow_replace(struct ppe_flowtable *ft,
-@@ -2320,7 +2348,7 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2329,7 +2357,7 @@ static int ppe_ft_flow_replace(struct pp
  	}
  	reject_reason = PPE_FT_REJECT_OUTPUT_DEVICE;
  	if (!tunnel_encap && !edma_port_dev_check(odev) &&
@@ -207,7 +207,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    (!ft->ppe_dev->variant->has_vports ||
  	     odev->type != ARPHRD_ETHER || !odev->ieee80211_ptr)) {
  		ret = -EOPNOTSUPP;
-@@ -2373,27 +2401,35 @@ static int ppe_ft_flow_replace(struct pp
+@@ -2382,27 +2410,35 @@ static int ppe_ft_flow_replace(struct pp
  		} else if (dsa_user_dev_check(idev)) {
  			struct net_device *conduit;
  			struct edma_port_priv *ipriv;
@@ -253,7 +253,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		} else if (ft->ppe_dev->variant->has_vports &&
  			   idev->type == ARPHRD_ETHER && idev->ieee80211_ptr) {
  			reject_reason = PPE_FT_REJECT_INGRESS_VP;
-@@ -2424,7 +2460,7 @@ put_idev:
+@@ -2433,7 +2469,7 @@ put_idev:
  			nh.l3_if = nh.port;
  		} else if (dsa_user_dev_check(odev)) {
  			struct dsa_port *dp;
@@ -262,7 +262,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  			/* The next hop pushes one tag; a switch port
  			 * with tagged bridge-vlan egress would need
-@@ -2434,15 +2470,25 @@ put_idev:
+@@ -2443,15 +2479,25 @@ put_idev:
  				ret = -EOPNOTSUPP;
  				goto err_prelock_ivp;
  			}
@@ -295,7 +295,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			flow->egress_dev = odev;
  			flow->egress_vid = dsa_ovid;
  			dev_hold(flow->egress_dev);
-@@ -2626,18 +2672,28 @@ put_idev:
+@@ -2635,18 +2681,28 @@ put_idev:
  	 */
  	reject_reason = PPE_FT_REJECT_PPPOE;
  	if (data.pppoe_sid >= 0) {
@@ -326,7 +326,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (flow->pppoe < 0) {
  			ret = flow->pppoe;
  			goto err_vlan;
-@@ -2771,6 +2827,8 @@ err_tdev:
+@@ -2780,6 +2836,8 @@ err_tdev:
  		dev_put(tdev);
  	goto err_free;
  err_prelock_ivp:
@@ -335,7 +335,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (flow->ivp >= 0)
  		ppe_vp_put(ft->ppe_dev, flow->ivp);
  	if (tdev)
-@@ -2863,6 +2921,7 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2872,6 +2930,7 @@ static int ppe_ft_flow_stats(struct ppe_
  			     struct flow_cls_offload *f)
  {
  	struct ppe_ft_flow *flow;
@@ -343,7 +343,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	u32 packets;
  	u64 bytes;
  	int ret;
-@@ -2881,9 +2940,14 @@ static int ppe_ft_flow_stats(struct ppe_
+@@ -2890,9 +2949,14 @@ static int ppe_ft_flow_stats(struct ppe_
  		return -ENOENT;
  	}
  

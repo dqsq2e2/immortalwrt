@@ -61,7 +61,6 @@ define Device/glinet_gl-be6500
 	DEVICE_MODEL := GL-BE6500
 	DEVICE_DTS_CONFIG := config@mi01.2
 	KERNEL_INSTALL := 1
-	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 256k
 	PAGESIZE := 4096
 	SOC := ipq5322
@@ -74,13 +73,27 @@ define Device/glinet_gl-be6500
 endef
 TARGET_DEVICES += glinet_gl-be6500
 
+define Device/jdcloud_re-cs-06
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := JDCloud
+	DEVICE_MODEL := RE-CS-06
+	DEVICE_DTS_CONFIG := config@mi01.6
+	KERNEL_SIZE := 7168k
+	SOC := ipq5322
+	SUPPORTED_DEVICES += jdcloud,re-cs-06
+	DEVICE_PACKAGES := ipq-wifi-jdcloud_re-cs-06
+	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
+endef
+TARGET_DEVICES += jdcloud_re-cs-06
+
 define Device/jdcloud_re-cs-08
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
 	DEVICE_VENDOR := JDCloud
 	DEVICE_MODEL := RE-CS-08
 	DEVICE_DTS_CONFIG := config@mi01.6
-	KERNEL_SIZE := 6144k
+	KERNEL_SIZE := 7168k
 	SOC := ipq5322
 	SUPPORTED_DEVICES += jdcloud,re-cs-08
 	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl kmod-sfp \
@@ -121,7 +134,6 @@ define Device/xiaomi_be6500
 	DEVICE_VENDOR := Xiaomi
 	DEVICE_MODEL := BE6500
 	DEVICE_DTS_CONFIG := config@mi01.2
-	KERNEL_SIZE := 6144k
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq5312

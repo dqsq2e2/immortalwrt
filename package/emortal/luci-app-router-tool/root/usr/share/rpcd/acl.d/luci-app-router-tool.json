@@ -1,0 +1,22 @@
+{
+	"luci-app-router-tool": {
+		"description": "Read Ethernet port assignments and router tool presets",
+		"read": {
+			"file": {
+				"/usr/share/router-tool/auto.json": [ "read" ]
+			},
+			"ubus": {
+				"file": [ "read" ],
+				"luci-rpc": [ "getBoardJSON" ]
+			}
+		},
+		"write": {
+			"file": {
+				"/usr/bin/logger": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ]
+			}
+		}
+	}
+}
