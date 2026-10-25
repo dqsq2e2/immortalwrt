@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/netdevice.h>
  #include <linux/printk.h>
  #include <linux/regmap.h>
-@@ -1005,59 +1006,85 @@
+@@ -1005,59 +1006,85 @@ void edma_cfg_rx_napi_add(void)
   *
   * Initialize and configure RPS hash map for queues
   */

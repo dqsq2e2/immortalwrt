@@ -11,7 +11,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/dp.c
-@@ -1168,10 +1168,10 @@
+@@ -1168,10 +1168,10 @@ static void ath12k_dp_cleanup(struct ath
  	struct ath12k_dp *dp = ath12k_ab_to_dp(ab);
  	int i;
  
@@ -24,7 +24,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	ath12k_dp_link_peer_rhash_tbl_destroy(dp);
  
-@@ -1657,9 +1657,30 @@
+@@ -1657,9 +1657,30 @@ rhash_destroy:
  	return ret;
  }
  
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int i, ret = 0, err;
  
  	if (!ag)
-@@ -1669,18 +1690,15 @@
+@@ -1669,18 +1690,15 @@ int ath12k_dp_ds_stop_group(struct ath12
  		if (!dp || !dp->ds || !dp->ops->ds_stop)
  			continue;
  		err = dp->ops->ds_stop(dp);
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/drivers/net/wireless/ath/ath12k/dp.h
 +++ b/drivers/net/wireless/ath/ath12k/dp.h
-@@ -395,6 +395,8 @@
+@@ -395,6 +395,8 @@ struct ath12k_dp_arch_ops {
  	int (*ds_setup)(struct ath12k_dp *dp);
  	int (*ds_cleanup)(struct ath12k_dp *dp);
  	int (*ds_stop)(struct ath12k_dp *dp);
@@ -92,7 +92,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int (*ds_peer_setup)(struct ath12k *ar, struct ath12k_link_vif *arvif,
  			     struct ath12k_link_sta *arsta);
  	int (*ds_sta_state)(struct ath12k *ar, struct ath12k_link_vif *arvif,
-@@ -697,6 +699,7 @@
+@@ -697,6 +699,7 @@ ath12k_dp_to_pdev_dp(struct ath12k_dp *d
  
  void ath12k_dp_vdev_tx_attach(struct ath12k *ar, struct ath12k_link_vif *arvif);
  int ath12k_dp_ds_stop_group(struct ath12k_hw_group *ag);
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath12k_dp_pdev_pre_alloc(struct ath12k *ar);
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -160,6 +160,8 @@
+@@ -160,6 +160,8 @@ static struct ath12k_dp_arch_ops ath12k_
  	.ds_setup = ath12k_wifi7_ds_setup,
  	.ds_cleanup = ath12k_wifi7_ds_cleanup,
  	.ds_stop = ath12k_wifi7_ds_stop,
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.ds_peer_setup = ath12k_wifi7_ds_peer_setup,
  	.ds_sta_state = ath12k_wifi7_ds_sta_state,
  	.ds_vif_remove = ath12k_wifi7_ds_vif_remove,
-@@ -205,7 +207,13 @@
+@@ -205,7 +207,13 @@ struct ath12k_dp *ath12k_wifi7_dp_device
  void ath12k_wifi7_dp_device_free(struct ath12k_dp *dp)
  {
  	/* An unquiesced DMA client retains its descriptor and buffer context. */
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -115,6 +115,8 @@
+@@ -115,6 +115,8 @@ struct ath12k_ds {
  	unsigned long reo_mapped;
  	bool tcl_ready, reo_ready, complete_ready;
  	bool stopped, faulted, started;
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	unsigned long fault_flags;
  	atomic64_t tx_completed, rx_recycled, bad_cookie, tx_exception;
  	atomic64_t tx_acked, tx_dropped;
-@@ -125,6 +127,8 @@
+@@ -125,6 +127,8 @@ struct ath12k_ds {
  static void ath12k_ds_fault(struct ath12k_ds *ds)
  {
  	WRITE_ONCE(ds->faulted, true);
@@ -146,7 +146,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	/* RX service may still run while a failed stop quarantines the rings.
  	 * Notify once per registration, including when fault_work is running;
  	 * otherwise those calls can continuously requeue the same teardown.
-@@ -137,16 +141,9 @@
+@@ -137,16 +141,9 @@ static void ath12k_ds_fault_work(struct
  {
  	struct ath12k_ds *ds = container_of(work, struct ath12k_ds, fault_work);
  
@@ -166,7 +166,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static struct hal_srng *ath12k_ds_srng(struct ath12k_ds *ds,
-@@ -551,6 +548,8 @@
+@@ -551,6 +548,8 @@ static int ath12k_ds_stats_show(struct s
  		   ds->started, READ_ONCE(ds->stopped), READ_ONCE(ds->faulted), peers);
  	/* WMI reports command submission, not a firmware routing ACK. */
  	seq_printf(seq, "peer_submission_only:1 tracked:%d\n", tracked);
@@ -175,7 +175,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	seq_printf(seq, "route_direct:%llu route_cpu:%llu\n",
  		   ds->route_direct, ds->route_cpu);
  	seq_puts(seq, "fallback_events");
-@@ -727,7 +726,8 @@
+@@ -727,7 +726,8 @@ int ath12k_wifi7_ds_service(struct ath12
  	int done = 0;
  	int quota;
  
@@ -185,7 +185,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return 0;
  	/* QSDK charges four lightweight PPE completions per NAPI budget unit.
  	 * Bound each batch and round its cost up so a full batch requests
-@@ -966,23 +966,30 @@
+@@ -966,23 +966,30 @@ static bool ath12k_ds_vif_can_direct(str
  	return found;
  }
  
@@ -228,7 +228,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  	return ret;
  }
-@@ -1155,17 +1162,40 @@
+@@ -1155,17 +1162,40 @@ void ath12k_wifi7_ds_vif_remove(struct a
  		ds = dp->ds;
  		fault = false;
  		mutex_lock(&ds->control_lock);
@@ -274,7 +274,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					fault = true;
  				spin_lock_bh(&ds->peer_lock);
  				list_del(&peer->list);
-@@ -1222,23 +1252,34 @@
+@@ -1222,23 +1252,34 @@ int ath12k_wifi7_ds_stop(struct ath12k_d
  {
  	struct ath12k_ds *ds = READ_ONCE(dp->ds);
  	struct ath12k_ds_peer *peer;
@@ -316,7 +316,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ds->reo_ready) {
  		ath12k_wifi7_hal_ds_disable(dp->ab, ath12k_ds_srng(ds, &ds->reo));
  		/* Observe the final DMA head writeback before EDMA drains. */
-@@ -1268,11 +1309,37 @@
+@@ -1268,11 +1309,37 @@ int ath12k_wifi7_ds_stop(struct ath12k_d
  		}
  		ds->reo_mapped = 0;
  	}
@@ -354,7 +354,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath12k_wifi7_ds_cleanup(struct ath12k_dp *dp)
  {
  	struct ath12k_ds *ds = dp->ds;
-@@ -1284,10 +1351,16 @@
+@@ -1284,10 +1351,16 @@ int ath12k_wifi7_ds_cleanup(struct ath12
  	cancel_work_sync(&ds->fault_work);
  	debugfs_remove(ds->debugfs);
  	ds->debugfs = NULL;
@@ -373,7 +373,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ds->handle = NULL;
  	}
  	WRITE_ONCE(ds->stopped, true);
-@@ -1315,6 +1388,20 @@
+@@ -1315,6 +1388,20 @@ int ath12k_wifi7_ds_cleanup(struct ath12
  	dp->ds = NULL;
  	kfree(ds);
  	return 0;
@@ -396,7 +396,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath12k_wifi7_ds_setup(struct ath12k_dp *dp)
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.h
-@@ -17,6 +17,8 @@
+@@ -17,6 +17,8 @@ void ath12k_wifi7_hal_ds_set_indices(str
  				    struct hal_srng *srng, u16 index);
  void ath12k_wifi7_hal_ds_disable(struct ath12k_base *ab, struct hal_srng *srng);
  int ath12k_wifi7_ds_stop(struct ath12k_dp *dp);
@@ -405,7 +405,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  void ath12k_wifi7_ds_vif_remove(struct ath12k_link_vif *arvif,
  			       bool before, bool deleted);
  int ath12k_wifi7_ds_peer_setup(struct ath12k *ar, struct ath12k_link_vif *arvif,
-@@ -42,6 +44,15 @@
+@@ -42,6 +44,15 @@ static inline void ath12k_wifi7_ds_vif_r
  {
  }
  

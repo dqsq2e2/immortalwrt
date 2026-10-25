@@ -9,7 +9,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_ds.c
-@@ -377,7 +377,8 @@
+@@ -377,7 +377,8 @@ static int ppe_ds_poll(struct napi_struc
  		spin_unlock_irqrestore(&ppe_ds_fault_lock, flags);
  		return 0;
  	}
@@ -21,7 +21,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (napi_complete_done(napi, done)) {
 --- a/include/linux/soc/qcom/ppe-ds.h
 +++ b/include/linux/soc/qcom/ppe-ds.h
-@@ -25,6 +25,8 @@
+@@ -25,6 +25,8 @@ struct qcom_ppe_ds_ops {
  	u16 (*get_tcl_cons)(void *priv);
  	void (*set_tcl_prod)(void *priv, u16 index);
  	u16 (*get_reo_prod)(void *priv);

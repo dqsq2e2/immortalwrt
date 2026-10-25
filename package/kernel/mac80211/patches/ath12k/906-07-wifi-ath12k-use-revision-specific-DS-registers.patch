@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath12k/hal.h
 +++ b/drivers/net/wireless/ath/ath12k/hal.h
-@@ -1209,6 +1209,8 @@
+@@ -1209,6 +1209,8 @@ struct ath12k_hw_regs {
  	u32 reo_cmd_ring_base;
  
  	u32 reo_status_ring_base;
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define HAL_WBM2SW_DS_RING_NUM			6
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hal_qcn9274.c
-@@ -297,6 +297,7 @@
+@@ -297,6 +297,7 @@ const struct ath12k_hw_regs qcn9274_v1_r
  
  	/* REO status ring address */
  	.reo_status_ring_base = 0x00000a84,
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* CE base address */
  	.umac_ce0_src_reg_base = 0x01b80000,
-@@ -392,6 +393,8 @@
+@@ -392,6 +393,8 @@ const struct ath12k_hw_regs qcn9274_v2_r
  
  	/* REO status ring address */
  	.reo_status_ring_base = 0x00000aa0,
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* CE base address */
  	.umac_ce0_src_reg_base = 0x01b80000,
-@@ -1022,7 +1025,7 @@
+@@ -1022,7 +1025,7 @@ static int ath12k_hal_srng_create_config
  	s->reg_start[1] = HAL_SEQ_WCSS_UMAC_REO_REG + HAL_REO_STATUS_HP;
  
  	s = &hal->srng_config[HAL_REO2PPE];
@@ -71,7 +71,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	s = &hal->srng_config[HAL_TCL_DATA];
 --- a/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/ppe_ds.c
-@@ -664,8 +664,11 @@
+@@ -664,8 +664,11 @@ static int ath12k_ds_start(struct ath12k
  	ret = ath12k_dp_rx_htt_ds_cfg(ab);
  	if (ret)
  		return ret;

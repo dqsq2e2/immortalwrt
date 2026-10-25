@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/phy/qcom/qca808x.c
 +++ b/drivers/net/phy/qcom/qca808x.c
-@@ -192,6 +192,7 @@
+@@ -192,6 +192,7 @@ struct qca808x_priv {
  };
  
  struct qca808x_shared_priv {
@@ -25,7 +25,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int package_mode;
  	int phy_addr[4];
  	struct clk *clk[PACKAGE_CLK_MAX];
-@@ -940,7 +941,12 @@
+@@ -940,7 +941,12 @@ static void qca808x_get_phy_stats(struct
  
  static int qca8084_package_clock_init(struct qca808x_shared_priv *shared_priv)
  {
@@ -39,7 +39,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	/* Configure clock rate 312.5MHZ for the PHY package
  	 * APB bridge clock tree.
-@@ -949,46 +955,25 @@
+@@ -949,46 +955,25 @@ static int qca8084_package_clock_init(st
  	if (ret)
  		return ret;
  
@@ -73,16 +73,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 -	ret = clk_prepare_enable(shared_priv->clk[TLMM_AHB_CLK]);
 -	if (ret)
 -		return ret;
--
--	ret = clk_prepare_enable(shared_priv->clk[CNOC_AHB_CLK]);
--	if (ret)
--		return ret;
--
--	ret = clk_prepare_enable(shared_priv->clk[MDIO_MASTER_AHB_CLK]);
--	if (ret)
--		return ret;
--
--	return clk_prepare_enable(shared_priv->clk[MDIO_AHB_CLK]);
 +	for (i = 0; i < ARRAY_SIZE(clocks); i++) {
 +		/* The AHB source is changed after its upstream clocks are on. */
 +		if (clocks[i] == AHB_CLK) {
@@ -90,14 +80,21 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +			if (ret)
 +				goto disable_clocks;
 +		}
-+
+ 
+-	ret = clk_prepare_enable(shared_priv->clk[CNOC_AHB_CLK]);
+-	if (ret)
+-		return ret;
 +		ret = clk_prepare_enable(shared_priv->clk[clocks[i]]);
 +		if (ret)
 +			goto disable_clocks;
 +	}
-+
+ 
+-	ret = clk_prepare_enable(shared_priv->clk[MDIO_MASTER_AHB_CLK]);
+-	if (ret)
+-		return ret;
 +	return 0;
-+
+ 
+-	return clk_prepare_enable(shared_priv->clk[MDIO_AHB_CLK]);
 +disable_clocks:
 +	while (i--)
 +		clk_disable_unprepare(shared_priv->clk[clocks[i]]);
@@ -105,41 +102,41 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int qca8084_phy_package_config_init_once(struct phy_device *phydev)
-@@ -1085,15 +1070,35 @@
+@@ -1085,15 +1070,35 @@ static int qca8084_mac_clock_set(struct
  	return 0;
  }
  
+-static int qca8084_config_init(struct phy_device *phydev)
 +static DEFINE_MUTEX(qca8084_package_init_lock);
 +
 +static int qca8084_phy_package_config_init(struct phy_device *phydev)
-+{
+ {
+-	int ret;
 +	struct qca808x_shared_priv *shared_priv = phy_package_get_priv(phydev);
 +	int ret = 0;
-+
+ 
+-	if (phy_package_init_once(phydev)) {
 +	/* The package once bit is set before initialization runs. Serialize
 +	 * the sequence and publish completion only after every step succeeds,
 +	 * so another PHY neither skips a failure nor uses partial setup.
 +	 */
 +	mutex_lock(&qca8084_package_init_lock);
 +	if (!shared_priv->config_initialized) {
-+		ret = qca8084_phy_package_config_init_once(phydev);
+ 		ret = qca8084_phy_package_config_init_once(phydev);
+-		if (ret)
+-			return ret;
 +		if (!ret)
 +			shared_priv->config_initialized = true;
-+	}
+ 	}
 +	mutex_unlock(&qca8084_package_init_lock);
 +
 +	return ret;
 +}
 +
- static int qca8084_config_init(struct phy_device *phydev)
- {
- 	int ret;
- 
--	if (phy_package_init_once(phydev)) {
--		ret = qca8084_phy_package_config_init_once(phydev);
--		if (ret)
--			return ret;
--	}
++static int qca8084_config_init(struct phy_device *phydev)
++{
++	int ret;
++
 +	ret = qca8084_phy_package_config_init(phydev);
 +	if (ret)
 +		return ret;

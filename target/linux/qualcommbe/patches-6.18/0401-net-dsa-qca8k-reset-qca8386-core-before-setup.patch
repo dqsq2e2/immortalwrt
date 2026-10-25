@@ -19,7 +19,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/qca8k.yaml
-@@ -45,6 +45,14 @@
+@@ -45,6 +45,14 @@ properties:
        GPIO to be used to reset the whole device
      maxItems: 1
  
@@ -36,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
      description:
 --- a/drivers/clk/qcom/nsscc-qca8k.c
 +++ b/drivers/clk/qcom/nsscc-qca8k.c
-@@ -1951,47 +1951,47 @@
+@@ -1951,47 +1951,47 @@ static struct clk_regmap *nss_cc_qca8k_c
  };
  
  static const struct qcom_reset_map nss_cc_qca8k_resets[] = {
@@ -107,7 +107,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <linux/phylink.h>
  #include <linux/gpio/consumer.h>
  #include <linux/etherdevice.h>
-@@ -2161,6 +2162,56 @@
+@@ -2161,6 +2162,56 @@ static void qca8k_setup_hol_fixup(struct
  			   mask);
  }
  
@@ -164,16 +164,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int
  qca8k_setup(struct dsa_switch *ds)
  {
-@@ -2168,6 +2219,12 @@
- 	struct dsa_port *dp;
+@@ -2169,6 +2220,12 @@ qca8k_setup(struct dsa_switch *ds)
  	int ret;
  	u32 mask;
-+
+ 
 +	if (qca8k_is_qca8386(priv)) {
 +		ret = qca8k_qca8386_reset(priv);
 +		if (ret)
 +			return ret;
 +	}
- 
++
  	/* Parse CPU port config to be later used in phy_link mac_config */
  	ret = qca8k_parse_port_config(priv);
+ 	if (ret)

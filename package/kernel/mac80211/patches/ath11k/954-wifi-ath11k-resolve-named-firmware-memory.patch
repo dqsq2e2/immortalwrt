@@ -17,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/qmi.c
 +++ b/drivers/net/wireless/ath/ath11k/qmi.c
-@@ -2038,9 +2038,65 @@
+@@ -2038,9 +2038,65 @@ static int ath11k_qmi_alloc_target_mem_c
  	return 0;
  }
  
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct device *dev = ab->dev;
  	u32 host_ddr_sz;
  	u32 addr;
-@@ -2049,7 +2105,11 @@
+@@ -2049,7 +2105,11 @@ static int ath11k_qmi_assign_target_mem_
  	for (i = 0, idx = 0; i < ab->qmi.mem_seg_count; i++) {
  		switch (ab->qmi.target_mem[i].type) {
  		case HOST_DDR_REGION_TYPE:
@@ -96,7 +96,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			if (ret) {
  				ath11k_dbg(ab, ATH11K_DBG_QMI,
  					   "fail to get reg from hremote\n");
-@@ -2075,9 +2135,11 @@
+@@ -2075,9 +2135,11 @@ static int ath11k_qmi_assign_target_mem_
  			idx++;
  			break;
  		case BDF_MEM_REGION_TYPE:
@@ -111,7 +111,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ab->qmi.target_mem[idx].iaddr = NULL;
  			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
-@@ -2090,7 +2152,15 @@
+@@ -2090,7 +2152,15 @@ static int ath11k_qmi_assign_target_mem_
  			}
  
  			if (ath11k_core_coldboot_cal_support(ab)) {
@@ -128,7 +128,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					ab->qmi.target_mem[idx].paddr =
  							res.start + host_ddr_sz;
  					ab->qmi.target_mem[idx].iaddr =
-@@ -2113,12 +2183,18 @@
+@@ -2113,12 +2183,18 @@ static int ath11k_qmi_assign_target_mem_
  			idx++;
  			break;
  		case M3_DUMP_REGION_TYPE:
@@ -151,7 +151,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			ab->qmi.target_mem[idx].vaddr = NULL;
  			ab->qmi.target_mem[idx].size = ab->qmi.target_mem[i].size;
  			ab->qmi.target_mem[idx].type = ab->qmi.target_mem[i].type;
-@@ -2328,7 +2404,9 @@
+@@ -2328,7 +2404,9 @@ static int ath11k_qmi_load_file_target_m
  	struct qmi_wlanfw_bdf_download_resp_msg_v01 resp;
  	struct qmi_txn txn;
  	const u8 *temp = data;
@@ -162,7 +162,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	void __iomem *bdf_addr = NULL;
  	int ret = 0;
  	u32 remaining = len;
-@@ -2340,9 +2418,16 @@
+@@ -2340,9 +2418,16 @@ static int ath11k_qmi_load_file_target_m
  	memset(&resp, 0, sizeof(resp));
  
  	if (ab->hw_params.fixed_bdf_addr) {
@@ -182,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (!bdf_addr) {
  			ath11k_warn(ab, "qmi ioremap error for bdf_addr\n");
  			ret = -EIO;
-@@ -2380,10 +2465,7 @@
+@@ -2380,10 +2465,7 @@ static int ath11k_qmi_load_file_target_m
  		}
  
  		if (ab->hw_params.fixed_bdf_addr) {
