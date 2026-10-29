@@ -1,4 +1,5 @@
-From: Julius Bairaktaris <julius@bairaktaris.de>
+From: ViKing <viking.yfy@qq.com>
+Date: Mon, 26 Oct 2026 17:45:48 +0800
 Subject: [PATCH net-next] net: dsa: report matchall policer statistics
 
 dsa_user_setup_tc_cls_matchall() does not handle TC_CLSMATCHALL_STATS,
@@ -8,14 +9,12 @@ of the port policer.
 
 Assisted-by: Claude:claude-opus-5-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
----
- include/net/dsa.h |    2 ++
- net/dsa/user.c    |   17 +++++++++++++++++
- 2 files changed, 19 insertions(+)
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -1131,6 +1131,8 @@ struct dsa_switch_ops {
+@@ -1131,6 +1131,8 @@
  				    const struct flow_action_police *policer,
  				    struct netlink_ext_ack *extack);
  	void	(*port_policer_del)(struct dsa_switch *ds, int port);
@@ -26,7 +25,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -1570,6 +1570,21 @@ static void dsa_user_del_cls_matchall(st
+@@ -1572,6 +1572,21 @@
  	kfree(mall_tc_entry);
  }
  
@@ -48,7 +47,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  static int dsa_user_setup_tc_cls_matchall(struct net_device *dev,
  					  struct tc_cls_matchall_offload *cls,
  					  bool ingress)
-@@ -1583,6 +1598,8 @@ static int dsa_user_setup_tc_cls_matchal
+@@ -1585,6 +1600,8 @@
  	case TC_CLSMATCHALL_DESTROY:
  		dsa_user_del_cls_matchall(dev, cls);
  		return 0;

@@ -106,7 +106,7 @@ define Device/xiaomi_be3600-pro-wired-common
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
 	DEVICE_VENDOR := Xiaomi
-	DEVICE_MODEL := BE3600 Pro wired
+	DEVICE_MODEL := BE3600 Pro Wired
 	DEVICE_DTS_CONFIG := config@mi04.1-c2
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048

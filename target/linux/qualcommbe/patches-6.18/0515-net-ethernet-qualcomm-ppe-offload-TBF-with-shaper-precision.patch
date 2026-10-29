@@ -1,5 +1,5 @@
 From: Kenneth Kasilag <kenneth@kasilag.me>
-Date: Sun, 05 Jul 2026 00:00:00 +0000
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: offload root TBF with precise
  shaper arithmetic
 
@@ -12,6 +12,7 @@ Source-patch: 0515-net-ethernet-qualcomm-ppe-offload-tbf-to-port-shapers.patch
 Source-patch: 0614-net-ethernet-qualcomm-ppe-preserve-shaper-precision.patch
 
 [viking.yfy@qq.com: fold only the direct correction into its feature]
+
 Signed-off-by: Kenneth Kasilag <kenneth@kasilag.me>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---

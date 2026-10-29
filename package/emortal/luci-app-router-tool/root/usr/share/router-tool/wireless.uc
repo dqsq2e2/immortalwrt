@@ -37,6 +37,14 @@ function htmode(caps, requested) {
 	return null;
 }
 
+function default_ssid(uci, board, suffix) {
+	let hostname = uci.get_first('system', 'system', 'hostname') || 'OWRT';
+	let vendor = split(board?.model?.id, ',')?.[0] || 'UNKNOWN';
+	// Keep the vendor and band visible within the 32-byte SSID limit.
+	let tail = substr(vendor, 0, 32 - length(suffix) - 3) + '-' + suffix;
+	return uc(substr(hostname, 0, 31 - length(tail)) + '-' + tail);
+}
+
 export function synchronize_wireless(uci, board) {
 	if (type(board?.wlan) != 'object') return false;
 	let radios = [], interfaces = [], changed = false;
@@ -83,7 +91,7 @@ export function synchronize_wireless(uci, board) {
 		if (!mode) { set(radio['.name'], { router_tool_defaults_done: '1' }); continue; }
 		set(radio['.name'], { country: 'US', channel, htmode: mode });
 		for (let ap in aps)
-			set(ap['.name'], { ssid: 'OWRT-' + suffix, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
+			set(ap['.name'], { ssid: default_ssid(uci, board, suffix), encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
 		set(radio['.name'], { router_tool_defaults_done: '1' });
 	}
 	return changed;

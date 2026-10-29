@@ -1,0 +1,289 @@
+From: Robert Marko <robimarko@gmail.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] arm64: dts: qcom: complete CPU frequency and cooling resources
+
+Now that CPU clock is exposed and can be controlled, add the necessary
+properties to the CPU nodes.
+
+Since there is CPU Freq support as well as thermal sensor support now for
+the IPQ8074, add cooling cells to CPU nodes so that they can be used as
+cooling devices using CPU Freq.
+
+Add the QFPROM node and CPR fuses.
+
+Now that there is NVMEM CPUFreq support for IPQ8074, we can add the OPP
+table for SoC.
+
+Adjust the supported hardware mask in the IPQ6018 CPU operating point table
+so the described operating points are available to the platform.
+
+Merged from:
+  0122-arm64-dts-ipq8074-add-CPU-clock.patch
+  0123-arm64-dts-ipq8074-add-cooling-cells-to-CPU-nodes.patch
+  0129-arm64-dts-qcom-ipq8074-add-QFPROM-fuses.patch
+  0130-arm64-dts-qcom-ipq8074-add-CPU-OPP-table.patch
+  0131-arm64-dts-qcom-ipq6018-change-CPU-OPP-table.patch
+
+Based on work by:
+  OpenWrt community <openwrt-devel@lists.openwrt.org>
+  Robert Marko <robimarko@gmail.com>
+
+Original-commit: cb3ef99c1553565e1dc0301ccd5c1c0fa2d15c15
+Original-commit: 347ca56e86c99021fad059b9a8ef101245b8507e
+Original-commit: 04d2fc6a551bbd972a6428059b45ce79cb9de9d7
+Original-commit: a20c4e8738a00087aa5d53fe5148ed484e23d229
+
+Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/arch/arm64/boot/dts/qcom/ipq6018.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq6018.dtsi
+@@ -118,28 +118,28 @@
+ 		opp-1200000000 {
+ 			opp-hz = /bits/ 64 <1200000000>;
+ 			opp-microvolt = <850000>;
+-			opp-supported-hw = <0x4>;
++			opp-supported-hw = <0xf>;
+ 			clock-latency-ns = <200000>;
+ 		};
+ 
+ 		opp-1320000000 {
+ 			opp-hz = /bits/ 64 <1320000000>;
+ 			opp-microvolt = <862500>;
+-			opp-supported-hw = <0x3>;
++			opp-supported-hw = <0xf>;
+ 			clock-latency-ns = <200000>;
+ 		};
+ 
+ 		opp-1440000000 {
+ 			opp-hz = /bits/ 64 <1440000000>;
+ 			opp-microvolt = <925000>;
+-			opp-supported-hw = <0x3>;
++			opp-supported-hw = <0xf>;
+ 			clock-latency-ns = <200000>;
+ 		};
+ 
+ 		opp-1512000000 {
+ 			opp-hz = /bits/ 64 <1512000000>;
+ 			opp-microvolt = <937500>;
+-			opp-supported-hw = <0x2>;
++			opp-supported-hw = <0xf>;
+ 			clock-latency-ns = <200000>;
+ 		};
+ 
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -5,6 +5,7 @@
+ 
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/clock/qcom,gcc-ipq8074.h>
++#include <dt-bindings/clock/qcom,apss-ipq.h>
+ 
+ / {
+ 	#address-cells = <2>;
+@@ -38,6 +39,10 @@
+ 			reg = <0x0>;
+ 			next-level-cache = <&l2_0>;
+ 			enable-method = "psci";
++			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
++			clock-names = "cpu";
++			#cooling-cells = <2>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		cpu1: cpu@1 {
+@@ -46,6 +51,10 @@
+ 			enable-method = "psci";
+ 			reg = <0x1>;
+ 			next-level-cache = <&l2_0>;
++			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
++			clock-names = "cpu";
++			#cooling-cells = <2>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		cpu2: cpu@2 {
+@@ -54,6 +63,10 @@
+ 			enable-method = "psci";
+ 			reg = <0x2>;
+ 			next-level-cache = <&l2_0>;
++			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
++			clock-names = "cpu";
++			#cooling-cells = <2>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		cpu3: cpu@3 {
+@@ -62,6 +75,10 @@
+ 			enable-method = "psci";
+ 			reg = <0x3>;
+ 			next-level-cache = <&l2_0>;
++			clocks = <&apcs_glb APCS_ALIAS0_CORE_CLK>;
++			clock-names = "cpu";
++			#cooling-cells = <2>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		l2_0: l2-cache {
+@@ -71,6 +88,54 @@
+ 		};
+ 	};
+ 
++	cpu_opp_table: opp-table {
++		compatible = "operating-points-v2-kryo-cpu";
++		nvmem-cells = <&cpr_efuse_speedbin>;
++		opp-shared;
++
++		opp-1017600000 {
++			opp-hz = /bits/ 64 <1017600000>;
++			opp-microvolt = <1>;
++			opp-supported-hw = <0xf>;
++			clock-latency-ns = <200000>;
++		};
++
++		opp-1382400000 {
++			opp-hz = /bits/ 64 <1382400000>;
++			opp-microvolt = <2>;
++			opp-supported-hw = <0xf>;
++			clock-latency-ns = <200000>;
++		};
++
++		opp-1651200000 {
++			opp-hz = /bits/ 64 <1651200000>;
++			opp-microvolt = <3>;
++			opp-supported-hw = <0x1>;
++			clock-latency-ns = <200000>;
++		};
++
++		opp-1843200000 {
++			opp-hz = /bits/ 64 <1843200000>;
++			opp-microvolt = <4>;
++			opp-supported-hw = <0x1>;
++			clock-latency-ns = <200000>;
++		};
++
++		opp-1920000000 {
++			opp-hz = /bits/ 64 <1920000000>;
++			opp-microvolt = <5>;
++			opp-supported-hw = <0x1>;
++			clock-latency-ns = <200000>;
++		};
++
++		opp-2208000000 {
++			opp-hz = /bits/ 64 <2208000000>;
++			opp-microvolt = <6>;
++			opp-supported-hw = <0x1>;
++			clock-latency-ns = <200000>;
++		};
++	};
++
+ 	pmu {
+ 		compatible = "arm,cortex-a53-pmu";
+ 		interrupts = <GIC_PPI 7 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
+@@ -321,6 +386,106 @@
+ 			reg = <0x000a4000 0x2000>;
+ 			#address-cells = <1>;
+ 			#size-cells = <1>;
++
++			cpr_efuse_speedbin: speedbin@125 {
++				reg = <0x125 0x1>;
++				bits = <0 3>;
++			};
++
++			cpr_efuse_boost_cfg: boost_cfg@125 {
++				reg = <0x125 0x1>;
++				bits = <3 3>;
++			};
++
++			cpr_efuse_misc_volt_adj: misc_volt_adj@125 {
++				reg = <0x125 0x1>;
++				bits = <3 3>;
++			};
++
++			cpr_efuse_boost_volt: boost_volt@126 {
++				reg = <0x126 0x1>;
++				bits = <6 1>;
++			};
++
++			cpr_efuse_revision: revision@23e {
++				reg = <0x23e 0x1>;
++				bits = <5 3>;
++			};
++
++			cpr_efuse_ro_sel0: rosel0@249 {
++				reg = <0x249 0x1>;
++				bits = <0 4>;
++			};
++
++			cpr_efuse_ro_sel1: rosel1@248 {
++				reg = <0x248 0x1>;
++				bits = <4 4>;
++			};
++
++			cpr_efuse_ro_sel2: rosel2@248 {
++				reg = <0x248 0x2>;
++				bits = <0 4>;
++			};
++
++			cpr_efuse_ro_sel3: rosel3@249 {
++				reg = <0x249 0x1>;
++				bits = <4 4>;
++			};
++
++			cpr_efuse_init_voltage0: ivoltage0@23a {
++				reg = <0x23a 0x1>;
++				bits = <2 6>;
++			};
++
++			cpr_efuse_init_voltage1: ivoltage1@239 {
++				reg = <0x239 0x2>;
++				bits = <4 6>;
++			};
++
++			cpr_efuse_init_voltage2: ivoltage2@238 {
++				reg = <0x238 0x2>;
++				bits = <6 6>;
++			};
++
++			cpr_efuse_init_voltage3: ivoltage3@238 {
++				reg = <0x238 0x1>;
++				bits = <0 6>;
++			};
++
++			cpr_efuse_quot0: quot0@244 {
++				reg = <0x244 0x2>;
++				bits = <0 12>;
++			};
++
++			cpr_efuse_quot1: quot1@242 {
++				reg = <0x242 0x2>;
++				bits = <4 12>;
++			};
++
++			cpr_efuse_quot2: quot2@241 {
++				reg = <0x241 0x2>;
++				bits = <0 12>;
++			};
++
++			cpr_efuse_quot3: quot3@245 {
++				reg = <0x245 0x2>;
++				bits = <4 12>;
++			};
++
++			cpr_efuse_quot0_offset: quot0_offset@23d {
++				reg = <0x23d 0x2>;
++				bits = <6 7>;
++			};
++
++			cpr_efuse_quot1_offset: quot1_offset@23c {
++				reg = <0x23c 0x2>;
++				bits = <7 7>;
++			};
++
++			cpr_efuse_quot2_offset: quot2_offset@23c {
++				reg = <0x23c 0x1>;
++				bits = <0 7>;
++			};
+ 		};
+ 
+ 		prng: rng@e3000 {

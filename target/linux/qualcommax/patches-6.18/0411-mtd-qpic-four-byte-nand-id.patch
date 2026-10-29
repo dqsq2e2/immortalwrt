@@ -1,0 +1,42 @@
+From: Ziyang Huang <hzyitc@outlook.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] mtd: qpic: limit raw and SPI NAND IDs to four bytes
+
+QPIC use a reg (NAND_READ_ID) to transport the ID, so the max bytes of ID
+is a word (4Bytes).
+
+Merged from:
+  0411-mtd-rawnand-qpic-only-support-max-4-bytes-ID.patch
+  0412-mtd-spinand-qpic-only-support-max-4-bytes-ID.patch
+
+Based on work by:
+  Ziyang Huang <hzyitc@outlook.com>
+
+Original-commit: ce4d8b3c5e866a8c515608cf623990e1471a69c7
+Original-commit: cf5225a6e279995a574a5ed97cb227b5e076ed8e
+
+Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/mtd/nand/raw/nand_base.c
++++ b/drivers/mtd/nand/raw/nand_base.c
+@@ -4965,7 +4965,7 @@
+ 
+ 	memorg = nanddev_get_memorg(&chip->base);
+ 
+-	if (!strncmp(type->id, id_data, type->id_len)) {
++	if (!strncmp(type->id, id_data, min(4, type->id_len))) {
+ 		memorg->pagesize = type->pagesize;
+ 		mtd->writesize = memorg->pagesize;
+ 		memorg->pages_per_eraseblock = type->erasesize /
+--- a/drivers/mtd/nand/spi/core.c
++++ b/drivers/mtd/nand/spi/core.c
+@@ -1409,7 +1409,7 @@
+ 		if (rdid_method != info->devid.method)
+ 			continue;
+ 
+-		if (memcmp(id + 1, info->devid.id, info->devid.len))
++		if (memcmp(id + 1, info->devid.id, min(3, info->devid.len)))
+ 			continue;
+ 
+ 		nand->memorg = table[i].memorg;

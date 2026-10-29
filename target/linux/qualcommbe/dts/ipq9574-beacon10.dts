@@ -3,7 +3,7 @@
 /dts-v1/;
 
 #include "ipq9574-common.dtsi"
-#include "ipq9574-common-wifi.dtsi"
+#include "ipq9574-common-wifi-ahb.dtsi"
 
 / {
 	model = "Nokia Beacon 10";

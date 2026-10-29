@@ -61,9 +61,6 @@ try {
 	let globals = null;
 	uci.foreach('network', 'globals', section => { if (globals == null) globals = section['.name']; });
 	let ap = uci.get('network', globals, 'router_tool_ap') == '1';
-	let previous = uci.get('network', globals, 'router_tool_auto');
-	let saved = uci.get('network', globals, 'router_tool_state');
-	let role = uci.get('network', 'wan', 'proto') == 'pppoe' ? 'main' : 'sub';
 	let missing_snapshot = ap && !uci.get('network', globals, 'router_tool_ap_state');
 	if (missing_snapshot) {
 		let marker = '/var/run/router-tool-ap-warning';
@@ -75,17 +72,9 @@ try {
 		closelog();
 		exit(0);
 	}
-	let guard = null;
-	if (ap) guard = read_snapshot(uci.get('network', globals, 'router_tool_ap_state'), 'ap');
-	else if (previous || saved) {
-		guard = read_snapshot(saved, previous);
-		for (let option in guard.options)
-			if (option.config == 'network' && option.sid == 'wan' && option.key == 'proto')
-				option.expected = uci.get('network', 'wan', 'proto');
-	}
 	if (!ap && uci.get('network', globals, 'router_tool_ap_state'))
 		die('Mode switch refused: an AP snapshot exists while AP mode is disabled; restore AP mode and use LuCI to switch back');
-	if (ap) check_snapshot(uci, guard);
+	if (ap) check_snapshot(uci, read_snapshot(uci.get('network', globals, 'router_tool_ap_state'), 'ap'));
 	let upstream = [];
 	if (!ap) {
 		try {
@@ -134,7 +123,7 @@ try {
 	}
 	if (length(changed)) {
 		stage = 'transaction persistence';
-		let pending = transaction(uci, before, guard);
+		let pending = transaction(uci, before);
 		save_transaction(transaction_path, pending);
 		changed = commit(pending);
 	}

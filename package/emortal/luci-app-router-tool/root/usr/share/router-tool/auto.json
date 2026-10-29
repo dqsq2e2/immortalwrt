@@ -25,15 +25,6 @@
 			"firewall": { "flow_offloading": "1", "flow_offloading_hw": "0" }
 		}
 	},
-	"switch_watch": {
-		"network": {
-			"lan": [ "device", "proto", "ipaddr", "netmask", "gateway", "dns", "ip6addr", "ip6gw", "ipv6", "disabled", "peerdns", "defaultroute", "auto" ],
-			"wan": [ "proto", "device", "disabled", "auto" ]
-		},
-		"dhcp": {
-			"lan": [ "ignore", "dhcpv4" ]
-		}
-	},
 	"common": {
 		"network": {
 			"wan": {
@@ -82,6 +73,8 @@
 			},
 			"lan": {
 				"interface": "lan",
+				"ignore": "0",
+				"dhcpv4": "server",
 				"master": "0",
 				"ra_slaac": "1",
 				"ra_default": "0",

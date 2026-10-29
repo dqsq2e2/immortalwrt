@@ -1,4 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: qualcomm: ppe: compose service and customer VLAN tags
 
 Track service and customer VLAN tags independently. Compose the DSA

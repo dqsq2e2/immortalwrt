@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Bohdan Chubuk <chbgdn@gmail.com>
+From: ViKing <viking.yfy@qq.com>
 Date: Wed, 1 Jul 2026 08:24:50 +0300
 Subject: [PATCH] firewall4: add bridge flowtable support
 
@@ -11,9 +11,45 @@ physical lower devices for hardware flowtable hooks.
 Signed-off-by: Bohdan Chubuk <chbgdn@gmail.com>
 Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
 ---
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/root/usr/share/firewall4/templates/ruleset.uc
++++ b/root/usr/share/firewall4/templates/ruleset.uc
+@@ -472,4 +472,31 @@
+ 	}
+ {% fw4.includes('table-append') %}
+ }
++table bridge fw4
++flush table bridge fw4
++{% if (fw4.check_bridge_flowtable()): %}
++delete flowtable bridge fw4 fb
++{% endif %}
++
++{% let bridge_devices = fw4.resolve_bridge_devices(flowtable_devices); %}
++{% if (length(bridge_devices) > 0): %}
++table bridge fw4 {
++	#
++	# Bridge flowtable
++	#
++	flowtable fb {
++		hook ingress priority 0;
++		devices = {{ fw4.set(bridge_devices, true) }};
++		counter;
++{% if (fw4.default_option("flow_offloading_hw")): %}
++		flags offload;
++{% endif %}
++	}
++
++	chain forward {
++		type filter hook forward priority filter; policy accept;
++		meta l4proto { tcp, udp } flow offload @fb;
++	}
++}
++{% endif %}
+ {% fw4.includes('ruleset-append') %}
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -575,6 +575,42 @@ return {
+@@ -551,6 +551,42 @@
  		return false;
  	},
  
@@ -56,37 +92,3 @@ Signed-off-by: pbs05 <27010143+pbs05@users.noreply.github.com>
  	read_state: function() {
  		let fd = fs.open(STATEFILE, "r");
  		let state = null;
---- a/root/usr/share/firewall4/templates/ruleset.uc
-+++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -469,4 +469,31 @@ table inet fw4 {
- 	}
- {% fw4.includes('table-append') %}
- }
-+table bridge fw4
-+flush table bridge fw4
-+{% if (fw4.check_bridge_flowtable()): %}
-+delete flowtable bridge fw4 fb
-+{% endif %}
-+
-+{% let bridge_devices = fw4.resolve_bridge_devices(flowtable_devices); %}
-+{% if (length(bridge_devices) > 0): %}
-+table bridge fw4 {
-+	#
-+	# Bridge flowtable
-+	#
-+	flowtable fb {
-+		hook ingress priority 0;
-+		devices = {{ fw4.set(bridge_devices, true) }};
-+		counter;
-+{% if (fw4.default_option("flow_offloading_hw")): %}
-+		flags offload;
-+{% endif %}
-+	}
-+
-+	chain forward {
-+		type filter hook forward priority filter; policy accept;
-+		meta l4proto { tcp, udp } flow offload @fb;
-+	}
-+}
-+{% endif %}
- {% fw4.includes('ruleset-append') %}

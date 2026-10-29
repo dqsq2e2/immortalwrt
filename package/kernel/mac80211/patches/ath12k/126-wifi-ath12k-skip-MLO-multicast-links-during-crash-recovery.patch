@@ -1,6 +1,6 @@
 From 43c521c11ce8fe904e14d1ae0566ffea931cf2e9 Mon Sep 17 00:00:00 2001
 From: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
-Date: Thu, 23 Jul 2026 11:16:53 +0530
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] wifi: ath12k: skip MLO multicast links during crash recovery
  in Tx path
 
@@ -22,18 +22,19 @@ ath12k_wifi7_dp_tx() but avoiding the unnecessary allocation entirely.
 Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01243-QCAHKSWPL_SILICONZ-1
 Tested-on: WCN7850 hw2.0 PCI WLAN.HMT.1.1.c5-00302-QCAHMTSWPL_V1.0_V2.0_SILICONZ-1.115823.3
 
-Signed-off-by: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260723054653.2794550-1-pavankumar.nandeshwar@oss.qualcomm.com
+
+Signed-off-by: Pavankumar Nandeshwar <pavankumar.nandeshwar@oss.qualcomm.com>
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  drivers/net/wireless/ath/ath12k/wifi7/hw.c | 3 +++
  1 file changed, 3 insertions(+)
-
 --- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -1043,6 +1043,9 @@ static void ath12k_wifi7_mac_op_tx(struc
+@@ -1043,6 +1043,9 @@
  				continue;
  
  			tmp_ar = tmp_arvif->ar;

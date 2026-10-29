@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qca-ppe-qos
-PKG_VERSION:=1.0
+PKG_VERSION:=20261026
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=
@@ -23,7 +23,7 @@ Configures the classifiers that pick a hardware egress queue on the
 Qualcomm PPE: per-port DSCP-to-priority maps (via dcb app) and the
 switch's small-packet priority, so latency-sensitive traffic is served
 past the bulk queue of a shaped port. Pairs with sqm-scripts' hw_ppe.qos,
-which owns the rates and the bulk queue depth.
+which owns the rates and the bulk queue depth, or ppe_cake.qos.
 endef
 
 define Build/Compile

@@ -1,5 +1,5 @@
 From: Til Kaiser <mail@tk154.de>
-Date: Mon, 18 May 2026 00:00:00 +0200
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: ethernet: qualcomm: ppe: force XGMAC TX queue 0 store-and-forward
 
 Observed on IPQ5332 XGMAC ports, small outbound packets increment
@@ -8,14 +8,14 @@ mode. Program the TSF bit before enabling transmission so the queue
 is drained only after the frame has been buffered.
 
 Signed-off-by: Til Kaiser <mail@tk154.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  drivers/net/ethernet/qualcomm/ppe/ppe_port.c | 8 ++++++++
  drivers/net/ethernet/qualcomm/ppe/ppe_regs.h | 3 +++
  2 files changed, 11 insertions(+)
-
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -903,6 +903,15 @@ static int ppe_port_xgmac_link_up(struct
+@@ -909,6 +909,15 @@
  	}
  
  	reg = PPE_PORT_XGMAC_ADDR(port);

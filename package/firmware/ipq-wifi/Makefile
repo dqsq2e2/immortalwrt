@@ -155,6 +155,8 @@ ALLWIFIBOARDS:= \
 	xiaomi_be6500 \
 	xiaomi_be7000 \
 	xiaomi_be7000-pro \
+	xiaomi_be10000 \
+	xiaomi_be10000-pro \
 	zn_m2
 
 ALLWIFIPACKAGES:=$(foreach BOARD,$(ALLWIFIBOARDS),ipq-wifi-$(BOARD))
@@ -393,9 +395,10 @@ $(eval $(call generate-ipq-wifi-package,sy_y6010,SY Y6010))
 $(eval $(call generate-ipq-wifi-package,verizon_cr1000a,Verizon CR1000A))
 $(eval $(call generate-ipq-wifi-package,xiaomi_ax1800,Xiaomi AX1800))
 $(eval $(call generate-ipq-wifi-package,xiaomi_be6500,Xiaomi BE6500))
-$(eval $(call generate-ipq-wifi-package,zn_m2,ZN M2))
-
 $(eval $(call generate-ipq-wifi-package,xiaomi_be7000,Xiaomi BE7000))
 $(eval $(call generate-ipq-wifi-package,xiaomi_be7000-pro,Xiaomi BE7000 Pro))
+$(eval $(call generate-ipq-wifi-package,xiaomi_be10000,Xiaomi BE10000))
+$(eval $(call generate-ipq-wifi-package,xiaomi_be10000-pro,Xiaomi BE10000 Pro))
+$(eval $(call generate-ipq-wifi-package,zn_m2,ZN M2))
 
 $(foreach PACKAGE,$(ALLWIFIPACKAGES),$(eval $(call BuildPackage,$(PACKAGE))))

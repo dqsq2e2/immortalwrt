@@ -1,0 +1,43 @@
+From: John Crispin <john@phrozen.org>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] clk: qcom: preserve essential IPQ6018 fabric clocks
+
+The XO clock source is always-on in hardware and cannot be gated. Without
+CLK_IS_CRITICAL, runtime PM of downstream consumers (such as the CMN PLL
+driver) cascades a disable up to gcc_xo_clk_src, causing a branch status
+timeout warning.
+
+nss_crypto_clk_src can only reach its 300 MHz operating point through
+P_NSS_CRYPTO_PLL:
+
+Merged from:
+  0917-clk-qcom-gcc-ipq6018-mark-gcc_xo_clk_src-as-critical.patch
+  0918-clk-qcom-gcc-ipq6018-enable-nss_crypto_pll.patch
+
+Based on work by:
+  =?UTF-8?q?Andr=C3=A9=20Valentin?= <avalentin@marcant.net>
+  John Crispin <john@phrozen.org>
+
+Signed-off-by: John Crispin <john@phrozen.org>
+Signed-off-by: =?UTF-8?q?Andr=C3=A9=20Valentin?= <avalentin@marcant.net>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/clk/qcom/gcc-ipq6018.c
++++ b/drivers/clk/qcom/gcc-ipq6018.c
+@@ -254,6 +254,7 @@
+ 				.fw_name = "xo",
+ 			},
+ 			.num_parents = 1,
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_alpha_pll_ops,
+ 		},
+ 	},
+@@ -400,7 +401,7 @@
+ 				.fw_name = "xo",
+ 			},
+ 			.num_parents = 1,
+-			.flags = CLK_SET_RATE_PARENT,
++			.flags = CLK_SET_RATE_PARENT | CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_ops,
+ 		},
+ 	},

@@ -1,22 +1,28 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:167
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:311
 msgid ""
 "Automatic AP conversion requires plain Ethernet ports. Configure VLAN or "
 "switch topologies manually."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:160
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:304
 msgid ""
 "Cannot identify the Ethernet WAN device. Configure LAN/WAN devices first."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:158
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:302
 msgid "Cannot read board port assignments. Configure AP ports manually."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:378
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:563
+msgid ""
+"Manual changes are preserved. Concurrent edits to the same settings or "
+"incompatible device assignments stop the switch."
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:562
 msgid ""
 "Manually enable to bridge all Ethernet ports and obtain IPv4/IPv6 from the "
 "upstream router; disable to restore the previous settings. When disabled, "
@@ -24,35 +30,56 @@ msgid ""
 "router mode."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:116
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:141
+msgid "Mode switch refused: ambiguous matching configuration sections:"
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:215
+msgid ""
+"Mode switch refused: an AP snapshot exists while AP mode is disabled. "
+"Restore AP mode and use LuCI to switch back."
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:218
 msgid ""
 "Mode switch refused: configuration changed while this page was open. Reload "
 "the page."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:88
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:146
+msgid "Mode switch refused: reserved section already exists at"
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:194
 msgid ""
 "Mode switch refused: saved configuration snapshot is missing or invalid."
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:105
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:131
+msgid "Mode switch refused: section type changed at"
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:490
+msgid ""
+"Mode switch refused: the active WAN device is still part of the LAN bridge. "
+"Review device assignments."
+msgstr ""
+
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:207
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:243
 msgid "Mode switch refused: user changed related options:"
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:379
-msgid "Mode switches stop if related settings have been edited."
-msgstr ""
-
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:241
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:383
 msgid ""
 "No free LAN subnet was found. Configure a non-overlapping IPv4 subnet "
 "manually."
 msgstr ""
 
-#: luci-app-router-tool/root/usr/share/rpcd/acl.d/luci-app-router-tool.json:3
-msgid "Read board Ethernet port assignments for router tool presets"
+#: package/emortal/luci-app-router-tool/root/usr/share/rpcd/acl.d/luci-app-router-tool.json:3
+msgid "Read Ethernet port assignments and router tool presets"
 msgstr ""
 
-#: luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:377
+#: package/emortal/luci-app-router-tool/htdocs/luci-static/resources/tools/router-tool.js:561
 msgid "Relay AP mode"
 msgstr ""

@@ -1,4 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
+Date: Sun, 25 Oct 2026 14:06:01 +0800
 Subject: [PATCH] wifi: ath12k: bound IPQ5332 host TX to completing rings
 
 BE6500 IPQ5332 native group frames submitted on logical TCL ring 3 remain
@@ -15,20 +16,9 @@ hardware mapping defect, nor change device-tree or user configuration.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
---- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-+++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
-@@ -679,7 +679,7 @@ static const struct ath12k_hw_params ath
- 		.supports_shadow_regs = false,
- 
- 		.num_tcl_banks = 48,
--		.max_tx_ring = 4,
-+		.max_tx_ring = 3,
- 
- 		.wmi_init = &ath12k_wifi7_wmi_init_qcn9274,
- 
 --- a/drivers/net/wireless/ath/ath12k/wifi7/dp.c
 +++ b/drivers/net/wireless/ath/ath12k/wifi7/dp.c
-@@ -30,7 +30,8 @@ static int ath12k_wifi7_dp_service_srng(
+@@ -30,7 +30,8 @@
  
  	if (dp->hw_params->ring_mask->tx[grp_id]) {
  		i = fls(dp->hw_params->ring_mask->tx[grp_id]) - 1;
@@ -38,9 +28,20 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	if (dp->hw_params->ring_mask->rx_err[grp_id]) {
+--- a/drivers/net/wireless/ath/ath12k/wifi7/hw.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/hw.c
+@@ -679,7 +679,7 @@
+ 		.supports_shadow_regs = false,
+ 
+ 		.num_tcl_banks = 48,
+-		.max_tx_ring = 4,
++		.max_tx_ring = 3,
+ 
+ 		.wmi_init = &ath12k_wifi7_wmi_init_qcn9274,
+ 
 --- a/drivers/net/wireless/ath/ath12k/ahb.c
 +++ b/drivers/net/wireless/ath/ath12k/ahb.c
-@@ -685,7 +685,7 @@ static int ath12k_ahb_config_ext_irq(str
+@@ -685,7 +685,7 @@
  		/* TX masks use logical TCL ring indices.  WBM ring numbers are
  		 * hardware mappings and are not necessarily contiguous.
  		 */

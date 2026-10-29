@@ -1,17 +1,19 @@
 From a355002e08a1db55eec93f469d28cfaab7b60f4b Mon Sep 17 00:00:00 2001
 From: Luo Jie <quic_luoj@quicinc.com>
-Date: Thu, 22 May 2025 11:16:12 +0800
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: qualcomm: Update IPQ9574 PPE driver
 
 Update PPE driver to keep aligned with the upstream patches. The
 updated PPE driver also fix some known issues such as GRO/GSO/TSO
 issue for the performance improvement.
 
-Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
 Alex G: print error code when failing to connect phylink
-Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 Balsam CHIHI: route 1000BASE-X to GMII clock helper for 1G SFP support
+
+Signed-off-by: Luo Jie <quic_luoj@quicinc.com>
+Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
+Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  drivers/net/ethernet/qualcomm/ppe/Makefile    |   2 +-
  drivers/net/ethernet/qualcomm/ppe/edma.c      | 158 +---
@@ -40,7 +42,6 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  24 files changed, 889 insertions(+), 757 deletions(-)
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.c
  create mode 100644 drivers/net/ethernet/qualcomm/ppe/ppe_api.h
-
 --- a/drivers/net/ethernet/qualcomm/ppe/Makefile
 +++ b/drivers/net/ethernet/qualcomm/ppe/Makefile
 @@ -4,7 +4,7 @@
@@ -61,7 +62,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
    */
  
   /* Qualcomm Ethernet DMA driver setup, HW configuration, clocks and
-@@ -121,7 +121,7 @@ static struct edma_hw_info ipq9574_hw_in
+@@ -121,7 +121,7 @@
  	.tx = &ipq9574_tx_ring_info,
  	.txcmpl = &ipq9574_txcmpl_ring_info,
  	.max_ports = 6,
@@ -70,7 +71,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	.napi_budget_tx = 512,
  };
  
-@@ -156,13 +156,12 @@ static int edma_clock_set_and_enable(str
+@@ -156,13 +156,12 @@
  	}
  
  	of_node_put(edma_np);
@@ -85,7 +86,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  {
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
-@@ -181,6 +180,8 @@ static int edma_clock_init(void)
+@@ -181,6 +180,8 @@
  	if (ret)
  		return ret;
  
@@ -94,7 +95,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	return 0;
  }
  
-@@ -245,7 +246,7 @@ static int edma_configure_ucast_prio_map
+@@ -245,7 +246,7 @@
  		}
  
  		ret = ppe_edma_queue_offset_config(edma_ctx->ppe_dev,
@@ -103,7 +104,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  		if (ret) {
  			pr_err("Failed with error: %d to set queue priority class for int_pri: %d for profile_id: %d\n",
-@@ -494,7 +495,7 @@ txcmpl_ring_irq_name_alloc_fail:
+@@ -494,7 +495,7 @@
  	return ret;
  }
  
@@ -112,7 +113,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  {
  	struct edma_hw_info *hw_info = edma_ctx->hw_info;
  	struct edma_ring_info *txcmpl = hw_info->txcmpl;
-@@ -602,44 +603,23 @@ static int edma_hw_reset(void)
+@@ -602,44 +603,23 @@
  	struct device *dev = ppe_dev->dev;
  	struct reset_control *edma_hw_rst;
  	struct device_node *edma_np;
@@ -167,7 +168,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	of_node_put(edma_np);
  
-@@ -661,14 +641,12 @@ static int edma_hw_configure(void)
+@@ -661,14 +641,12 @@
  
  	pr_debug("EDMA ver %d hw init\n", data);
  
@@ -183,7 +184,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		return ret;
  	}
  
-@@ -682,7 +660,7 @@ static int edma_hw_configure(void)
+@@ -682,7 +660,7 @@
  	edma_ctx->dummy_dev = alloc_netdev_dummy(0);
  	if (!edma_ctx->dummy_dev) {
  		ret = -ENOMEM;
@@ -192,7 +193,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		goto dummy_dev_alloc_failed;
  	}
  
-@@ -696,7 +674,7 @@ static int edma_hw_configure(void)
+@@ -696,7 +674,7 @@
  
  	ret = edma_alloc_rings();
  	if (ret) {
@@ -201,7 +202,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		goto edma_alloc_rings_failed;
  	}
  
-@@ -716,7 +694,7 @@ static int edma_hw_configure(void)
+@@ -716,7 +694,7 @@
  
  	ret = edma_cfg_rx_rings();
  	if (ret) {
@@ -210,7 +211,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		goto edma_cfg_rx_rings_failed;
  	}
  
-@@ -734,15 +712,13 @@ static int edma_hw_configure(void)
+@@ -734,15 +712,13 @@
  	if (ret)
  		return ret;
  
@@ -227,7 +228,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	data = EDMA_MISC_AXI_RD_ERR_MASK |
  		EDMA_MISC_AXI_WR_ERR_MASK |
  		EDMA_MISC_RX_DESC_FIFO_FULL_MASK |
-@@ -757,15 +733,15 @@ static int edma_hw_configure(void)
+@@ -757,15 +733,15 @@
  	edma_cfg_rx_napi_add();
  	edma_cfg_rx_napi_enable();
  
@@ -246,7 +247,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	ret = (int)edma_configure_ucast_prio_map_tbl();
  	if (ret) {
  		pr_err("Failed to initialize unicast priority map table: %d\n",
-@@ -773,7 +749,6 @@ static int edma_hw_configure(void)
+@@ -773,7 +749,6 @@
  		goto configure_ucast_prio_map_tbl_failed;
  	}
  
@@ -254,7 +255,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	ret = edma_cfg_rx_rps_hash_map();
  	if (ret) {
  		pr_err("Failed to configure rps hash table: %d\n",
-@@ -817,14 +792,13 @@ void edma_destroy(struct ppe_device *ppe
+@@ -817,14 +792,13 @@
  		edma_ctx->rx_rps_ctl_table_hdr = NULL;
  	}
  
@@ -270,7 +271,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (i = 0; i < txcmpl->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_txcmpl[i]);
  
-@@ -834,7 +808,7 @@ void edma_destroy(struct ppe_device *ppe
+@@ -834,7 +808,7 @@
  	}
  	kfree(edma_txcmpl_irq_name);
  
@@ -279,7 +280,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (i = 0; i < rx->num_rings; i++) {
  		synchronize_irq(edma_ctx->intr_info.intr_rx[i]);
  		free_irq(edma_ctx->intr_info.intr_rx[i],
-@@ -875,7 +849,7 @@ static struct ctl_table edma_rx_rps_core
+@@ -875,7 +849,7 @@
   * edma_setup - EDMA Setup.
   * @ppe_dev: PPE device
   *
@@ -288,7 +289,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   *
   * Return 0 on success, negative error code on failure.
   */
-@@ -903,22 +877,19 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -903,22 +877,19 @@
  		return -EINVAL;
  	}
  
@@ -313,7 +314,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (ret) {
  		dev_err(dev, "Error in irq initialization\n");
  		return ret;
-@@ -939,70 +910,3 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -939,70 +910,3 @@
  
  	return 0;
  }
@@ -419,7 +420,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * struct edma_err_stats - EDMA error stats
   * @edma_axi_read_err: AXI read error
   * @edma_axi_write_err: AXI write error
-@@ -123,7 +113,7 @@ struct edma_intr_info {
+@@ -123,7 +113,7 @@
  /**
   * struct edma_context - EDMA context.
   * @netdev_arr: Net device for each EDMA port
@@ -428,7 +429,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @ppe_dev: PPE device
   * @hw_info: EDMA Hardware info
   * @intr_info: EDMA Interrupt info
-@@ -154,7 +144,7 @@ struct edma_context {
+@@ -154,7 +144,7 @@
  	bool tx_requeue_stop;
  };
  
@@ -437,7 +438,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  extern struct edma_context *edma_ctx;
  
  int edma_err_stats_alloc(void);
-@@ -164,13 +154,4 @@ int edma_setup(struct ppe_device *ppe_de
+@@ -164,13 +154,4 @@
  void edma_debugfs_teardown(void);
  int edma_debugfs_setup(struct ppe_device *ppe_dev);
  void edma_set_ethtool_ops(struct net_device *netdev);
@@ -480,7 +481,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  int rx_queues[] = {0, 8, 16, 24};
  
  static u32 edma_rx_ring_queue_map[][EDMA_MAX_CORE] = {{ 0, 8, 16, 24 },
-@@ -75,7 +75,7 @@ static int edma_cfg_rx_desc_ring_reset_q
+@@ -75,7 +75,7 @@
  	for (i = 0; i < EDMA_MAX_PRI_PER_CORE; i++) {
  		queue_id = edma_rx_ring_queue_map[i][rxdesc_ring_idx];
  
@@ -489,7 +490,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		if (ret) {
  			pr_err("Error in resetting %u queue's priority\n",
  			       queue_id);
-@@ -138,7 +138,7 @@ static int edma_cfg_rx_desc_ring_to_queu
+@@ -138,7 +138,7 @@
  			pr_err("Error in configuring Rx ring to PPE queue mapping, ret: %d, id: %d\n",
  			       ret, rxdesc_ring->ring_id);
  			if (!edma_cfg_rx_desc_rings_reset_queue_mapping())
@@ -498,7 +499,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  			return ret;
  		}
-@@ -219,7 +219,9 @@ static void edma_cfg_rx_qid_to_rx_desc_r
+@@ -219,7 +219,9 @@
  
  	desc_index = (rx->ring_start & EDMA_RX_RING_ID_MASK);
  
@@ -509,7 +510,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (q_id = EDMA_RX_QUEUE_START;
  		q_id <= EDMA_CPU_PORT_QUEUE_MAX(EDMA_RX_QUEUE_START);
  			q_id += EDMA_QID2RID_NUM_PER_REG) {
-@@ -271,6 +273,11 @@ static void edma_cfg_rx_rings_to_rx_fill
+@@ -271,6 +273,11 @@
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i, data, reg;
  
@@ -521,7 +522,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_0_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_1_ADDR, 0);
  	regmap_write(regmap, EDMA_BASE_OFFSET + EDMA_REG_RXDESC2FILL_MAP_2_ADDR, 0);
-@@ -326,7 +333,6 @@ void edma_cfg_rx_rings_enable(void)
+@@ -326,7 +333,6 @@
  	struct edma_ring_info *rx = hw_info->rx;
  	u32 i, reg;
  
@@ -529,7 +530,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (i = rx->ring_start; i < rx->ring_start + rx->num_rings; i++) {
  		u32 data;
  
-@@ -445,7 +451,6 @@ static int edma_cfg_rx_fill_ring_dma_all
+@@ -445,7 +451,6 @@
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
  
@@ -537,7 +538,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	rxfill_ring->desc = dma_alloc_coherent(dev, (sizeof(struct edma_rxfill_desc)
  					       * rxfill_ring->count),
  					       &rxfill_ring->dma,
-@@ -633,6 +638,62 @@ rxdesc_mem_alloc_fail:
+@@ -633,6 +638,62 @@
  	return -ENOMEM;
  }
  
@@ -600,7 +601,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /**
   * edma_cfg_rx_buff_size_setup - Configure EDMA Rx jumbo buffer
   *
-@@ -729,62 +790,6 @@ void edma_cfg_rx_rings_cleanup(void)
+@@ -729,62 +790,6 @@
  	edma_ctx->rx_rings = NULL;
  }
  
@@ -663,7 +664,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /**
   * edma_cfg_rx_rings - Configure EDMA Rx rings.
   *
-@@ -917,6 +922,7 @@ void edma_cfg_rx_napi_delete(void)
+@@ -917,6 +922,7 @@
  		if (!rxdesc_ring->napi_added)
  			continue;
  
@@ -671,7 +672,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		netif_napi_del(&rxdesc_ring->napi);
  		rxdesc_ring->napi_added = false;
  	}
-@@ -978,7 +984,7 @@ int edma_cfg_rx_rps_hash_map(void)
+@@ -978,7 +984,7 @@
  
  	for (hash = 0; hash < PPE_QUEUE_HASH_NUM; hash++) {
  		ret = ppe_edma_queue_offset_config(edma_ctx->ppe_dev,
@@ -697,7 +698,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /* Rx mitigation timer's default value in microseconds */
  #define EDMA_RX_MITIGATION_TIMER_DEF	25
  
-@@ -66,7 +67,7 @@ void edma_cfg_rx_rings_enable(void);
+@@ -66,7 +67,7 @@
  void edma_cfg_rx_rings_disable(void);
  void edma_cfg_rx_buff_size_setup(void);
  int edma_cfg_rx_rps_hash_map(void);
@@ -715,7 +716,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   */
  
  /* Configure rings, Buffers and NAPI for transmit path along with
-@@ -27,7 +27,7 @@ static void edma_cfg_txcmpl_ring_cleanup
+@@ -27,7 +27,7 @@
  	/* Free any buffers assigned to any descriptors. */
  	edma_tx_complete(EDMA_TX_RING_SIZE - 1, txcmpl_ring);
  
@@ -724,7 +725,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	dma_free_coherent(dev, sizeof(struct edma_txcmpl_desc)
  			  * txcmpl_ring->count, txcmpl_ring->desc,
  			  txcmpl_ring->dma);
-@@ -101,7 +101,6 @@ static int edma_cfg_tx_desc_ring_setup(s
+@@ -101,7 +101,6 @@
  	struct ppe_device *ppe_dev = edma_ctx->ppe_dev;
  	struct device *dev = ppe_dev->dev;
  
@@ -732,7 +733,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	txdesc_ring->pdesc = dma_alloc_coherent(dev, sizeof(struct edma_txdesc_pri)
  						* txdesc_ring->count,
  						&txdesc_ring->pdma,
-@@ -159,14 +158,14 @@ static void edma_cfg_txcmpl_ring_configu
+@@ -159,14 +158,14 @@
  	struct regmap *regmap = ppe_dev->regmap;
  	u32 data, reg;
  
@@ -749,7 +750,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CTRL(txcmpl_ring->id);
  	regmap_write(regmap, reg, EDMA_TXCMPL_RETMODE_OPAQUE);
  
-@@ -327,10 +326,10 @@ void edma_cfg_tx_ring_mappings(void)
+@@ -327,10 +326,10 @@
  		else
  			reg = EDMA_BASE_OFFSET + EDMA_REG_TXDESC2CMPL_MAP_5_ADDR;
  
@@ -762,7 +763,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		 *	reg = EDMA_REG_TXDESC2CMPL_MAP_4_ADDR
  		 *	data |= (desc_index & 0x1F) << ((i % 6) * 5);
  		 *	data |= (0x1F << 20); -
-@@ -408,7 +407,7 @@ static int edma_cfg_tx_rings_setup(void)
+@@ -408,7 +407,7 @@
  		}
  	}
  
@@ -771,7 +772,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (i = 0; i < txcmpl->num_rings; i++) {
  		struct edma_txcmpl_ring *txcmpl_ring = NULL;
  		int ret;
-@@ -419,7 +418,7 @@ static int edma_cfg_tx_rings_setup(void)
+@@ -419,7 +418,7 @@
  
  		ret = edma_cfg_txcmpl_ring_setup(txcmpl_ring);
  		if (ret != 0) {
@@ -780,7 +781,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			       txcmpl_ring->id, ret);
  			while (i-- >= 0)
  				edma_cfg_txcmpl_ring_cleanup(&edma_ctx->txcmpl_rings[i]);
-@@ -527,7 +526,7 @@ void edma_cfg_tx_rings(void)
+@@ -527,7 +526,7 @@
  	for (i = 0; i < tx->num_rings; i++)
  		edma_cfg_tx_desc_ring_configure(&edma_ctx->tx_rings[i]);
  
@@ -789,7 +790,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	for (i = 0; i < txcmpl->num_rings; i++)
  		edma_cfg_txcmpl_ring_configure(&edma_ctx->txcmpl_rings[i]);
  }
-@@ -634,6 +633,7 @@ void edma_cfg_tx_napi_delete(u32 port_id
+@@ -634,6 +633,7 @@
  		if (!txcmpl_ring->napi_added)
  			continue;
  
@@ -797,7 +798,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		netif_napi_del(&txcmpl_ring->napi);
  		txcmpl_ring->napi_added = false;
  	}
-@@ -666,7 +666,7 @@ void edma_cfg_tx_napi_add(struct net_dev
+@@ -666,7 +666,7 @@
  		netif_napi_add_weight(netdev, &txcmpl_ring->napi,
  				      edma_tx_napi_poll, hw_info->napi_budget_tx);
  		txcmpl_ring->napi_added = true;
@@ -833,7 +834,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   */
  
  /* ethtool support for EDMA */
-@@ -243,33 +243,6 @@ static int edma_set_pauseparam(struct ne
+@@ -243,33 +243,6 @@
  	return phylink_ethtool_set_pauseparam(port->phylink, pause);
  }
  
@@ -867,7 +868,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  static const struct ethtool_ops edma_ethtool_ops = {
  	.get_strings = &edma_get_strings,
  	.get_sset_count = &edma_get_strset_count,
-@@ -279,8 +252,6 @@ static const struct ethtool_ops edma_eth
+@@ -279,8 +252,6 @@
  	.set_link_ksettings = edma_set_link_ksettings,
  	.get_pauseparam = &edma_get_pauseparam,
  	.set_pauseparam = &edma_set_pauseparam,
@@ -885,7 +886,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
    */
  
  /* EDMA port initialization, configuration and netdevice ops handling */
-@@ -59,9 +59,12 @@ static void edma_port_stats_free(struct
+@@ -59,9 +59,12 @@
  static void edma_port_configure(struct net_device *netdev)
  {
  	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
@@ -899,7 +900,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	edma_cfg_tx_fill_per_port_tx_map(netdev, port_id);
  	edma_cfg_tx_rings_enable(port_id);
  	edma_cfg_tx_napi_add(netdev, port_id);
-@@ -70,7 +73,7 @@ static void edma_port_configure(struct n
+@@ -70,7 +73,7 @@
  static void edma_port_deconfigure(struct net_device *netdev)
  {
  	struct edma_port_priv *port_priv = (struct edma_port_priv *)netdev_priv(netdev);
@@ -908,7 +909,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	int port_id = port->port_id;
  
  	edma_cfg_tx_napi_delete(port_id);
-@@ -140,7 +143,6 @@ static int edma_port_close(struct net_de
+@@ -140,7 +143,6 @@
  	edma_cfg_tx_disable_interrupts(port_id);
  	edma_cfg_tx_napi_disable(port_id);
  
@@ -916,7 +917,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (ppe_port->phylink)
  		phylink_stop(ppe_port->phylink);
  
-@@ -219,7 +221,7 @@ static netdev_tx_t edma_port_xmit(struct
+@@ -219,7 +221,7 @@
  		if (unlikely(ret == EDMA_TX_FAIL_NO_DESC)) {
  			if (likely(!edma_ctx->tx_requeue_stop)) {
  				cpu_id = smp_processor_id();
@@ -925,7 +926,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				u64_stats_update_begin(&stats->syncp);
  				++stats->tx_queue_stopped[cpu_id];
  				u64_stats_update_end(&stats->syncp);
-@@ -406,16 +408,12 @@ int edma_port_setup(struct ppe_port *por
+@@ -406,16 +408,12 @@
  			    port_id, netdev->dev_addr);
  	}
  
@@ -942,7 +943,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	/* We expect 'port_id' to correspond to ports numbers on SoC.
  	 * These begin from '1' and hence we subtract
  	 * one when using it as an array index.
-@@ -424,7 +422,6 @@ int edma_port_setup(struct ppe_port *por
+@@ -424,7 +422,6 @@
  
  	edma_port_configure(netdev);
  
@@ -950,7 +951,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	ret = ppe_port_phylink_setup(port, netdev);
  	if (ret) {
  		netdev_dbg(netdev, "EDMA port phylink setup for netdevice %s\n",
-@@ -432,7 +429,6 @@ int edma_port_setup(struct ppe_port *por
+@@ -432,7 +429,6 @@
  		goto port_phylink_setup_fail;
  	}
  
@@ -958,7 +959,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	ret = register_netdev(netdev);
  	if (ret) {
  		netdev_dbg(netdev, "Error registering netdevice %s\n",
-@@ -440,7 +436,7 @@ int edma_port_setup(struct ppe_port *por
+@@ -440,7 +436,7 @@
  		goto register_netdev_fail;
  	}
  
@@ -994,7 +995,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   */
  
  /* Provides APIs to alloc Rx Buffers, reap the buffers, receive and
-@@ -33,10 +33,12 @@ static int edma_rx_alloc_buffer_list(str
+@@ -33,10 +33,12 @@
  	struct device *dev = ppe_dev->dev;
  	u16 prod_idx, start_idx;
  	u16 num_alloc = 0;
@@ -1007,7 +1008,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	while (likely(alloc_count--)) {
  		dma_addr_t buff_addr;
-@@ -56,9 +58,9 @@ static int edma_rx_alloc_buffer_list(str
+@@ -56,9 +58,9 @@
  		skb_reserve(skb, EDMA_RX_SKB_HEADROOM + NET_IP_ALIGN);
  
  		if (likely(!page_mode)) {
@@ -1019,7 +1020,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  					edma_ctx);
  				dev_kfree_skb_any(skb);
  				break;
-@@ -70,14 +72,14 @@ static int edma_rx_alloc_buffer_list(str
+@@ -70,14 +72,14 @@
  				++rxfill_stats->page_alloc_failed;
  				u64_stats_update_end(&rxfill_stats->syncp);
  				dev_kfree_skb_any(skb);
@@ -1037,7 +1038,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  					edma_ctx);
  				__free_page(pg);
  				dev_kfree_skb_any(skb);
-@@ -97,9 +99,12 @@ static int edma_rx_alloc_buffer_list(str
+@@ -97,9 +99,12 @@
  					   (u32)(buf_len) & EDMA_RXFILL_BUF_SIZE_MASK);
  		prod_idx = (prod_idx + 1) & EDMA_RX_RING_SIZE_MASK;
  		num_alloc++;
@@ -1050,7 +1051,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_RXFILL_PROD_IDX(rxfill_ring->ring_id);
  		regmap_write(regmap, reg, prod_idx);
  		rxfill_ring->prod_idx = prod_idx;
-@@ -122,24 +127,26 @@ int edma_rx_alloc_buffer(struct edma_rxf
+@@ -122,24 +127,26 @@
  	return edma_rx_alloc_buffer_list(rxfill_ring, alloc_count);
  }
  
@@ -1084,7 +1085,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  static void edma_rx_process_last_segment(struct edma_rxdesc_ring *rxdesc_ring,
-@@ -154,7 +161,6 @@ static void edma_rx_process_last_segment
+@@ -154,7 +161,6 @@
  	struct net_device *dev;
  	u32 pkt_length;
  
@@ -1092,7 +1093,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	skb_head = rxdesc_ring->head;
-@@ -162,7 +168,7 @@ static void edma_rx_process_last_segment
+@@ -162,7 +168,7 @@
  
  	/* Check Rx checksum offload status. */
  	if (likely(dev->features & NETIF_F_RXCSUM))
@@ -1101,7 +1102,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	/* Get stats for the netdevice. */
  	port_dev = netdev_priv(dev);
-@@ -207,7 +213,7 @@ static void edma_rx_process_last_segment
+@@ -207,7 +213,7 @@
  	rx_stats->rx_fraglist_pkts += (u64)(!page_mode);
  	u64_stats_update_end(&rx_stats->syncp);
  
@@ -1110,7 +1111,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		 edma_ctx, skb_head, skb_head->len);
  
  	skb_head->protocol = eth_type_trans(skb_head, dev);
-@@ -229,9 +235,8 @@ static void edma_rx_handle_frag_list(str
+@@ -229,9 +235,8 @@
  {
  	u32 pkt_length;
  
@@ -1121,7 +1122,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		 edma_ctx, skb, pkt_length);
  
  	if (!(rxdesc_ring->head)) {
-@@ -275,9 +280,8 @@ static void edma_rx_handle_nr_frags(stru
+@@ -275,9 +280,8 @@
  	skb_frag_t *frag = NULL;
  	u32 pkt_length;
  
@@ -1132,7 +1133,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		 edma_ctx, skb, pkt_length);
  
  	if (!(rxdesc_ring->head)) {
-@@ -327,7 +331,6 @@ static bool edma_rx_handle_linear_packet
+@@ -327,7 +331,6 @@
  	pcpu_stats = &port_dev->pcpu_stats;
  	rx_stats = this_cpu_ptr(pcpu_stats->rx_stats);
  
@@ -1140,7 +1141,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	pkt_length = EDMA_RXDESC_PACKET_LEN_GET(rxdesc_pri);
  
  	if (likely(!page_mode)) {
-@@ -355,7 +358,7 @@ send_to_stack:
+@@ -355,7 +358,7 @@
  
  	/* Check Rx checksum offload status. */
  	if (likely(skb->dev->features & NETIF_F_RXCSUM))
@@ -1149,7 +1150,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	u64_stats_update_begin(&rx_stats->syncp);
  	rx_stats->rx_pkts++;
-@@ -363,15 +366,15 @@ send_to_stack:
+@@ -363,15 +366,15 @@
  	rx_stats->rx_nr_frag_pkts += (u64)page_mode;
  	u64_stats_update_end(&rx_stats->syncp);
  
@@ -1168,7 +1169,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	return true;
  }
  
-@@ -390,7 +393,7 @@ static struct net_device *edma_rx_get_sr
+@@ -390,7 +393,7 @@
  		src_port_num = src_info & EDMA_RXDESC_PORTNUM_BITS;
  	} else {
  		if (net_ratelimit()) {
@@ -1177,7 +1178,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				(src_info & EDMA_RXDESC_SRCINFO_TYPE_MASK), skb);
  		}
  
-@@ -401,11 +404,10 @@ static struct net_device *edma_rx_get_sr
+@@ -401,11 +404,10 @@
  		return NULL;
  	}
  
@@ -1190,7 +1191,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  					src_port_num, skb);
  
  			u64_stats_update_begin(&rxdesc_stats->syncp);
-@@ -427,7 +429,7 @@ static struct net_device *edma_rx_get_sr
+@@ -427,7 +429,7 @@
  		return ndev;
  
  	if (net_ratelimit())
@@ -1199,7 +1200,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			(src_info & EDMA_RXDESC_SRCINFO_TYPE_MASK),
  			src_port_num, skb);
  
-@@ -482,16 +484,17 @@ static int edma_rx_reap(struct edma_rxde
+@@ -482,16 +484,17 @@
  		struct net_device *ndev;
  		struct sk_buff *skb;
  		dma_addr_t dma_addr;
@@ -1238,7 +1239,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   */
  
  /* Provide APIs to alloc Tx Buffers, fill the Tx descriptors and transmit
-@@ -68,14 +68,9 @@ enum edma_tx_gso_status edma_tx_gso_segm
+@@ -68,14 +68,9 @@
  	if (likely(!skb_is_nonlinear(skb)))
  		return EDMA_TX_GSO_NOT_NEEDED;
  
@@ -1256,7 +1257,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	/* GSO segmentation of the skb into multiple segments. */
  	*segs = skb_gso_segment(skb, netdev->features
-@@ -119,7 +114,7 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -119,7 +114,7 @@
  	if (likely(txcmpl_ring->avail_pkt >= work_to_do)) {
  		avail = work_to_do;
  	} else {
@@ -1265,7 +1266,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_PROD_IDX(txcmpl_ring->id);
  		regmap_read(regmap, reg, &data);
  		prod_idx = data & EDMA_TXCMPL_PROD_IDX_MASK;
-@@ -128,7 +123,7 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -128,7 +123,7 @@
  		txcmpl_ring->avail_pkt = avail;
  
  		if (unlikely(!avail)) {
@@ -1274,7 +1275,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				txcmpl_ring->id);
  			u64_stats_update_begin(&txcmpl_stats->syncp);
  			++txcmpl_stats->no_pending_desc;
-@@ -144,9 +139,6 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -144,9 +139,6 @@
  	end_idx = (cons_idx + avail) & EDMA_TX_RING_SIZE_MASK;
  	txcmpl = EDMA_TXCMPL_DESC(txcmpl_ring, cons_idx);
  
@@ -1284,7 +1285,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	while (likely(avail--)) {
  		/* The last descriptor holds the SKB pointer for scattered frames.
  		 * So skip the descriptors with more bit set.
-@@ -172,7 +164,21 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -172,7 +164,21 @@
  			++txcmpl_stats->invalid_buffer;
  			u64_stats_update_end(&txcmpl_stats->syncp);
  		} else {
@@ -1307,7 +1308,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				skb, skb->len, skb->data_len, cons_idx, prod_idx,
  				txcmpl->word2, txcmpl->word3);
  
-@@ -187,20 +193,6 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -187,20 +193,6 @@
  				u64_stats_update_end(&txcmpl_stats->syncp);
  			}
  
@@ -1328,7 +1329,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			dev_kfree_skb(skb);
  		}
  
-@@ -211,7 +203,7 @@ u32 edma_tx_complete(u32 work_to_do, str
+@@ -211,7 +203,7 @@
  	txcmpl_ring->cons_idx = cons_idx;
  	txcmpl_ring->avail_pkt -= count;
  
@@ -1337,7 +1338,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		txcmpl_ring->id, count, prod_idx, cons_idx);
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TXCMPL_CONS_IDX(txcmpl_ring->id);
  	regmap_write(regmap, reg, cons_idx);
-@@ -265,7 +257,7 @@ int edma_tx_napi_poll(struct napi_struct
+@@ -265,7 +257,7 @@
  	/* No more packets to process. Finish NAPI processing. */
  	napi_complete(napi);
  
@@ -1346,7 +1347,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	reg = EDMA_BASE_OFFSET + EDMA_REG_TX_INT_MASK(txcmpl_ring->id);
  	regmap_write(regmap, reg, edma_ctx->intr_info.intr_mask_txcmpl);
  
-@@ -392,9 +384,9 @@ static u32 edma_tx_skb_nr_frags(struct e
+@@ -392,9 +384,9 @@
  	return num_descs;
  }
  
@@ -1359,7 +1360,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  {
  	struct ppe_port *port = port_priv->ppe_port;
  	int port_id = port->port_id;
-@@ -463,7 +455,7 @@ static struct edma_txdesc_pri *edma_tx_s
+@@ -463,7 +455,7 @@
  
  	EDMA_TXDESC_BUFFER_ADDR_SET(txd, buff_addr);
  	EDMA_TXDESC_POOL_ID_SET(txd, 0);
@@ -1368,7 +1369,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	/* Set packet length in the descriptor. */
  	EDMA_TXDESC_DATA_LEN_SET(txd, buf_len);
-@@ -528,6 +520,23 @@ static u32 edma_tx_skb_sg_fill_desc(stru
+@@ -528,6 +520,23 @@
  	/* Head skb processed already. */
  	num_descs++;
  
@@ -1392,7 +1393,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (unlikely(skb_has_frag_list(skb))) {
  		struct edma_txdesc_pri *start_desc = NULL;
  		u32 start_idx = 0, end_idx = 0;
-@@ -608,23 +617,9 @@ skip_primary:
+@@ -608,23 +617,9 @@
  		u64_stats_update_begin(&stats->syncp);
  		stats->tx_fraglist_pkts++;
  		u64_stats_update_end(&stats->syncp);
@@ -1417,7 +1418,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		skb, num_descs, skb_shinfo(skb)->nr_frags, num_sg_frag_list);
  
  	*txdesc = txd;
-@@ -775,7 +770,7 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -775,7 +770,7 @@
  			netdev_dbg(netdev, "No descriptor available for ring %d\n",
  				   txdesc_ring->id);
  			dma_unmap_single(dev, virt_to_phys(skb->data),
@@ -1426,7 +1427,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			u64_stats_update_begin(&txdesc_stats->syncp);
  			++txdesc_stats->no_desc_avail;
  			u64_stats_update_end(&txdesc_stats->syncp);
-@@ -792,10 +787,12 @@ enum edma_tx_status edma_tx_ring_xmit(st
+@@ -792,10 +787,12 @@
  	txdesc_ring->prod_idx = hw_next_to_use & EDMA_TXDESC_PROD_IDX_MASK;
  	txdesc_ring->avail_desc -= num_desc_filled;
  
@@ -1458,7 +1459,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  #define EDMA_TXDESC_POOL_ID_SET(desc, x)	((desc)->word5 |= \
  				(FIELD_PREP(EDMA_TXDESC_POOL_ID_SET_MASK, x)))
  
-@@ -153,7 +153,7 @@ enum edma_tx_gso_status {
+@@ -153,7 +153,7 @@
  };
  
  /**
@@ -1467,7 +1468,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @invalid_buffer: Invalid buffer address received.
   * @errors: Other Tx complete descriptor errors indicated by the hardware.
   * @desc_with_more_bit: Packet's segment transmit count.
-@@ -181,7 +181,7 @@ struct edma_txdesc_stats {
+@@ -181,7 +181,7 @@
  };
  
  /**
@@ -1476,7 +1477,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @word0: Low 32-bit of buffer address.
   * @word1: Buffer recycling, PTP tag flag, PRI valid flag.
   * @word2: Low 32-bit of opaque value.
-@@ -203,7 +203,7 @@ struct edma_txdesc_pri {
+@@ -203,7 +203,7 @@
  };
  
  /**
@@ -1485,7 +1486,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @word0: Reserved.
   * @word1: Custom csum offset, payload offset, TTL/NAT action.
   * @word2: NAPT translated port, DSCP value, TTL value.
-@@ -225,7 +225,7 @@ struct edma_txdesc_sec {
+@@ -225,7 +225,7 @@
  };
  
  /**
@@ -1494,7 +1495,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @word0: Low 32-bit opaque value.
   * @word1: High 32-bit opaque value.
   * @word2: More fragment, transmit ring id, pool id.
-@@ -239,7 +239,7 @@ struct edma_txcmpl_desc {
+@@ -239,7 +239,7 @@
  };
  
  /**
@@ -1503,7 +1504,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @prod_idx: Producer index
   * @id: Tx ring number
   * @avail_desc: Number of available descriptor to process
-@@ -265,7 +265,7 @@ struct edma_txdesc_ring {
+@@ -265,7 +265,7 @@
  };
  
  /**
@@ -1514,7 +1515,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @avail_pkt: Number of available packets to process
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.c
-@@ -229,11 +229,9 @@ static void qcom_ppe_remove(struct platf
+@@ -229,11 +229,9 @@
  	struct ppe_device *ppe_dev;
  
  	ppe_dev = platform_get_drvdata(pdev);
@@ -1529,7 +1530,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  static const struct of_device_id qcom_ppe_of_match[] = {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe.h
-@@ -13,6 +13,8 @@ struct device;
+@@ -13,6 +13,8 @@
  struct regmap;
  struct dentry;
  
@@ -1702,7 +1703,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
 +#endif
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.c
-@@ -889,7 +889,7 @@ static int ppe_scheduler_l0_queue_map_se
+@@ -889,7 +889,7 @@
  				  val);
  }
  
@@ -1711,7 +1712,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  static int ppe_scheduler_l0_queue_map_get(struct ppe_device *ppe_dev,
  					  int node_id, int *port,
  					  struct ppe_scheduler_cfg *scheduler_cfg)
-@@ -986,7 +986,7 @@ static int ppe_scheduler_l1_queue_map_se
+@@ -986,7 +986,7 @@
  	return regmap_update_bits(ppe_dev->regmap, reg, PPE_L1_COMP_CFG_TBL_NODE_METER_LEN, val);
  }
  
@@ -1720,7 +1721,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  static int ppe_scheduler_l1_queue_map_get(struct ppe_device *ppe_dev,
  					  int node_id, int *port,
  					  struct ppe_scheduler_cfg *scheduler_cfg)
-@@ -1056,58 +1056,6 @@ int ppe_queue_scheduler_set(struct ppe_d
+@@ -1056,58 +1056,6 @@
  }
  
  /**
@@ -1779,7 +1780,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * ppe_queue_ucast_base_set - Set PPE unicast queue base ID and profile ID
   * @ppe_dev: PPE device
   * @queue_dst: PPE queue destination configuration
-@@ -1520,6 +1468,31 @@ int ppe_ring_queue_map_set(struct ppe_de
+@@ -1520,6 +1468,31 @@
  				 ARRAY_SIZE(queue_bitmap_val));
  }
  
@@ -1813,7 +1814,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  {
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_config.h
-@@ -294,8 +294,6 @@ int ppe_queue_scheduler_set(struct ppe_d
+@@ -294,8 +294,6 @@
  int ppe_queue_scheduler_get(struct ppe_device *ppe_dev,
  			    int node_id, bool flow_level, int *port,
  			    struct ppe_scheduler_cfg *scheduler_cfg);
@@ -1824,7 +1825,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			     int queue_base,
 --- a/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
 +++ b/drivers/net/ethernet/qualcomm/ppe/ppe_port.c
-@@ -1,16 +1,17 @@
+@@ -1,17 +1,18 @@
  // SPDX-License-Identifier: GPL-2.0-only
  /*
 - * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -1835,6 +1836,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  #include <linux/clk.h>
 +#include <linux/of.h>
+ #include <linux/if_vlan.h>
  #include <linux/of_net.h>
  #include <linux/pcs/pcs-qcom-ipq9574.h>
  #include <linux/phylink.h>
@@ -1844,7 +1846,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  #include <linux/rtnetlink.h>
  
  #include "edma_port.h"
-@@ -117,7 +118,7 @@ enum ppe_xgmib_stats_type {
+@@ -118,7 +119,7 @@
  	xgmib_rx_broadcast_g,
  	xgmib_rx_multicast_g,
  	xgmib_rx_crc_err,
@@ -1853,7 +1855,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	xgmib_rx_jabber_err,
  	xgmib_rx_undersize_g,
  	xgmib_rx_oversize_g,
-@@ -219,7 +220,7 @@ static const struct ppe_mac_mib_info xgm
+@@ -220,7 +221,7 @@
  	PPE_MAC_MIB_DESC(8, XGMAC_RXBROAD_G_ADDR, "rx_broadcast_g"),
  	PPE_MAC_MIB_DESC(8, XGMAC_RXMULTI_G_ADDR, "rx_multicast_g"),
  	PPE_MAC_MIB_DESC(8, XGMAC_RXCRC_ERR_ADDR, "rx_crc_err"),
@@ -1862,7 +1864,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	PPE_MAC_MIB_DESC(4, XGMAC_RXJABBER_ERR_ADDR, "rx_jabber_err"),
  	PPE_MAC_MIB_DESC(4, XGMAC_RXUNDERSIZE_G_ADDR, "rx_undersize_g"),
  	PPE_MAC_MIB_DESC(4, XGMAC_RXOVERSIZE_G_ADDR, "rx_oversize_g"),
-@@ -257,7 +258,8 @@ static void ppe_port_gmib_update(struct
+@@ -258,7 +259,8 @@
  
  		ret = regmap_read(ppe_dev->regmap, reg, &val);
  		if (ret) {
@@ -1872,7 +1874,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			continue;
  		}
  
-@@ -265,8 +267,8 @@ static void ppe_port_gmib_update(struct
+@@ -266,8 +268,8 @@
  		if (mib->size == 8) {
  			ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
  			if (ret) {
@@ -1883,7 +1885,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				continue;
  			}
  
-@@ -288,6 +290,43 @@ static void ppe_port_gmib_stats_poll(str
+@@ -289,6 +291,43 @@
  			      msecs_to_jiffies(PPE_GMIB_POLL_INTERVAL_MS));
  }
  
@@ -1927,7 +1929,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /* Get the XGMAC MIB counter based on the specific MIB stats type */
  static u64 ppe_port_xgmib_get(struct ppe_port *ppe_port,
  			      enum ppe_xgmib_stats_type xgmib_type)
-@@ -304,7 +343,7 @@ static u64 ppe_port_xgmib_get(struct ppe
+@@ -305,7 +344,7 @@
  
  	ret = regmap_read(ppe_dev->regmap, reg, &val);
  	if (ret) {
@@ -1936,7 +1938,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		goto data_return;
  	}
  
-@@ -312,7 +351,8 @@ static u64 ppe_port_xgmib_get(struct ppe
+@@ -313,7 +352,8 @@
  	if (mib->size == 8) {
  		ret = regmap_read(ppe_dev->regmap, reg + 4, &val);
  		if (ret) {
@@ -1946,7 +1948,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			goto data_return;
  		}
  
-@@ -338,10 +378,12 @@ int ppe_port_get_sset_count(struct ppe_p
+@@ -339,10 +379,12 @@
  	if (sset != ETH_SS_STATS)
  		return 0;
  
@@ -1963,7 +1965,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /**
-@@ -361,15 +403,9 @@ void ppe_port_get_strings(struct ppe_por
+@@ -362,15 +404,9 @@
  	if (stringset != ETH_SS_STATS)
  		return;
  
@@ -1982,7 +1984,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /**
-@@ -385,17 +421,64 @@ void ppe_port_get_ethtool_stats(struct p
+@@ -386,17 +422,64 @@
  {
  	int i;
  
@@ -2053,7 +2055,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	}
  }
  
-@@ -410,56 +493,57 @@ void ppe_port_get_ethtool_stats(struct p
+@@ -411,56 +494,57 @@
  void ppe_port_get_stats64(struct ppe_port *ppe_port,
  			  struct rtnl_link_stats64 *s)
  {
@@ -2154,7 +2156,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	}
  }
  
-@@ -479,73 +563,37 @@ int ppe_port_set_mac_address(struct ppe_
+@@ -480,73 +564,37 @@
  	u32 reg, val;
  	int ret;
  
@@ -2248,7 +2250,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   */
  int ppe_port_set_maxframe(struct ppe_port *ppe_port, int maxframe_size)
  {
-@@ -585,42 +633,23 @@ int ppe_port_set_maxframe(struct ppe_por
+@@ -591,42 +639,23 @@
  /* PPE port and MAC reset */
  static int ppe_port_mac_reset(struct ppe_port *ppe_port)
  {
@@ -2304,7 +2306,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /* PPE port MAC configuration for phylink */
-@@ -643,31 +672,28 @@ static void ppe_port_mac_config(struct p
+@@ -649,31 +678,28 @@
  	case PHY_INTERFACE_MODE_10G_QXGMII:
  		mac_type = PPE_MAC_TYPE_XGMAC;
  		break;
@@ -2344,7 +2346,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (ret)
  		goto err_mac_config;
  
-@@ -676,8 +702,112 @@ static void ppe_port_mac_config(struct p
+@@ -682,8 +708,112 @@
  	return;
  
  err_mac_config:
@@ -2459,7 +2461,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /* PPE port GMAC link up configuration */
-@@ -688,6 +818,11 @@ static int ppe_port_gmac_link_up(struct
+@@ -694,6 +824,11 @@
  	int ret, port = ppe_port->port_id;
  	u32 reg, val;
  
@@ -2471,7 +2473,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	/* Set GMAC speed */
  	switch (speed) {
  	case SPEED_1000:
-@@ -700,8 +835,8 @@ static int ppe_port_gmac_link_up(struct
+@@ -706,8 +841,8 @@
  		val = GMAC_SPEED_10;
  		break;
  	default:
@@ -2482,7 +2484,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		return -EINVAL;
  	}
  
-@@ -720,10 +855,8 @@ static int ppe_port_gmac_link_up(struct
+@@ -726,10 +861,8 @@
  	if (rx_pause)
  		val |= GMAC_RXFCEN;
  
@@ -2495,7 +2497,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /* PPE port XGMAC link up configuration */
-@@ -764,8 +897,8 @@ static int ppe_port_xgmac_link_up(struct
+@@ -770,8 +903,8 @@
  		val = XGMAC_SPEED_10;
  		break;
  	default:
@@ -2506,7 +2508,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		return -EINVAL;
  	}
  
-@@ -792,10 +925,8 @@ static int ppe_port_xgmac_link_up(struct
+@@ -798,10 +931,8 @@
  		return ret;
  
  	/* Enable XGMAC RX*/
@@ -2519,7 +2521,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /* PPE port MAC link up configuration for phylink */
-@@ -813,9 +944,12 @@ static void ppe_port_mac_link_up(struct
+@@ -819,9 +950,12 @@
  	int ret, port = ppe_port->port_id;
  	u32 reg, val;
  
@@ -2534,7 +2536,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (mac_type == PPE_MAC_TYPE_GMAC)
  		ret = ppe_port_gmac_link_up(ppe_port,
  					    speed, duplex, tx_pause, rx_pause);
-@@ -836,17 +970,47 @@ static void ppe_port_mac_link_up(struct
+@@ -842,17 +976,47 @@
  
  	/* Enable PPE port TX */
  	reg = PPE_PORT_BRIDGE_CTRL_ADDR + PPE_PORT_BRIDGE_CTRL_INC * port;
@@ -2587,7 +2589,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /* PPE port MAC link down configuration for phylink */
-@@ -861,48 +1025,28 @@ static void ppe_port_mac_link_down(struc
+@@ -867,48 +1031,28 @@
  	int ret, port = ppe_port->port_id;
  	u32 reg;
  
@@ -2646,7 +2648,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  {
  	struct ppe_port *ppe_port = container_of(config, struct ppe_port,
  						 phylink_config);
-@@ -920,8 +1064,8 @@ struct phylink_pcs *ppe_port_mac_select_
+@@ -926,8 +1070,8 @@
  					 PPE_PORT_MUX_CTRL_ADDR,
  					 PPE_PORT5_SEL_PCS1, val);
  		if (ret) {
@@ -2657,7 +2659,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  			return NULL;
  		}
  	}
-@@ -936,6 +1080,17 @@ static const struct phylink_mac_ops ppe_
+@@ -942,6 +1086,17 @@
  	.mac_select_pcs = ppe_port_mac_select_pcs,
  };
  
@@ -2675,7 +2677,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /**
   * ppe_port_phylink_setup() - Set phylink instance for the given PPE port
   * @ppe_port: PPE port
-@@ -950,9 +1105,9 @@ int ppe_port_phylink_setup(struct ppe_po
+@@ -956,9 +1111,9 @@
  {
  	struct ppe_device *ppe_dev = ppe_port->ppe_dev;
  	struct device_node *pcs_node;
@@ -2687,7 +2689,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	pcs_node = of_parse_phandle(ppe_port->np, "pcs-handle", 0);
  	if (!pcs_node)
  		return -ENODEV;
-@@ -960,8 +1115,8 @@ int ppe_port_phylink_setup(struct ppe_po
+@@ -966,8 +1121,8 @@
  	ppe_port->pcs = ipq_pcs_get(pcs_node);
  	of_node_put(pcs_node);
  	if (IS_ERR(ppe_port->pcs)) {
@@ -2698,7 +2700,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		return PTR_ERR(ppe_port->pcs);
  	}
  
-@@ -971,22 +1126,10 @@ int ppe_port_phylink_setup(struct ppe_po
+@@ -977,22 +1132,10 @@
  	ppe_port->phylink_config.mac_capabilities = MAC_ASYM_PAUSE |
  		MAC_SYM_PAUSE | MAC_10 | MAC_100 | MAC_1000 |
  		MAC_2500FD | MAC_5000FD | MAC_10000FD;
@@ -2725,7 +2727,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	/* Create phylink */
  	ppe_port->phylink = phylink_create(&ppe_port->phylink_config,
-@@ -994,8 +1137,8 @@ int ppe_port_phylink_setup(struct ppe_po
+@@ -1000,8 +1143,8 @@
  					   ppe_port->interface,
  					   &ppe_phylink_ops);
  	if (IS_ERR(ppe_port->phylink)) {
@@ -2736,7 +2738,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		ret = PTR_ERR(ppe_port->phylink);
  		goto err_free_pcs;
  	}
-@@ -1003,8 +1146,8 @@ int ppe_port_phylink_setup(struct ppe_po
+@@ -1009,8 +1152,8 @@
  	/* Connect phylink */
  	ret = phylink_of_phy_connect(ppe_port->phylink, ppe_port->np, 0);
  	if (ret) {
@@ -2747,7 +2749,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		goto err_free_phylink;
  	}
  
-@@ -1037,7 +1180,7 @@ void ppe_port_phylink_destroy(struct ppe
+@@ -1043,7 +1186,7 @@
  		ppe_port->phylink = NULL;
  	}
  
@@ -2756,7 +2758,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (ppe_port->pcs) {
  		ipq_pcs_put(ppe_port->pcs);
  		ppe_port->pcs = NULL;
-@@ -1050,7 +1193,7 @@ static int ppe_port_clock_init(struct pp
+@@ -1056,7 +1199,7 @@
  	struct device_node *port_node = ppe_port->np;
  	struct reset_control *rstc;
  	struct clk *clk;
@@ -2765,7 +2767,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  	for (i = 0; i < PPE_PORT_CLK_RST_MAX; i++) {
  		/* Get PPE port resets which will be used to reset PPE
-@@ -1084,10 +1227,11 @@ err_clk_en:
+@@ -1090,10 +1233,11 @@
  err_clk_get:
  	reset_control_put(rstc);
  err_rst:
@@ -2781,7 +2783,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	}
  
  	return ret;
-@@ -1114,12 +1258,12 @@ static int ppe_port_mac_hw_init(struct p
+@@ -1120,12 +1264,12 @@
  
  	/* GMAC RX and TX are initialized as disabled */
  	reg = PPE_PORT_GMAC_ADDR(port);
@@ -2797,7 +2799,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	val = FIELD_PREP(GMAC_JUMBO_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
  	ret = regmap_update_bits(ppe_dev->regmap, reg + GMAC_JUMBO_SIZE_ADDR,
  				 GMAC_JUMBO_SIZE_M, val);
-@@ -1128,13 +1272,13 @@ static int ppe_port_mac_hw_init(struct p
+@@ -1134,13 +1278,13 @@
  
  	val = FIELD_PREP(GMAC_MAXFRAME_SIZE_M, PPE_PORT_MAC_MAX_FRAME_SIZE);
  	val |= FIELD_PREP(GMAC_TX_THD_M, 0x1);
@@ -2813,7 +2815,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  				 GMAC_HIGH_IPG_M, val);
  	if (ret)
  		return ret;
-@@ -1142,13 +1286,13 @@ static int ppe_port_mac_hw_init(struct p
+@@ -1148,13 +1292,13 @@
  	/* Enable and reset GMAC MIB counters and set as read clear
  	 * mode, the GMAC MIB counters will be cleared after reading.
  	 */
@@ -2831,7 +2833,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	if (ret)
  		return ret;
  
-@@ -1179,31 +1323,8 @@ static int ppe_port_mac_hw_init(struct p
+@@ -1185,31 +1329,8 @@
  		return ret;
  
  	/* Enable and reset XGMAC MIB counters */
@@ -2865,7 +2867,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  }
  
  /**
-@@ -1218,8 +1339,8 @@ static int ppe_port_mac_mib_work_init(st
+@@ -1224,8 +1345,8 @@
  int ppe_port_mac_init(struct ppe_device *ppe_dev)
  {
  	struct device_node *ports_node, *port_node;
@@ -2875,7 +2877,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	phy_interface_t phy_mode;
  
  	ports_node = of_get_child_by_name(ppe_dev->dev->of_node,
-@@ -1259,6 +1380,7 @@ int ppe_port_mac_init(struct ppe_device
+@@ -1265,6 +1386,7 @@
  		ppe_ports->port[i].port_id = port;
  		ppe_ports->port[i].np = port_node;
  		ppe_ports->port[i].interface = phy_mode;
@@ -2883,7 +2885,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  
  		ret = ppe_port_clock_init(&ppe_ports->port[i]);
  		if (ret) {
-@@ -1272,12 +1394,6 @@ int ppe_port_mac_init(struct ppe_device
+@@ -1278,12 +1400,6 @@
  			goto err_port_node;
  		}
  
@@ -2896,7 +2898,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  		ret = edma_port_setup(&ppe_ports->port[i]);
  		if (ret) {
  			dev_err(ppe_dev->dev, "QCOM EDMA port setup failed\n");
-@@ -1299,8 +1415,11 @@ err_port_setup:
+@@ -1305,8 +1421,11 @@
  	}
  
  err_port_clk:
@@ -2910,7 +2912,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  err_port_node:
  	of_node_put(port_node);
  err_ports_node:
-@@ -1322,10 +1441,7 @@ void ppe_port_mac_deinit(struct ppe_devi
+@@ -1328,10 +1447,7 @@
  
  	for (i = 0; i < ppe_dev->ports->num; i++) {
  		ppe_port = &ppe_dev->ports->port[i];
@@ -2949,7 +2951,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  /**
   * enum ppe_port_clk_rst_type - PPE port clock and reset ID type
   * @PPE_PORT_CLK_RST_MAC: The clock and reset ID for port MAC
-@@ -37,14 +44,14 @@ enum ppe_mac_type {
+@@ -37,14 +44,14 @@
  
  /**
   * struct ppe_port - Private data for each PPE port
@@ -2967,7 +2969,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
   * @clks: Port clocks
   * @rstcs: Port resets
   * @gmib_read: Delay work task for GMAC MIB statistics polling function
-@@ -52,14 +59,14 @@ enum ppe_mac_type {
+@@ -52,14 +59,14 @@
   * @gmib_stats_lock: Lock to protect GMAC MIB statistics
   */
  struct ppe_port {
@@ -2985,7 +2987,7 @@ Signed-off-by: Balsam CHIHI <balsam.chihi@moment.tech>
  	struct clk *clks[PPE_PORT_CLK_RST_MAX];
  	struct reset_control *rstcs[PPE_PORT_CLK_RST_MAX];
  	struct delayed_work gmib_read;
-@@ -88,6 +95,5 @@ void ppe_port_get_ethtool_stats(struct p
+@@ -88,6 +95,5 @@
  void ppe_port_get_stats64(struct ppe_port *ppe_port,
  			  struct rtnl_link_stats64 *s);
  int ppe_port_set_mac_address(struct ppe_port *ppe_port, const u8 *addr);

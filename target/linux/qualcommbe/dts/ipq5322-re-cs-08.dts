@@ -109,14 +109,20 @@
 
 		port@2 {
 			label = "lan1";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		port@3 {
 			label = "lan2";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		port@4 {
 			label = "lan3";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
 };
@@ -171,11 +177,6 @@
 
 &pcie1_phy {
 	status = "okay";
-};
-
-&ppe_qca8386 {
-	nvmem-cells = <&lan_macaddr 0>;
-	nvmem-cell-names = "mac-address";
 };
 
 &sdhc {

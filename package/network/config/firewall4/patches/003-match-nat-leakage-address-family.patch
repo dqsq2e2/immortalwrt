@@ -1,4 +1,5 @@
-From: ImmortalWrt contributors
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 27 Oct 2026 13:00:00 +0800
 Subject: [PATCH] firewall4: match NAT leakage protection to the rule family
 
 Disabling IPv4 masquerading in a zone with IPv4 subnet matches while
@@ -7,9 +8,11 @@ retaining IPv6 masquerading generated an invalid rule combining
 Only emit leakage protection when the match family uses masquerading.
 Device-only matches still cover either family and keep the existing guard.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/root/usr/share/firewall4/templates/ruleset.uc
 +++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -276,7 +276,7 @@ table inet fw4 {
+@@ -279,7 +279,7 @@
  {%   if (zone.dflags[verdict]): %}
  	chain {{ verdict }}_to_{{ zone.name }} {
  {%   for (let rule in zone.match_rules): %}

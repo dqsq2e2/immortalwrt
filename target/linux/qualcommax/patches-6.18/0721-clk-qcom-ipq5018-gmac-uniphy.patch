@@ -1,0 +1,55 @@
+From: Ziyang Huang <hzyitc@outlook.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] clk: qcom: correct IPQ5018 GMAC clocks and UNIPHY reset
+
+Comment out the unsupported clock combination in the frequency table for
+GMAC1.
+
+The SOFT reset is supposed to trigger a resets across the SYS, RX, and TX
+lines of the IPQ5018 UNIPHY. So let's set the bitmask of the reset
+definition accordingly in the GCC as per the downstream driver.
+
+Merged from:
+  0721-clk-gcc-ipq5018-remove-the-unsupported-clk-combinati.patch
+  0723-clk-qcom-gcc-ipq5018-fix-uniphy-soft-reset-issue.patch
+
+Based on work by:
+  George Moussalem <george.moussalem@outlook.com>
+  Ziyang Huang <hzyitc@outlook.com>
+
+Original-commit: f71366e0530db2c5cecbbbb6edfbf7344bd6f83b
+Link: https://git.codelinaro.org/clo/qsdk/oss/kernel/linux-ipq-5.4/-/commit/036bdc62aca561e8ff94a29c447fc400de2b7304
+
+Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
+Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/clk/qcom/gcc-ipq5018.c
++++ b/drivers/clk/qcom/gcc-ipq5018.c
+@@ -687,7 +687,7 @@
+ 	F(2500000, P_UNIPHY_RX, 12.5, 0, 0),
+ 	F(24000000, P_XO, 1, 0, 0),
+ 	F(25000000, P_UNIPHY_RX, 2.5, 0, 0),
+-	F(125000000, P_UNIPHY_RX, 2.5, 0, 0),
++	/* F(125000000, P_UNIPHY_RX, 2.5, 0, 0), */
+ 	F(125000000, P_UNIPHY_RX, 1, 0, 0),
+ 	F(312500000, P_UNIPHY_RX, 1, 0, 0),
+ 	{ }
+@@ -727,7 +727,7 @@
+ 	F(2500000, P_UNIPHY_TX, 12.5, 0, 0),
+ 	F(24000000, P_XO, 1, 0, 0),
+ 	F(25000000, P_UNIPHY_TX, 2.5, 0, 0),
+-	F(125000000, P_UNIPHY_TX, 2.5, 0, 0),
++	/* F(125000000, P_UNIPHY_TX, 2.5, 0, 0), */
+ 	F(125000000, P_UNIPHY_TX, 1, 0, 0),
+ 	F(312500000, P_UNIPHY_TX, 1, 0, 0),
+ 	{ }
+@@ -3657,7 +3657,7 @@
+ 	[GCC_UNIPHY_SYS_ARES] = { 0x56104, 1 },
+ 	[GCC_UNIPHY_RX_ARES] = { 0x56104, 4 },
+ 	[GCC_UNIPHY_TX_ARES] = { 0x56104, 5 },
+-	[GCC_UNIPHY_SOFT_RESET] = {0x56104, 0 },
++	[GCC_UNIPHY_SOFT_RESET] = {0x56104, .bitmask = 0x32 },
+ 	[GCC_USB0_BCR] = { 0x3e070, 0 },
+ 	[GCC_USB0_PHY_BCR] = { 0x3e034, 0 },
+ 	[GCC_WCSS_BCR] = { 0x18000, 0 },

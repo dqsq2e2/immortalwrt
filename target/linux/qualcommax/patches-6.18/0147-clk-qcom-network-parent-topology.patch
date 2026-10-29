@@ -1,0 +1,185 @@
+From: Robert Marko <robimarko@gmail.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] clk: qcom: complete IPQ networking parent clock topology
+
+The UNIPHY RX and TX clocks are currently made available to GCC through
+global clock-name matching. Pass them directly to GCC instead, allowing its
+RCGs to use them as clock parents without a global clock lookup.
+
+Document the UNIPHY and CMN networking inputs supplied to GCC by the
+IPQ6018 and IPQ8074 device trees, retaining the older input lists.
+
+Merged from:
+  0147-arm64-dts-qcom-ipq8074-add-uniphy-clocks-to-gcc.patch
+  0148-clk-qcom-ipq6018-ipq8074-complete-networking-parents.patch
+
+Based on work by:
+  Robert Marko <robimarko@gmail.com>
+
+Original-commit: 1222396401a9bcff1ab06fc8025558aaf38e5528
+
+Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,gcc-ipq6018.yaml
+@@ -27,14 +27,28 @@
+     const: qcom,gcc-ipq6018
+ 
+   clocks:
++    minItems: 2
+     items:
+       - description: board XO clock
+       - description: sleep clock
++      - description: UNIPHY0 receive clock
++      - description: UNIPHY0 transmit clock
++      - description: UNIPHY1 receive clock
++      - description: UNIPHY1 transmit clock
++      - description: CMN PLL networking core clock
++      - description: CMN PLL networking NOC clock
+ 
+   clock-names:
++    minItems: 2
+     items:
+       - const: xo
+       - const: sleep_clk
++      - const: uniphy0_gcc_rx_clk
++      - const: uniphy0_gcc_tx_clk
++      - const: uniphy1_gcc_rx_clk
++      - const: uniphy1_gcc_tx_clk
++      - const: bias_pll_cc_clk
++      - const: bias_pll_nss_noc_clk
+ 
+   '#power-domain-cells': false
+ 
+--- a/Documentation/devicetree/bindings/clock/qcom,gcc-ipq8074.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,gcc-ipq8074.yaml
+@@ -24,18 +24,36 @@
+     const: qcom,gcc-ipq8074
+ 
+   clocks:
++    minItems: 4
+     items:
+       - description: board XO clock
+       - description: sleep clock
+       - description: Gen3 QMP PCIe PHY PIPE clock
+       - description: Gen2 QMP PCIe PHY PIPE clock
++      - description: UNIPHY0 receive clock
++      - description: UNIPHY0 transmit clock
++      - description: UNIPHY1 receive clock
++      - description: UNIPHY1 transmit clock
++      - description: UNIPHY2 receive clock
++      - description: UNIPHY2 transmit clock
++      - description: CMN PLL networking core clock
++      - description: CMN PLL networking NOC clock
+ 
+   clock-names:
++    minItems: 4
+     items:
+       - const: xo
+       - const: sleep_clk
+       - const: pcie0_pipe
+       - const: pcie1_pipe
++      - const: uniphy0_gcc_rx_clk
++      - const: uniphy0_gcc_tx_clk
++      - const: uniphy1_gcc_rx_clk
++      - const: uniphy1_gcc_tx_clk
++      - const: uniphy2_gcc_rx_clk
++      - const: uniphy2_gcc_tx_clk
++      - const: bias_pll_cc_clk
++      - const: bias_pll_nss_noc_clk
+ 
+ required:
+   - compatible
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -6,6 +6,7 @@
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/clock/qcom,gcc-ipq8074.h>
+ #include <dt-bindings/clock/qcom,apss-ipq.h>
++#include <dt-bindings/net/qca-uniphy.h>
+ 
+ / {
+ 	#address-cells = <2>;
+@@ -593,11 +594,23 @@
+ 			clocks = <&xo>,
+ 				 <&sleep_clk>,
+ 				 <&pcie_qmp0>,
+-				 <&pcie_qmp1>;
++				 <&pcie_qmp1>,
++				 <&uniphy0 UNIPHY_CLK_RX>,
++				 <&uniphy0 UNIPHY_CLK_TX>,
++				 <&uniphy1 UNIPHY_CLK_RX>,
++				 <&uniphy1 UNIPHY_CLK_TX>,
++				 <&uniphy2 UNIPHY_CLK_RX>,
++				 <&uniphy2 UNIPHY_CLK_TX>;
+ 			clock-names = "xo",
+ 				      "sleep_clk",
+ 				      "pcie0_pipe",
+-				      "pcie1_pipe";
++				      "pcie1_pipe",
++				      "uniphy0_gcc_rx_clk",
++				      "uniphy0_gcc_tx_clk",
++				      "uniphy1_gcc_rx_clk",
++				      "uniphy1_gcc_tx_clk",
++				      "uniphy2_gcc_rx_clk",
++				      "uniphy2_gcc_tx_clk";
+ 			#clock-cells = <1>;
+ 			#power-domain-cells = <1>;
+ 			#reset-cells = <1>;
+--- a/drivers/clk/qcom/gcc-ipq6018.c
++++ b/drivers/clk/qcom/gcc-ipq6018.c
+@@ -360,7 +360,7 @@
+ 
+ static const struct clk_parent_data gcc_xo_bias_gpll0_gpll4_nss_ubi32[] = {
+ 	{ .fw_name = "xo" },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ 	{ .hw = &gpll0.clkr.hw },
+ 	{ .hw = &gpll4.clkr.hw },
+ 	{ .hw = &nss_crypto_pll.clkr.hw },
+@@ -539,7 +539,7 @@
+ 	{ .fw_name = "uniphy1_gcc_rx_clk" },
+ 	{ .fw_name = "uniphy1_gcc_tx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map
+@@ -594,7 +594,7 @@
+ 	{ .fw_name = "uniphy1_gcc_tx_clk" },
+ 	{ .fw_name = "uniphy1_gcc_rx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map
+@@ -733,7 +733,7 @@
+ 	{ .fw_name = "uniphy0_gcc_rx_clk" },
+ 	{ .fw_name = "uniphy0_gcc_tx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_uniphy0_rx_tx_ubi32_bias_map[] = {
+@@ -769,7 +769,7 @@
+ 	{ .fw_name = "uniphy0_gcc_tx_clk" },
+ 	{ .fw_name = "uniphy0_gcc_rx_clk" },
+ 	{ .hw = &ubi32_pll.clkr.hw },
+-	{ .fw_name = "bias_pll_cc_clk" },
++	{ .fw_name = "bias_pll_cc_clk", .name = "bias_pll_cc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_uniphy0_tx_rx_ubi32_bias_map[] = {
+@@ -1920,7 +1920,7 @@
+ 	{ .fw_name = "xo" },
+ 	{ .hw = &gpll0.clkr.hw },
+ 	{ .hw = &gpll2.clkr.hw },
+-	{ .fw_name = "bias_pll_nss_noc_clk" },
++	{ .fw_name = "bias_pll_nss_noc_clk", .name = "bias_pll_nss_noc_clk" },
+ };
+ 
+ static const struct parent_map gcc_xo_gpll0_gpll2_bias_pll_nss_noc_clk_map[] = {

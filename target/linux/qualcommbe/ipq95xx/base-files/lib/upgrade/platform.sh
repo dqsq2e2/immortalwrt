@@ -37,7 +37,9 @@ platform_do_upgrade() {
 		ln6001_do_upgrade "$1" || return 1
 		;;
 	xiaomi,be7000|\
-	xiaomi,be7000-pro)
+	xiaomi,be7000-pro|\
+	xiaomi,be10000|\
+	xiaomi,be10000-pro)
 		nand_do_upgrade "$1"
 		;;
 	*)

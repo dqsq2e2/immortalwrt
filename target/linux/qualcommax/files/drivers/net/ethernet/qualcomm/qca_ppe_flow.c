@@ -474,6 +474,13 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 		   priv->flow_op_result_valid,
 		   priv->flow_op_result_valid ? priv->flow_op_result : 0,
 		   priv->flow_op_result_rejected);
+	seq_printf(s, "%-24s %u\n", "xmit_drop",
+		   atomic_read(&priv->flow_xmit_drop));
+	seq_printf(s, "%-24s %u\n", "shaper_miss",
+		   atomic_read(&priv->flow_shaper_miss));
+	seq_printf(s, "%-24s %u\n", "shaper_busy",
+		   atomic_read(&priv->shaper_busy));
+	seq_printf(s, "%-24s %d\n", "ul_port", READ_ONCE(priv->ul_port));
 	seq_printf(s, "%-24s %u\n", "sparse_promoted",
 		   priv->flow_sparse_promoted);
 	seq_printf(s, "%-24s %u\n", "sparse_demoted",
@@ -488,6 +495,18 @@ static int ppe_offload_show(struct seq_file *s, void *data)
 			   priv->flow_reject[i]);
 	for (i = 0; i < ARRAY_SIZE(hw_errors); i++)
 		seq_printf(s, "%s %u\n", hw_errors[i], priv->flow_hw_errors[i]);
+
+	guard(mutex)(&priv->vlan_lock);
+	for (i = 0; i < PPE_PPPOE_SESSIONS; i++) {
+		const struct ppe_uplink *up = &priv->uplink[i];
+		char name[24];
+
+		if (!up->ref)
+			continue;
+		snprintf(name, sizeof(name), "uplink_port%u_vid%u", up->port,
+			 up->vid);
+		seq_printf(s, "%-24s %u\n", name, up->ref);
+	}
 
 	return 0;
 }
@@ -731,18 +750,20 @@ static void ppe_flow_age_timer_set(struct qca_ppe_priv *priv, u32 *ctrl)
 
 /* A packet of an offloaded flow that the software fast path would leave to
  * the stack goes to the CPU, and the entry keeps forwarding the rest: IPv4
- * options, IPv6 extension headers, a TCP or UDP header cut short, and a FIN,
- * RST or SYN, which the flowtable takes as a teardown or the reuse of a
- * closing flow. Every exception is written, so none keeps what an earlier
- * owner of the table set. A pattern left at its reset value matches every TCP
- * packet, so the patterns are written before their exceptions are enabled.
+ * options, IPv6 extension headers, a TTL or hop limit about to expire, a
+ * fragment, a truncated or malformed L2, IP or L4 header, and a FIN, RST or
+ * SYN, which the flowtable takes as a teardown or the reuse of a closing
+ * flow. Every exception is written, so none keeps what an earlier owner of
+ * the table set. A pattern left at its reset value matches every TCP packet,
+ * so the patterns are written before their exceptions are enabled.
  */
 static void ppe_flow_excep_init(struct qca_ppe_priv *priv)
 {
 	static const u8 rdt[] = {
-		PPE_EXCEP_IPV4_OPTION, PPE_EXCEP_IPV6_EXT_HDR,
-		PPE_EXCEP_IPV6_MORE_EXT_HDR,
-		PPE_EXCEP_TCP_HDR_SHORT, PPE_EXCEP_UDP_HDR_SHORT,
+		0, 1, 2, 3,				/* L2 protocol, PPPoE */
+		5, 6, 7, 8, 9, 10, 12, 14, 20,		/* IPv4 */
+		22, 23, 24, 25, 26, 30, 32, 38,		/* IPv6 */
+		42, 45, 55, 61,				/* TCP, UDP, UDP-Lite */
 	};
 	DECLARE_BITMAP(on, PPE_L3_EXCEPTIONS) = {};
 	unsigned long trap = PPE_FLOW_TCP_TRAP;
@@ -787,7 +808,8 @@ void ppe_flow_init(struct qca_ppe_priv *priv)
 	 *
 	 * The neighbouring TCP_SPECIAL bypass stays off: on this generation it
 	 * takes every TCP packet out of the lookup, not just the flagged ones.
-	 * FIN, SYN and RST reach the CPU through flag exceptions instead.
+	 * FIN, SYN and RST reach the CPU through the TCP flag exceptions
+	 * instead.
 	 */
 	for (type = 0; type < PPE_FLOW_PKT_TYPES; type++) {
 		u32 val = 0;
@@ -808,7 +830,8 @@ void ppe_flow_init(struct qca_ppe_priv *priv)
 	 * for PPPoE as well; both directions have been verified with live PPE flow
 	 * counters on CR1000A.
 	 */
-	ctrl = PPE_FLOW_EN | FIELD_PREP(PPE_FLOW_HASH_MODE1, 1);
+	ctrl = PPE_FLOW_EN | FIELD_PREP(PPE_FLOW_HASH_MODE0, 1) |
+	       FIELD_PREP(PPE_FLOW_HASH_MODE1, 1);
 	ppe_flow_age_timer_set(priv, &ctrl);
 	regmap_write(priv->regmap, PPE_FLOW_CTRL0, ctrl);
 }

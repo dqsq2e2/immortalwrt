@@ -1,4 +1,4 @@
-From: Julius Bairaktaris <julius@bairaktaris.de>
+From: ViKing <viking.yfy@qq.com>
 Date: Wed, 9 Sep 2026 23:09:44 +0200
 Subject: [PATCH] netfilter: flowtable: promote a flow offloaded in one
  direction only
@@ -12,9 +12,11 @@ either.
 Assisted-by: Claude:claude-opus-5
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/netfilter/nf_flow_table_bpf.c
 +++ b/net/netfilter/nf_flow_table_bpf.c
-@@ -50,6 +50,10 @@ bpf_xdp_flow_tuple_lookup(struct net_dev
+@@ -50,6 +50,10 @@
  
  	nf_flow = container_of(tuplehash, struct flow_offload,
  			       tuplehash[tuplehash->tuple.dir]);
@@ -27,7 +29,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	return tuplehash;
 --- a/net/netfilter/nf_flow_table_ip.c
 +++ b/net/netfilter/nf_flow_table_ip.c
-@@ -379,6 +379,26 @@ nf_flow_offload_lookup(struct nf_flowtab
+@@ -379,6 +379,26 @@
  	return flow_offload_lookup(flow_table, &tuple);
  }
  
@@ -54,7 +56,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  static int nf_flow_offload_forward(struct nf_flowtable_ctx *ctx,
  				   struct nf_flowtable *flow_table,
  				   struct flow_offload_tuple_rhash *tuplehash,
-@@ -392,6 +412,9 @@ static int nf_flow_offload_forward(struc
+@@ -392,6 +412,9 @@
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  
@@ -64,7 +66,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  	mtu = flow->tuplehash[dir].tuple.mtu + ctx->offset;
  	if (unlikely(nf_flow_exceeds_mtu(skb, mtu)))
  		return 0;
-@@ -686,6 +709,9 @@ static int nf_flow_offload_ipv6_forward(
+@@ -690,6 +713,9 @@
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
  

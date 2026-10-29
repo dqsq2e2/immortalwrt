@@ -1,4 +1,5 @@
 From: Qiyuan Zhang <zhang.github@outlook.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: qualcommax: add kernel cmdline replacement hack 
 
 Add kernel command line replacement hack to qualcommax. Now we can
@@ -12,14 +13,14 @@ bootargs-replace-X. If bootargs-exact-match-X is set to "y",
 then the replacement happens only if the kernel command line is
 identical to bootargs-find-X.
 
-Signed-off-by: Qiyuan Zhang <zhang.github@outlook.com>
 
 [viking.yfy@qq.com: complete imported patch metadata]
+
+Signed-off-by: Qiyuan Zhang <zhang.github@outlook.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
  drivers/of/fdt.c |   71 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
  1 file changed, 71 insertions(+)
-
 --- a/drivers/of/fdt.c
 +++ b/drivers/of/fdt.c
 @@ -1088,6 +1088,14 @@ int __init early_init_dt_scan_chosen(cha

@@ -1,4 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
+Date: Sun, 25 Oct 2026 14:06:01 +0800
 Subject: [PATCH] wifi: ath11k: preserve monitor PPDU state across status buffers
 
 HE PHY status and PPDU end user statistics can arrive in different status
@@ -16,7 +17,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/wireless/ath/ath11k/dp_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
-@@ -5282,9 +5282,6 @@ int ath11k_dp_rx_process_mon_status(stru
+@@ -5287,9 +5287,6 @@
  	if (!num_buffs_reaped)
  		goto exit;
  
@@ -26,7 +27,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	while ((skb = __skb_dequeue(&skb_list))) {
  		if (ath11k_debugfs_is_pktlog_lite_mode_enabled(ar)) {
  			log_type = ATH11K_PKTLOG_TYPE_LITE_RX;
-@@ -5300,8 +5297,6 @@ int ath11k_dp_rx_process_mon_status(stru
+@@ -5305,8 +5302,6 @@
  		if (log_type != ATH11K_PKTLOG_TYPE_INVALID)
  			trace_ath11k_htt_rxdesc(ar, skb->data, log_type, rx_buf_sz);
  
@@ -35,7 +36,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hal_status = ath11k_hal_rx_parse_mon_status(ab, ppdu_info, skb);
  
  		if (test_bit(ATH11K_FLAG_MONITOR_STARTED, &ar->monitor_flags) &&
-@@ -5728,6 +5723,8 @@ static int ath11k_dp_rx_pdev_mon_status_
+@@ -5733,6 +5728,8 @@
  	struct ath11k_mon_data *pmon = (struct ath11k_mon_data *)&dp->mon_data;
  
  	pmon->mon_ppdu_status = DP_PPDU_STATUS_START;
@@ -46,7 +47,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	       sizeof(pmon->rx_mon_stats));
 --- a/drivers/net/wireless/ath/ath11k/hal_rx.c
 +++ b/drivers/net/wireless/ath/ath11k/hal_rx.c
-@@ -885,6 +885,10 @@ ath11k_hal_rx_parse_mon_status_tlv(struc
+@@ -885,6 +885,10 @@
  		struct hal_rx_ppdu_start *ppdu_start =
  			(struct hal_rx_ppdu_start *)tlv_data;
  

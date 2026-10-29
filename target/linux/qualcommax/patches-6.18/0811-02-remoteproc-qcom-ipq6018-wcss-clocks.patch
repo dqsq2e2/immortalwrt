@@ -1,0 +1,65 @@
+From: Robert Marko <robimarko@gmail.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] remoteproc: qcom: enable IPQ6018 WCSS and optional QDSS clocks
+
+Enable the optional QDSS clock while the secure WCSS remote processor is
+running. Some platforms require this clock for WCSS firmware loading.
+
+IPQ6018 uses the secure WCSS PIL remoteproc driver, but its SSR subsystem
+name is "wcnss" rather than the "q6wcss" name used by IPQ9574. Add a
+dedicated descriptor for IPQ6018 and match its WCSS compatible to it.
+
+Merged from:
+  0811-02-remoteproc-qcom-wcss-sec-enable-qdss-clock.patch
+  0812-01-remoteproc-qcom-wcss-sec-add-ipq6018-support.patch
+
+Based on work by:
+  Robert Marko <robimarko@gmail.com>
+
+Original-commit: 0000000000000000000000000000000000000000
+
+Signed-off-by: Robert Marko <robimarko@gmail.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/remoteproc/qcom_q6v5_wcss_sec.c
++++ b/drivers/remoteproc/qcom_q6v5_wcss_sec.c
+@@ -316,6 +316,7 @@
+ 	struct rproc *rproc;
+ 	struct wcss_sec *wcss;
+ 	struct clk *sleep_clk;
++	struct clk *qdss_clk;
+ 	struct clk *prng_clk;
+ 	struct clk *int_clk;
+ 	const char **firmware = NULL;
+@@ -361,6 +362,11 @@
+ 		return dev_err_probe(&pdev->dev, PTR_ERR(prng_clk),
+ 				     "Failed to get prng clock\n");
+ 
++	qdss_clk = devm_clk_get_optional_enabled(&pdev->dev, "qdss");
++	if (IS_ERR(qdss_clk))
++		return dev_err_probe(&pdev->dev, PTR_ERR(qdss_clk),
++				     "Failed to get QDSS clock\n");
++
+ 	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
+ 			     WCSS_CRASH_REASON, NULL, NULL);
+ 	if (ret)
+@@ -414,6 +420,11 @@
+ 	.use_tmelcom = true,
+ };
+ 
++static const struct wcss_data wcss_sec_ipq6018_res_init = {
++	.pasid = WCSS_PAS_ID,
++	.ss_name = "wcnss",
++};
++
+ static const struct wcss_data wcss_sec_ipq9574_res_init = {
+ 	.pasid = WCSS_PAS_ID,
+ 	.ss_name = "q6wcss",
+@@ -423,6 +434,7 @@
+ 	{ .compatible = "qcom,ipq5018-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
+ 	{ .compatible = "qcom,ipq5332-wcss-sec-pil", .data = &wcss_sec_ipq5332_res_init },
+ 	{ .compatible = "qcom,ipq5424-wcss-sec-pil", .data = &wcss_sec_ipq5424_res_init },
++	{ .compatible = "qcom,ipq6018-wcss-sec-pil", .data = &wcss_sec_ipq6018_res_init },
+ 	{ .compatible = "qcom,ipq8074-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
+ 	{ .compatible = "qcom,ipq9574-wcss-sec-pil", .data = &wcss_sec_ipq9574_res_init },
+ 	{ },

@@ -1,6 +1,6 @@
 From 6408cdca652b1f85e5b8582c283203d11f4dedcb Mon Sep 17 00:00:00 2001
 Message-ID: <6408cdca652b1f85e5b8582c283203d11f4dedcb.1779086987.git.lorenzo@kernel.org>
-From: Lorenzo Bianconi <lorenzo@kernel.org>
+From: ViKing <viking.yfy@qq.com>
 Date: Sun, 17 May 2026 21:11:27 +0200
 Subject: [PATCH net-next 1/2] net: netfilter: flowtable: Add the capability to
  offload dscp field
@@ -17,6 +17,8 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  net/netfilter/nft_flow_offload.c      | 22 ++++++++++++++++++++++
  4 files changed, 41 insertions(+)
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/include/net/netfilter/nf_flow_table.h
 +++ b/include/net/netfilter/nf_flow_table.h
 @@ -32,6 +32,7 @@
@@ -27,7 +29,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct flow_dissector_key_keyid			enc_key_id;
  	union {
  		struct flow_dissector_key_ipv4_addrs	enc_ipv4;
-@@ -144,6 +145,7 @@
+@@ -147,6 +148,7 @@
  					in_vlan_ingress:2,
  					num_uppers:3;
  	u16				mtu;
@@ -58,7 +60,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	/* A transparent bridge does not consume an L3 hop. */
  	if (!flow_table->type || flow_table->type->family != NFPROTO_BRIDGE)
  		ip_decrease_ttl(iph);
-@@ -756,6 +763,7 @@
+@@ -760,6 +767,7 @@
  	struct flow_offload *flow;
  	unsigned int thoff, mtu;
  	struct ipv6hdr *ip6h;
@@ -66,7 +68,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	dir = tuplehash->tuple.dir;
  	flow = container_of(tuplehash, struct flow_offload, tuplehash[dir]);
-@@ -787,6 +795,12 @@
+@@ -791,6 +799,12 @@
  	ip6h = ipv6_hdr(skb);
  	nf_flow_nat_ipv6(flow, skb, dir, ip6h);
  
@@ -138,7 +140,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static bool nft_flow_offload_skip(struct sk_buff *skb, int family)
  {
  	if (skb_sec_path(skb))
-@@ -120,6 +142,9 @@
+@@ -137,6 +159,9 @@
  	if (!flow)
  		goto err_flow_alloc;
  

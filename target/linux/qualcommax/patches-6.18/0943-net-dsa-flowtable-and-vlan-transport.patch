@@ -1,0 +1,100 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] net: dsa: coordinate flowtable forwarding and VLAN transport
+
+A flowtable bound to a DSA user port is forwarded to the conduit netdev by
+dsa_user_setup_ft_block(), for a flow engine that sits on the conduit as
+mtk_eth's does. It does not go through ds->ops->port_setup_tc, so a switch
+that owns its flow engine is never offered the flowtable.
+
+A user port takes its features from the conduit's vlan_features. When those
+carry NETIF_F_HW_VLAN_CTAG_TX, a switch whose tagger writes into the frame
+gets its VLAN tag inserted by the conduit in front of the switch tag, where
+the switch does not parse it. This happens to a switch stacked behind a
+port of another switch whose conduit inserts VLAN tags.
+
+Merged from:
+  0943-net-dsa-offer-a-flowtable-to-the-switch-before-the-conduit.patch
+  0944-net-dsa-keep-TX-VLAN-offload-off-under-a-tag-in-the-frame.patch
+
+Based on work by:
+  Julius Bairaktaris <julius@bairaktaris.de>
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -293,6 +293,12 @@
+ 
+ 	u8			setup:1;
+ 
++	/* Flowtable blocks on this user port go to the switch, not the
++	 * conduit; decided at bind time. Written without rtnl, so not one of
++	 * the bit fields above.
++	 */
++	bool			ft_on_switch;
++
+ 	struct device_node	*dn;
+ 	unsigned int		ageing_time;
+ 
+--- a/net/dsa/user.c
++++ b/net/dsa/user.c
+@@ -1737,15 +1737,30 @@
+ 	}
+ }
+ 
+-static int dsa_user_setup_ft_block(struct dsa_switch *ds, int port,
+-				   void *type_data)
++static int dsa_user_setup_ft_block(struct dsa_port *dp,
++				   struct flow_block_offload *bo)
+ {
+-	struct net_device *conduit = dsa_port_to_conduit(dsa_to_port(ds, port));
++	struct net_device *conduit = dsa_port_to_conduit(dp);
++	struct dsa_switch *ds = dp->ds;
++	int err;
++
++	/* The unbind goes to the side that took the bind. */
++	if (bo->command == FLOW_BLOCK_BIND) {
++		err = -EOPNOTSUPP;
++		if (ds->ops->port_setup_tc)
++			err = ds->ops->port_setup_tc(ds, dp->index, TC_SETUP_FT,
++						     bo);
++		dp->ft_on_switch = !err;
++		if (err != -EOPNOTSUPP)
++			return err;
++	} else if (dp->ft_on_switch) {
++		return ds->ops->port_setup_tc(ds, dp->index, TC_SETUP_FT, bo);
++	}
+ 
+ 	if (!conduit->netdev_ops->ndo_setup_tc)
+ 		return -EOPNOTSUPP;
+ 
+-	return conduit->netdev_ops->ndo_setup_tc(conduit, TC_SETUP_FT, type_data);
++	return conduit->netdev_ops->ndo_setup_tc(conduit, TC_SETUP_FT, bo);
+ }
+ 
+ static int dsa_user_setup_tc(struct net_device *dev, enum tc_setup_type type,
+@@ -1758,7 +1773,7 @@
+ 	case TC_SETUP_BLOCK:
+ 		return dsa_user_setup_tc_block(dev, type_data);
+ 	case TC_SETUP_FT:
+-		return dsa_user_setup_ft_block(ds, dp->index, type_data);
++		return dsa_user_setup_ft_block(dp, type_data);
+ 	default:
+ 		break;
+ 	}
+@@ -2847,6 +2862,13 @@
+ 	user->hw_features |= NETIF_F_HW_TC;
+ 	if (user->needed_tailroom)
+ 		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
++	/* A tag the conduit inserts would land in front of the one written
++	 * into the frame, so the VLAN tag is pushed before it.
++	 */
++	if (cpu_dp->tag_ops->needed_headroom ||
++	    cpu_dp->tag_ops->needed_tailroom)
++		user->features &= ~(NETIF_F_HW_VLAN_CTAG_TX |
++				    NETIF_F_HW_VLAN_STAG_TX);
+ 	if (ds->needs_standalone_vlan_filtering)
+ 		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
+ 

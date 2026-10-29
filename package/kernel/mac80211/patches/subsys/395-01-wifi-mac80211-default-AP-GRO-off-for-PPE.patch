@@ -1,4 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
+Date: Sun, 25 Oct 2026 14:06:01 +0800
 Subject: [PATCH] wifi: mac80211: default AP GRO off for native QCA PPE
 
 The native PPE WLAN ingress hook accepts MTU-sized packets. GRO aggregates
@@ -14,7 +15,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -1382,6 +1382,16 @@ int ieee80211_do_open(struct wireless_de
+@@ -1380,6 +1380,16 @@
  
  	lockdep_assert_wiphy(local->hw.wiphy);
  

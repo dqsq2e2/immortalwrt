@@ -1,0 +1,346 @@
+From: Ziyang Huang <hzyitc@outlook.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
+Subject: [PATCH] remoteproc: qcom: complete IPQ5018 multi-PD clocks and boot arguments
+
+Use managed clock enable so probe failure and remove disable all clocks
+before freeing the root remoteproc context.
+
+Balance the parent boot reference and MSA lock when loading or starting a
+user domain fails. Preserve firmware ASIDs and the existing boot protocol.
+
+On multi-PD platforms such as IPQ5018, boot args are passed to the root PD
+run on the Q6 processor which in turn boots the user PDs for internal
+(IPQ5018) and external wifi radios (such as QCN6122). These boot args let
+the user PD process know details like what PCIE index, user PD ID, and
+reset GPIO is used. These are otherwise hardcoded in the firmware.
+
+Merged from:
+  0813-remoteproc-qcom_q6v5_mpd-enable-clocks.patch
+  0814-remoteproc-qcom_q6v5_mpd-support-ipq5018.patch
+  0815-remoteproc-qcom_q6v5_mpd-add-support-for-passing-v1-bootargs.patch
+
+Based on work by:
+  George Moussalem <george.moussalem@outlook.com>
+  Ziyang Huang <hzyitc@outlook.com>
+
+Original-commit: e83215d5d22946885fa388d375b12f1b991a43c1
+Original-commit: 4ae334127f073aa5f7c9209c9f0a17fd9e331db1
+
+Signed-off-by: Ziyang Huang <hzyitc@outlook.com>
+Signed-off-by: George Moussalem <george.moussalem@outlook.com>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/remoteproc/qcom_q6v5_mpd.c
++++ b/drivers/remoteproc/qcom_q6v5_mpd.c
+@@ -43,7 +43,11 @@
+ #define UPD_BOOT_INFO_SMEM_SIZE		4096
+ #define UPD_BOOT_INFO_HEADER_TYPE	0x2
+ #define UPD_BOOT_INFO_SMEM_ID		507
+-#define VERSION2			2
++
++enum q6_bootargs_version {
++	VERSION1 = 1,
++	VERSION2,
++};
+ 
+ /**
+  * struct userpd_boot_info_header - header of user pd bootinfo
+@@ -78,6 +82,8 @@
+ 	phys_addr_t mem_reloc;
+ 	void *mem_region;
+ 	size_t mem_size;
++	struct clk_bulk_data *clks;
++	int num_clks;
+ 	const struct wcss_data *desc;
+ 	const char **firmware;
+ 	struct userpd *upd[MAX_UPD];
+@@ -89,11 +95,13 @@
+ 	struct qcom_rproc_ssr ssr_subdev;
+ 	struct qcom_q6v5 q6;
+ 	void *irq_group;
++	bool parent_booted;
+ };
+ 
+ struct wcss_data {
+ 	u32 pasid;
+ 	bool share_upd_info_to_q6;
++	u8 bootargs_version;
+ };
+ 
+ /**
+@@ -139,43 +147,70 @@
+ 
+ static int q6_wcss_spawn_pd(struct rproc *rproc)
+ {
+-	int ret;
+ 	struct userpd *upd = rproc->priv;
++	int ret;
+ 
+ 	ret = qcom_q6v5_request_spawn(&upd->q6);
+-	if (ret == -ETIMEDOUT) {
+-		dev_err(upd->dev, "%s spawn timedout\n", rproc->name);
++	if (ret) {
++		dev_err(upd->dev, "%s spawn failed: %d\n", rproc->name, ret);
+ 		return ret;
+ 	}
+ 
+ 	ret = qcom_q6v5_wait_for_start(&upd->q6, msecs_to_jiffies(10000));
+-	if (ret == -ETIMEDOUT) {
+-		dev_err(upd->dev, "%s start timedout\n", rproc->name);
++	if (ret) {
++		dev_err(upd->dev, "%s start failed: %d\n", rproc->name, ret);
+ 		upd->q6.running = false;
+ 		return ret;
+ 	}
+ 	upd->q6.running = true;
+-	return ret;
++	return 0;
+ }
+ 
+ static int wcss_pd_start(struct rproc *rproc)
+ {
+ 	struct userpd *upd = rproc->priv;
++	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
++	struct q6_wcss *wcss = rpd_rproc->priv;
+ 	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
+-	int ret;
++	int ret, err;
+ 
+ 	ret = qcom_scm_msa_lock(pasid);
+ 	if (ret) {
+ 		dev_err(upd->dev, "failed to power up pd\n");
+-		return ret;
++		goto shutdown_parent;
+ 	}
+ 
+ 	if (upd->q6.spawn_bit) {
+ 		ret = q6_wcss_spawn_pd(rproc);
+ 		if (ret)
+-			return ret;
++			goto unlock_msa;
+ 	}
+ 
++	if (upd->pd_asid == 1) {
++		ret = qcom_scm_internal_wifi_powerup(wcss->desc->pasid);
++		if (ret) {
++			dev_err(upd->dev, "failed to power up internal radio\n");
++			if (upd->q6.running) {
++				err = qcom_q6v5_request_stop(&upd->q6, NULL);
++				if (err)
++					dev_warn(upd->dev, "failed to stop pd: %d\n", err);
++			}
++			goto unlock_msa;
++		}
++	}
++
++	return 0;
++
++unlock_msa:
++	err = qcom_scm_msa_unlock(pasid);
++	if (err)
++		dev_warn(upd->dev, "failed to unlock pd: %d\n", err);
++	upd->q6.running = false;
++shutdown_parent:
++	if (upd->parent_booted) {
++		rproc_shutdown(rpd_rproc);
++		upd->parent_booted = false;
++	}
+ 	return ret;
+ }
+ 
+@@ -185,6 +220,12 @@
+ 	const struct wcss_data *desc = wcss->desc;
+ 	int ret;
+ 
++	ret = qcom_q6v5_request_stop(&wcss->q6, NULL);
++	if (ret) {
++		dev_err(wcss->dev, "pd not stopped\n");
++		return ret;
++	}
++
+ 	ret = qcom_scm_pas_shutdown(desc->pasid);
+ 	if (ret) {
+ 		dev_err(wcss->dev, "not able to shutdown\n");
+@@ -224,6 +265,7 @@
+ {
+ 	struct userpd *upd = rproc->priv;
+ 	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
++	struct q6_wcss *wcss = rpd_rproc->priv;
+ 	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
+ 	int ret;
+ 
+@@ -235,13 +277,24 @@
+ 		}
+ 	}
+ 
++	if (upd->pd_asid == 1) {
++		ret = qcom_scm_internal_wifi_shutdown(wcss->desc->pasid);
++		if (ret) {
++			dev_err(upd->dev, "failed to power down internal radio\n");
++			return ret;
++		}
++	}
++
+ 	ret = qcom_scm_msa_unlock(pasid);
+ 	if (ret) {
+ 		dev_err(upd->dev, "failed to power down pd\n");
+ 		return ret;
+ 	}
+ 
+-	rproc_shutdown(rpd_rproc);
++	if (upd->parent_booted) {
++		rproc_shutdown(rpd_rproc);
++		upd->parent_booted = false;
++	}
+ 
+ 	return 0;
+ }
+@@ -279,10 +332,13 @@
+ static int share_upd_bootinfo_to_q6(struct rproc *rproc)
+ {
+ 	int i, ret;
++	u32 rd_val;
+ 	size_t size;
+ 	u16 cnt = 0, version;
+ 	void *ptr;
++	u8 *bootargs_arr;
+ 	struct q6_wcss *wcss = rproc->priv;
++	struct device_node *np = wcss->dev->of_node;
+ 	struct userpd *upd;
+ 	struct userpd_boot_info upd_bootinfo = {0};
+ 	const struct firmware *fw;
+@@ -304,10 +360,47 @@
+ 	}
+ 
+ 	/*Version*/
+-	version = VERSION2;
++	version = (wcss->desc->bootargs_version) ? wcss->desc->bootargs_version : VERSION2;
+ 	memcpy_toio(ptr, &version, sizeof(version));
+ 	ptr += sizeof(version);
+ 
++	cnt = ret = of_property_count_u32_elems(np, "boot-args");
++	if (ret < 0) {
++		if (ret == -ENODATA) {
++			dev_err(wcss->dev, "failed to read boot args ret:%d\n", ret);
++			return ret;
++		}
++		cnt = 0;
++	}
++
++	/* No of elements */
++	memcpy_toio(ptr, &cnt, sizeof(u16));
++	ptr += sizeof(u16);
++
++	bootargs_arr = kzalloc(cnt, GFP_KERNEL);
++	if (!bootargs_arr) {
++		dev_err(wcss->dev, "failed to allocate memory\n");
++		return PTR_ERR(bootargs_arr);
++	}
++
++	for (i = 0; i < cnt; i++) {
++		ret = of_property_read_u32_index(np, "boot-args", i, &rd_val);
++		if (ret) {
++			dev_err(wcss->dev, "failed to read boot args\n");
++			kfree(bootargs_arr);
++			return ret;
++		}
++		bootargs_arr[i] = (u8)rd_val;
++	}
++
++	/* Copy bootargs */
++	memcpy_toio(ptr, bootargs_arr, cnt);
++	ptr += (cnt);
++
++	of_node_put(np);
++	kfree(bootargs_arr);
++	cnt = 0;
++
+ 	for (i = 0; i < ARRAY_SIZE(wcss->upd); i++)
+ 		if (wcss->upd[i])
+ 			cnt++;
+@@ -363,12 +456,14 @@
+ 
+ 	/* Share user pd boot info to Q6 remote processor */
+ 	if (desc->share_upd_info_to_q6) {
+-		ret = share_upd_bootinfo_to_q6(rproc);
+-		if (ret) {
+-			dev_err(wcss->dev,
+-				"user pd boot info sharing with q6 failed %d\n",
+-				ret);
+-			return ret;
++		if (of_property_present(wcss->dev->of_node, "boot-args")) {
++			ret = share_upd_bootinfo_to_q6(rproc);
++			if (ret) {
++				dev_err(wcss->dev,
++					"user pd boot info sharing with q6 failed %d\n",
++					ret);
++				return ret;
++			}
+ 		}
+ 	}
+ 
+@@ -436,17 +531,21 @@
+ 	struct userpd *upd = rproc->priv;
+ 	struct rproc *rpd_rproc = dev_get_drvdata(upd->dev->parent);
+ 	struct q6_wcss *wcss = rpd_rproc->priv;
+-	u32 pasid = (upd->pd_asid << 8) | UPD_SWID;
+ 	int ret;
+ 
+ 	ret = rproc_boot(rpd_rproc);
+ 	if (ret)
+ 		return ret;
++	upd->parent_booted = true;
+ 
+-	return qcom_mdt_load(upd->dev, fw, rproc->firmware,
+-			     pasid, wcss->mem_region,
+-			     wcss->mem_phys, wcss->mem_size,
+-			     NULL);
++	ret = qcom_mdt_load_pd_seg(upd->dev, fw, rproc->firmware,
++				 wcss->desc->pasid, upd->pd_asid, wcss->mem_region,
++				 wcss->mem_phys, wcss->mem_size, NULL);
++	if (ret) {
++		rproc_shutdown(rpd_rproc);
++		upd->parent_booted = false;
++	}
++	return ret;
+ }
+ 
+ static unsigned long q6_wcss_panic(struct rproc *rproc)
+@@ -757,6 +856,11 @@
+ 	if (ret)
+ 		goto free_rproc;
+ 
++	wcss->num_clks = devm_clk_bulk_get_all_enabled(wcss->dev, &wcss->clks);
++	if (wcss->num_clks < 0)
++		return dev_err_probe(wcss->dev, wcss->num_clks,
++				     "failed to acquire and enable clocks\n");
++
+ 	ret = qcom_q6v5_init(&wcss->q6, pdev, rproc,
+ 			     WCSS_CRASH_REASON, NULL, NULL);
+ 	if (ret)
+@@ -808,9 +912,17 @@
+ 	platform_set_drvdata(pdev, NULL);
+ }
+ 
++static const struct wcss_data q6_ipq5018_res_init = {
++	.pasid = MPD_WCNSS_PAS_ID,
++	.share_upd_info_to_q6 = true,
++	.bootargs_version = VERSION1,
++	// .mdt_load_sec = qcom_mdt_load_pd_seg,
++};
++
+ static const struct wcss_data q6_ipq5332_res_init = {
+ 	.pasid = MPD_WCNSS_PAS_ID,
+ 	.share_upd_info_to_q6 = true,
++	.bootargs_version = VERSION2,
+ };
+ 
+ static const struct wcss_data q6_ipq9574_res_init = {
+@@ -818,6 +930,7 @@
+ };
+ 
+ static const struct of_device_id q6_wcss_of_match[] = {
++	{ .compatible = "qcom,ipq5018-q6-mpd", .data = &q6_ipq5018_res_init },
+ 	{ .compatible = "qcom,ipq5332-q6-mpd", .data = &q6_ipq5332_res_init },
+ 	{ .compatible = "qcom,ipq9574-q6-mpd", .data = &q6_ipq9574_res_init },
+ 	{ },

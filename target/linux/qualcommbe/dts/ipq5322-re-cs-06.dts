@@ -93,14 +93,20 @@
 	ports {
 		port@1 {
 			label = "lan1";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		port@2 {
 			label = "lan2";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		port@3 {
 			label = "lan3";
+			nvmem-cells = <&lan_macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 
 		port@4 {
@@ -109,11 +115,6 @@
 			nvmem-cell-names = "mac-address";
 		};
 	};
-};
-
-&ppe_qca8386 {
-	nvmem-cells = <&lan_macaddr 0>;
-	nvmem-cell-names = "mac-address";
 };
 
 &pcs1 {

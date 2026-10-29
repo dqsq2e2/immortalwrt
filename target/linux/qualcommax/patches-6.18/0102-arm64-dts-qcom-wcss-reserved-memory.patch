@@ -1,0 +1,190 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Tue, 27 Oct 2026 09:40:00 +0800
+Subject: [PATCH] arm64: dts: qcom: describe reserved WCSS firmware memory
+
+Consolidate consecutive changes within this functional responsibility.
+Retain the final implementation and its error handling directly.
+
+Merged from:
+  0102-arm64-dts-ipq8074-add-reserved-memory-nodes.patch
+  0103-arm64-dts-ipq6018-add-reserved-memory-nodes.patch
+  0104-arm64-dts-ipq5018-add-reserved-memory-nodes.patch
+
+Based on work by:
+  OpenWrt community <openwrt-devel@lists.openwrt.org>
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/arch/arm64/boot/dts/qcom/ipq5018.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq5018.dtsi
+@@ -136,17 +136,27 @@
+ 		#size-cells = <2>;
+ 		ranges;
+ 
+-		bootloader@4a800000 {
++		nss_region: nss@40000000 {
++			reg = <0x0 0x40000000 0x0 0x1000000>;
++			no-map;
++		};
++
++		tz_apps_region: tz_apps@4a400000 {
++			reg = <0x0 0x4a400000 0x0 0x400000>;
++			no-map;
++		};
++
++		bootloader_region: bootloader@4a800000 {
+ 			reg = <0x0 0x4a800000 0x0 0x200000>;
+ 			no-map;
+ 		};
+ 
+-		sbl@4aa00000 {
++		sbl_region: sbl@4aa00000 {
+ 			reg = <0x0 0x4aa00000 0x0 0x100000>;
+ 			no-map;
+ 		};
+ 
+-		smem@4ab00000 {
++		smem_region: smem@4ab00000 {
+ 			compatible = "qcom,smem";
+ 			reg = <0x0 0x4ab00000 0x0 0x100000>;
+ 			no-map;
+--- a/arch/arm64/boot/dts/qcom/ipq6018.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq6018.dtsi
+@@ -189,27 +189,32 @@
+ 		#size-cells = <2>;
+ 		ranges;
+ 
+-		rpm_msg_ram: memory@60000 {
++		rpm_msg_ram: rpm_msg_ram@60000 {
+ 			reg = <0x0 0x00060000 0x0 0x6000>;
+ 			no-map;
+ 		};
+ 
+-		bootloader@4a100000 {
++		nss_region: nss@40000000 {
++			reg = <0x0 0x40000000 0x0 0x1000000>;
++			no-map;
++		};
++
++		bootloader_region: bootloader@4a100000 {
+ 			reg = <0x0 0x4a100000 0x0 0x400000>;
+ 			no-map;
+ 		};
+ 
+-		sbl@4a500000 {
++		sbl_region: sbl@4a500000 {
+ 			reg = <0x0 0x4a500000 0x0 0x100000>;
+ 			no-map;
+ 		};
+ 
+-		tz: memory@4a600000 {
++		tz_region: tz@4a600000 {
+ 			reg = <0x0 0x4a600000 0x0 0x400000>;
+ 			no-map;
+ 		};
+ 
+-		smem_region: memory@4aa00000 {
++		smem_region: smem@4aa00000 {
+ 			compatible = "qcom,smem";
+ 			reg = <0x0 0x4aa00000 0x0 0x100000>;
+ 			no-map;
+@@ -217,10 +222,29 @@
+ 			hwlocks = <&tcsr_mutex 3>;
+ 		};
+ 
+-		q6_region: memory@4ab00000 {
+-			reg = <0x0 0x4ab00000 0x0 0x5500000>;
++		q6_region: q6@4ab00000 {
++			reg = <0x0 0x4ab00000 0x0 0x4000000>;
+ 			no-map;
+ 		};
++
++		q6_etr_region: q6_etr@4eb00000 {
++			reg = <0x0 0x4eb00000 0x0 0x100000>;
++			no-map;
++		};
++
++		m3_dump_region: m3_dump@4ec00000 {
++			reg = <0x0 0x4ec00000 0x0 0x100000>;
++			no-map;
++		};
++
++		ramoops_region: ramoops@4ed00000 {
++			compatible = "ramoops";
++			reg = <0x0 0x4ed00000 0x0 0x100000>;
++			no-map;
++
++			record-size = <0x4000>;
++			console-size = <0x4000>;
++		};
+ 	};
+ 
+ 	soc: soc@0 {
+--- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
+@@ -86,17 +86,27 @@
+ 		#size-cells = <2>;
+ 		ranges;
+ 
+-		bootloader@4a600000 {
++		nss_region: nss@40000000 {
++			reg = <0x0 0x40000000 0x0 0x1000000>;
++			no-map;
++		};
++
++		tzapp_region: tzapp@4a400000 {
++			reg = <0x0 0x4a400000 0x0 0x200000>;
++			no-map;
++		};
++
++		bootloader_region: bootloader@4a600000 {
+ 			reg = <0x0 0x4a600000 0x0 0x400000>;
+ 			no-map;
+ 		};
+ 
+-		sbl@4aa00000 {
++		sbl_region: sbl@4aa00000 {
+ 			reg = <0x0 0x4aa00000 0x0 0x100000>;
+ 			no-map;
+ 		};
+ 
+-		smem@4ab00000 {
++		smem_region: smem@4ab00000 {
+ 			compatible = "qcom,smem";
+ 			reg = <0x0 0x4ab00000 0x0 0x100000>;
+ 			no-map;
+@@ -104,10 +114,33 @@
+ 			hwlocks = <&tcsr_mutex 3>;
+ 		};
+ 
+-		memory@4ac00000 {
++		memory_region: memory@4ac00000 {
+ 			reg = <0x0 0x4ac00000 0x0 0x400000>;
+ 			no-map;
+ 		};
++
++		q6_region: q6@4b000000 {
++			reg = <0x0 0x4b000000 0x0 0x4000000>;
++			no-map;
++		};
++
++		q6_etr_region: q6_etr@4f000000 {
++			reg = <0x0 0x4f000000 0x0 0x100000>;
++			no-map;
++		};
++
++		m3_dump_region: m3_dump@4f100000 {
++			reg = <0x0 0x4f100000 0x0 0x100000>;
++			no-map;
++		};
++
++		ramoops_region: ramoops@4f200000 {
++			compatible = "ramoops";
++			reg = <0x0 0x4f200000 0x0 0x100000>;
++			no-map;
++			record-size = <0x4000>;
++			console-size = <0x4000>;
++		};
+ 	};
+ 
+ 	firmware {

@@ -1,31 +1,28 @@
-From: Julius Bairaktaris <julius@bairaktaris.de>
+From: ViKing <viking.yfy@qq.com>
 Date: Sun, 13 Sep 2026 12:32:09 +0200
+Original-author: Julius Bairaktaris <julius@bairaktaris.de>
 Subject: [PATCH] netfilter: flowtable: advertise the vlan match in
  used_keys
 
-nf_flow_rule_match() fills the vlan and cvlan keys and sets their
-dissector offsets, but leaves their bits clear in used_keys.
-flow_rule_match_key() reads used_keys, so no driver sees the vlan
-match.
+nf_flow_rule_match() fills the vlan and cvlan keys but does not set
+their bits in used_keys, so flow_rule_match_key() reports neither key
+to a driver. mlx5e then finds no vlan match in a flowtable rule and,
+unless the filter device is a vlan device, installs an untagged-only
+match that the tagged frames of the flow never hit.
 
-mlx5e consumes flowtable rules through mlx5e_rep_setup_ft_cb() and
-__parse_cls_flower(). With the vlan key undeclared and a filter device
-that is not a vlan device, the parser sets cvlan_tag in the match
-criteria with a zero value, an untagged-only match that the tagged
-frames of the flow never hit.
-
-Set the bits where the keys are filled.
+Set the used_keys bits where the keys are filled.
 
 Fixes: 3e1b0c168f6c ("netfilter: flowtable: add vlan match offload support")
-Assisted-by: Claude:claude-fable-5-1
 Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 ---
  net/netfilter/nf_flow_table_offload.c | 5 +++++
  1 file changed, 5 insertions(+)
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/net/netfilter/nf_flow_table_offload.c
 +++ b/net/netfilter/nf_flow_table_offload.c
-@@ -124,6 +124,7 @@ static int nf_flow_rule_match(struct nf_
+@@ -124,6 +124,7 @@
  		nf_flow_rule_vlan_match(&key->vlan, &mask->vlan,
  					tuple->encap[0].id,
  					tuple->encap[0].proto);
@@ -33,7 +30,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
  		vlan_encap = true;
  	}
  
-@@ -135,12 +136,16 @@ static int nf_flow_rule_match(struct nf_
+@@ -135,12 +136,16 @@
  			nf_flow_rule_vlan_match(&key->cvlan, &mask->cvlan,
  						tuple->encap[1].id,
  						tuple->encap[1].proto);

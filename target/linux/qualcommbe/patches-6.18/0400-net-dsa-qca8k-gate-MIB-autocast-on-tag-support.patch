@@ -1,4 +1,5 @@
-From: Local OpenWrt development
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: dsa: qca8k: gate MIB autocast on tag support
 
 The QCA_4B and QCA_8021Q taggers have no MIB receive handler.
@@ -7,6 +8,7 @@ statistics fallback. Keep legacy QCA autocast available by checking the
 registered handler rather than the initially unset priv->proto.
 
 [viking.yfy@qq.com: complete imported patch metadata]
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 ---
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c

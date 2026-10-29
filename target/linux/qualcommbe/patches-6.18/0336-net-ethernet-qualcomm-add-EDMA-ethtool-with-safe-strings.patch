@@ -1,5 +1,5 @@
 From: Pavithra R <quic_pavir@quicinc.com>
-Date: Thu, 30 May 2024 20:46:36 +0530
+Date: Wed, 28 Oct 2026 13:34:14 +0800
 Subject: [PATCH] net: ethernet: qualcomm: add EDMA ethtool support with
  initialized strings
 
@@ -12,6 +12,7 @@ Source-patch: 0336-net-ethernet-qualcomm-Add-ethtool-support-for-EDMA.patch (033
 Source-patch: 0616-net-ethernet-qualcomm-ppe-harden-ethtool-stat-strings.patch
 
 [viking.yfy@qq.com: fold only the direct correction into its feature]
+
 Signed-off-by: Pavithra R <quic_pavir@quicinc.com>
 Signed-off-by: Alexandru Gagniuc <mr.nuke.me@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>

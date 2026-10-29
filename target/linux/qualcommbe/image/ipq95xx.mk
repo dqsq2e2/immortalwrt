@@ -103,3 +103,30 @@ define Device/xiaomi_be7000-pro
 	SUPPORTED_DEVICES += xiaomi,be7000-pro
 endef
 TARGET_DEVICES += xiaomi_be7000-pro
+
+define Device/xiaomi_be10000-common
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := Xiaomi
+	DEVICE_DTS_CONFIG := config@al02-c6
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_PACKAGES := ath12k-firmware-qcn9274-ddwrt \
+		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools
+endef
+
+define Device/xiaomi_be10000
+	$(call Device/xiaomi_be10000-common)
+	DEVICE_MODEL := BE10000
+	SOC := ipq9570
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000
+endef
+TARGET_DEVICES += xiaomi_be10000
+
+define Device/xiaomi_be10000-pro
+	$(call Device/xiaomi_be10000-common)
+	DEVICE_MODEL := BE10000 Pro
+	SOC := ipq9574
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000-pro
+endef
+TARGET_DEVICES += xiaomi_be10000-pro

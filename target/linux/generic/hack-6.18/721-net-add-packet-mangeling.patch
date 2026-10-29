@@ -1,5 +1,5 @@
 From ffe387740bbe88dd88bbe04d6375902708003d6e Mon Sep 17 00:00:00 2001
-From: Felix Fietkau <nbd@nbd.name>
+From: ViKing <viking.yfy@qq.com>
 Date: Fri, 7 Jul 2017 17:25:00 +0200
 Subject: net: add packet mangeling
 
@@ -17,9 +17,11 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  net/ethernet/eth.c        |  6 ++++++
  6 files changed, 58 insertions(+), 15 deletions(-)
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
-@@ -1751,6 +1751,7 @@ enum netdev_priv_flags {
+@@ -1751,6 +1751,7 @@
  	IFF_L3MDEV_RX_HANDLER		= 1<<29,
  	IFF_NO_ADDRCONF			= BIT_ULL(30),
  	IFF_TX_SKB_NO_LINEAR		= BIT_ULL(31),
@@ -27,7 +29,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  };
  
  /* Specifies the type of the struct net_device::ml_priv pointer */
-@@ -2253,6 +2254,11 @@ struct net_device {
+@@ -2253,6 +2254,11 @@
  	const struct tlsdev_ops *tlsdev_ops;
  #endif
  
@@ -39,7 +41,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	unsigned int		operstate;
  	unsigned char		link_mode;
  
-@@ -2329,6 +2335,10 @@ struct net_device {
+@@ -2329,6 +2335,10 @@
  	struct psp_dev __rcu	*psp_dev;
  #endif
  
@@ -52,7 +54,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   */
 --- a/include/linux/skbuff.h
 +++ b/include/linux/skbuff.h
-@@ -3345,6 +3345,10 @@ static inline int pskb_trim(struct sk_bu
+@@ -3345,6 +3345,10 @@
  	return (len < skb->len) ? __pskb_trim(skb, len) : 0;
  }
  
@@ -63,7 +65,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  /**
   *	pskb_trim_unique - remove end from a paged unique (not cloned) buffer
   *	@skb: buffer to alter
-@@ -3510,16 +3514,6 @@ static inline struct sk_buff *dev_alloc_
+@@ -3510,16 +3514,6 @@
  }
  
  
@@ -82,7 +84,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  {
 --- a/net/Kconfig
 +++ b/net/Kconfig
-@@ -26,6 +26,12 @@ menuconfig NET
+@@ -26,6 +26,12 @@
  
  if NET
  
@@ -97,7 +99,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	help
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
-@@ -3905,6 +3905,11 @@ static int xmit_one(struct sk_buff *skb,
+@@ -3905,6 +3905,11 @@
  	if (dev_nit_active_rcu(dev))
  		dev_queue_xmit_nit(skb, dev);
  
@@ -119,7 +121,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  #include <net/protocol.h>
  #include <net/dst.h>
-@@ -254,6 +255,22 @@ void *__napi_alloc_frag_align(unsigned i
+@@ -254,6 +255,22 @@
  }
  EXPORT_SYMBOL(__napi_alloc_frag_align);
  
@@ -144,7 +146,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	void *data;
 --- a/net/ethernet/eth.c
 +++ b/net/ethernet/eth.c
-@@ -159,6 +159,12 @@ __be16 eth_type_trans(struct sk_buff *sk
+@@ -159,6 +159,12 @@
  	const struct ethhdr *eth;
  
  	skb->dev = dev;
