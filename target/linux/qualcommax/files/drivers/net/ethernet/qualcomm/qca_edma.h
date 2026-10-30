@@ -13,7 +13,6 @@
 #include <linux/netdevice.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
-#include <linux/soc/qcom/qca_ppe.h>
 #include <net/dsa.h>
 #include <net/page_pool/helpers.h>
 
@@ -193,6 +192,8 @@
 #define EDMA_QID2RID_QUEUES_PER_ENTRY	8
 #define EDMA_RSS_QUEUES			4
 #define EDMA_RSS_HASHED_QUEUES		12
+/* The switch CPU port owns queues 0-15. */
+#define EDMA_CPU_QUEUES			16
 
 /* TXDESC to TXCMPL ring mapping */
 #define EDMA_REG_TXDESC2CMPL_MAP(n) (0x0c + 0x4 * (n))
@@ -315,8 +316,6 @@ struct edma_stats {
 	u64 rx_fill_starved;
 	u64 tx_desc_error;
 	u64 tx_unnamed_frame;
-	u64 rx_ppe_csum_drop;
-	u64 rx_ppe_csum_fallback;
 	u64 tx_pending_reopen;
 	u64 rx_pending_reopen;
 };
@@ -406,7 +405,6 @@ struct edma_priv {
 	struct regmap *regmap;
 	void __iomem *base;
 	struct reset_control *rst;
-	struct qca_ppe_wifi_inject_ops wifi_inject_ops;
 	u32 rx_buffer_size;
 	u32 rx_frame_len;
 	u8 rx_page_order;
@@ -439,10 +437,8 @@ struct edma_priv {
 	 */
 	struct dsa_switch *sw_ds;
 	const struct qca_edma_switch_ops *sw_ops;
-	/* Serializes callback lifetime with conduit open/stop. */
+	/* Serializes switch callback registration and removal. */
 	struct mutex sw_lock;
-	bool wifi_ready;
-	bool wifi_published;
 };
 
 #endif /* __QCA_EDMA_H__ */

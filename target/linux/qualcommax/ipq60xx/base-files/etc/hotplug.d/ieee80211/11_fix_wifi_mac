@@ -31,6 +31,14 @@ case "$board" in
 		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 1 > /sys${DEVPATH}/macaddress
 		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
 		;;
+	jdcloud,re-cs-02|\
+	jdcloud,re-cs-07|\
+	jdcloud,re-ss-01)
+		label_mac=$(get_mac_label)
+		[ "$PHYNBR" = "0" ] && macaddr_add $label_mac 2 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "1" ] && macaddr_add $label_mac 3 > /sys${DEVPATH}/macaddress
+		[ "$PHYNBR" = "2" ] && macaddr_add $label_mac 4 > /sys${DEVPATH}/macaddress
+		;;
 	link,nn6000-v1|\
 	link,nn6000-v2)
 		label_mac=$(mmc_get_mac_binary 0:art 0x18)

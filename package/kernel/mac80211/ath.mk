@@ -3,6 +3,8 @@ PKG_DRIVERS += \
 	ath11k ath11k-ahb ath11k-pci ath12k carl9170 owl-loader ar5523 wil6210 qcom-qmi-helpers
 
 PKG_CONFIG_DEPENDS += \
+	CONFIG_ATH11K_NSS_WIFI \
+	CONFIG_NSS_WIFI_DEBUG \
 	CONFIG_PACKAGE_ATH_DEBUG \
 	CONFIG_PACKAGE_ATH_DFS \
 	CONFIG_PACKAGE_ATH_SPECTRAL \
@@ -343,7 +345,8 @@ define KernelPackage/ath11k
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath11k
   DEPENDS+= +kmod-ath +@DRIVER_11AC_SUPPORT +@DRIVER_11AX_SUPPORT \
   +kmod-crypto-michael-mic +ATH11K_THERMAL:kmod-hwmon-core \
-  +ATH11K_THERMAL:kmod-thermal +kmod-qcom-qmi-helpers
+  +ATH11K_THERMAL:kmod-thermal +kmod-qcom-qmi-helpers \
+  $(if $(DUMP),,$(if $(CONFIG_ATH11K_NSS_WIFI),+kmod-nss-wifi-drv))
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath11k/ath11k.ko
 endef
 
@@ -359,6 +362,22 @@ define KernelPackage/ath11k/config
                depends on PACKAGE_kmod-ath11k
                default y if TARGET_qualcommax || TARGET_qualcommbe_ipq95xx
 
+       config ATH11K_NSS_WIFI
+               bool "Describe the data-path rings to the NSS firmware"
+               depends on PACKAGE_kmod-ath11k
+               depends on TARGET_qualcommax_ipq807x || TARGET_qualcommax_ipq60xx
+               default y
+               select PACKAGE_kmod-nss-wifi-drv
+               help
+                 The NSS cores can reap the WLAN hardware's rings
+                 themselves, which takes the Wi-Fi data path off the host.
+                 Say Y to have ath11k describe those rings to the NSS
+                 firmware driver when its data path is set up.
+
+                 The nss-wifi service selects NSS or the host path before
+                 loading the radio bus modules. Disable its offload option
+                 and reboot to use the host software data path.
+
 endef
 
 define KernelPackage/ath11k-ahb
@@ -367,7 +386,7 @@ define KernelPackage/ath11k-ahb
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath11k
   DEPENDS+= @(TARGET_qualcommax||TARGET_qualcommbe_ipq95xx) +kmod-ath11k +kmod-qrtr-smd
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath11k/ath11k_ahb.ko
-  AUTOLOAD:=$(call AutoProbe,ath11k_ahb)
+  AUTOLOAD:=$(if $(CONFIG_ATH11K_NSS_WIFI),,$(call AutoProbe,ath11k_ahb))
 endef
 
 define KernelPackage/ath11k-ahb/description
@@ -381,7 +400,7 @@ define KernelPackage/ath11k-pci
   URL:=https://wireless.wiki.kernel.org/en/users/drivers/ath11k
   DEPENDS+= @PCI_SUPPORT +kmod-qrtr-mhi +kmod-ath11k
   FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/ath11k/ath11k_pci.ko
-  AUTOLOAD:=$(call AutoProbe,ath11k_pci)
+  AUTOLOAD:=$(if $(CONFIG_ATH11K_NSS_WIFI),,$(call AutoProbe,ath11k_pci))
 endef
 
 define KernelPackage/ath11k-pci/description

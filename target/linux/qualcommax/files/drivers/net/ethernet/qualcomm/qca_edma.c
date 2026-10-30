@@ -25,10 +25,7 @@
 #include <linux/regmap.h>
 #include <linux/unaligned.h>
 #include <linux/reset.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
-#include <net/ip.h>
-#include <net/ipv6.h>
+#include <linux/soc/qcom/qca_edma.h>
 #include <net/dsa.h>
 #include <net/dst_metadata.h>
 #include <net/netdev_queues.h>
@@ -694,64 +691,6 @@ static void edma_rx_peek(struct edma_queue *q, u16 idx, u32 *addr, u32 *status)
 	prefetch(rxph + L1_CACHE_BYTES);
 }
 
-static bool edma_wifi_rx_csum_valid(struct sk_buff *skb)
-{
-	const struct ethhdr *eth = (const void *)skb->data;
-	const struct ipv6hdr *ip6 = NULL;
-	const struct iphdr *ip4 = NULL;
-	const struct udphdr *udp;
-	const struct tcphdr *tcp;
-	unsigned int hlen, len, off;
-	__wsum sum;
-	u8 proto;
-
-	if (skb_headlen(skb) < ETH_HLEN + sizeof(struct iphdr))
-		return false;
-	if (eth->h_proto == htons(ETH_P_IPV6)) {
-		if (skb_headlen(skb) < ETH_HLEN + sizeof(*ip6))
-			return false;
-		ip6 = (const void *)(skb->data + ETH_HLEN);
-		if (ip6->version != 6)
-			return false;
-		hlen = sizeof(*ip6);
-		len = ntohs(ip6->payload_len);
-		proto = ip6->nexthdr;
-	} else if (eth->h_proto == htons(ETH_P_IP)) {
-		ip4 = (const void *)(skb->data + ETH_HLEN);
-		if (ip4->version != 4 || ip4->ihl != 5 || ip_is_fragment(ip4) ||
-		    ip_fast_csum((const void *)ip4, ip4->ihl))
-			return false;
-		hlen = sizeof(*ip4);
-		if (ntohs(ip4->tot_len) < hlen)
-			return false;
-		len = ntohs(ip4->tot_len) - hlen;
-		proto = ip4->protocol;
-	} else {
-		return false;
-	}
-	off = ETH_HLEN + hlen;
-	if (len < sizeof(*udp) || len > skb_headlen(skb) - off)
-		return false;
-	if (proto == IPPROTO_TCP) {
-		if (len < sizeof(*tcp))
-			return false;
-		tcp = (const void *)(skb->data + off);
-		if (tcp->doff < 5 || tcp->doff * 4 > len)
-			return false;
-	} else if (proto == IPPROTO_UDP) {
-		udp = (const void *)(skb->data + off);
-		if (ntohs(udp->len) != len)
-			return false;
-		if (!udp->check)
-			return !!ip4;
-	} else {
-		return false;
-	}
-	sum = skb_checksum(skb, off, len, 0);
-	if (ip4)
-		return !csum_tcpudp_magic(ip4->saddr, ip4->daddr, len, proto, sum);
-	return !csum_ipv6_magic(&ip6->saddr, &ip6->daddr, len, proto, sum);
-}
 
 static u32 edma_clean_rx(struct edma_queue *q, int budget)
 {
@@ -844,55 +783,6 @@ static u32 edma_clean_rx(struct edma_queue *q, int budget)
 		 * the ring, so each ring's CPU feeds a queue of its own.
 		 */
 		skb_record_rx_queue(skb, q->idx);
-		{
-			const struct qca_edma_switch_ops *ops =
-				smp_load_acquire(&priv->sw_ops);
-
-			if (ops && ops->wifi_ingress_return &&
-			    ops->wifi_ingress_return(skb, src_port))
-				goto next;
-		}
-
-		/* src_info is the original ingress port, not the CPU destination.
-		 * Only a flow-installed service marker identifies edited WLAN data.
-		 * Exception CPU codes retain the normal DSA/slow path. */
-		if ((le32_to_cpu(rxph->rx_pre4) & 0xff) == QCA_PPE_WIFI_SERVICE_CODE &&
-		    !(le32_to_cpu(rxph->rx_pre4) >> 24)) {
-			const struct ethhdr *eh = (const void *)skb->data;
-			u32 csum_ok = EDMA_RXDESC_L4_CSUM_OK;
-
-			/* An IPv6 header carries no checksum, so the engine has
-			 * no L3 verdict to report and only the L4 one gates it.
-			 * edma_rx_csum() skips the L3 check for the same reason. */
-			if (skb_headlen(skb) < ETH_HLEN || eh->h_proto != htons(ETH_P_IPV6))
-				csum_ok |= EDMA_RXDESC_L3_CSUM_OK;
-			if ((desc_status & csum_ok) != csum_ok) {
-				/* R48 sends unverified service-code frames to callbacks.
-				 * This callback bypasses the stack, so validate here.
-				 */
-				if (!edma_wifi_rx_csum_valid(skb)) {
-					q->stats.rx_ppe_csum_drop++;
-					dev_kfree_skb_any(skb);
-					DEV_STATS_INC(netdev, rx_dropped);
-					goto next;
-				}
-				q->stats.rx_ppe_csum_fallback++;
-			}
-			{
-				const struct qca_edma_switch_ops *ops =
-					smp_load_acquire(&priv->sw_ops);
-
-				if (ops && ops->wifi_xmit)
-					ops->wifi_xmit(skb, src_port);
-				else {
-					dev_kfree_skb_any(skb);
-					DEV_STATS_INC(netdev, rx_dropped);
-				}
-			}
-			dev_sw_netstats_rx_add(priv->netdev, pkt_len);
-			goto next;
-		}
-
 
 		if (edma_rx_flow(netdev, skb, rxph)) {
 			dev_sw_netstats_rx_add(netdev, pkt_len);
@@ -1081,8 +971,7 @@ static bool edma_tx_map(struct device *dev, struct edma_ring *ring,
  * which comes off once the frame is sure to be taken.
  */
 static netdev_tx_t edma_ring_xmit(struct edma_queue *q, struct net_device *netdev,
-				  struct sk_buff *skb, u16 dst_info, bool tagged,
-				  bool ingress)
+				  struct sk_buff *skb, u16 dst_info, bool tagged)
 {
 	struct netdev_queue *txq = netdev_get_tx_queue(netdev, q->idx);
 	const struct skb_shared_info *shinfo = skb_shinfo(skb);
@@ -1147,19 +1036,10 @@ static netdev_tx_t edma_ring_xmit(struct edma_queue *q, struct net_device *netde
 	txph = (struct edma_tx_preheader *)skb_push(skb, EDMA_TX_PREHDR_SIZE);
 	memset((void *)txph, 0, EDMA_TX_PREHDR_SIZE);
 
-	if (ingress) {
-		/* The AP's private S-tag selects its VSI at CPU ingress before
-		 * route/NAT lookup. The caller already completed checksums.
-		 */
-		txph->src_info = cpu_to_le16(EDMA_PREHDR_DSTINFO_PORTID_IND << 8);
-		txph->dst_info = cpu_to_le16(EDMA_PREHDR_DSTINFO_PORTID_IND << 8);
-		tso = 0;
-	} else {
-		txph->dst_info = dst_info;
-		edma_tx_csum(skb, txph, proto);
-		edma_tx_vlan(skb, txph);
-		tso = edma_tx_tso(skb, txph);
-	}
+	txph->dst_info = dst_info;
+	edma_tx_csum(skb, txph, proto);
+	edma_tx_vlan(skb, txph);
+	tso = edma_tx_tso(skb, txph);
 
 	txdesc_ring->skb_store[idx] = skb;
 	txph->opaque = idx;
@@ -1213,7 +1093,7 @@ static netdev_tx_t edma_ring_xmit(struct edma_queue *q, struct net_device *netde
 	 * would hand them over.
 	 */
 	if (__netdev_tx_sent_queue(txq, bytes,
-				   !ingress && netdev_xmit_more() && !stop))
+				   netdev_xmit_more() && !stop))
 		edma_tx_kick(q);
 	else
 		q->tx_kick = true;
@@ -1246,11 +1126,6 @@ unmap:
 	dma_unmap_single(dev, head_dma, skb_headlen(skb), DMA_TO_DEVICE);
 	txdesc_ring->skb_store[idx] = NULL;
 drop:
-	if (ingress) {
-		skb_pull(skb, EDMA_TX_PREHDR_SIZE);
-		spin_unlock_bh(&q->tx_lock);
-		return NETDEV_TX_BUSY;
-	}
 	dev_kfree_skb_any(skb);
 	if (q->tx_kick)
 		edma_tx_kick(q);
@@ -1651,6 +1526,24 @@ static int edma_hw_init(struct edma_priv *priv)
 	return 0;
 }
 
+/* A receive ring below the host's is enabled only by the NSS firmware, which
+ * shares this block. Rebuilding the rings resets the block and takes that ring
+ * down under it.
+ */
+static bool edma_shared(struct edma_priv *priv)
+{
+	u32 val;
+	int i;
+
+	for (i = 0; i <= priv->soc->rxdesc_ring - priv->max_queues; i++) {
+		regmap_read(priv->regmap, EDMA_REG_RXDESC_CTRL(i), &val);
+		if (val & EDMA_RXDESC_RX_EN)
+			return true;
+	}
+
+	return false;
+}
+
 static void edma_get_ringparam(struct net_device *netdev,
 			       struct ethtool_ringparam *ring,
 			       struct kernel_ethtool_ringparam *kernel_ring,
@@ -1695,23 +1588,35 @@ static int edma_set_ringparam(struct net_device *netdev,
 	    ring->rx_pending == priv->rx_ring_size)
 		return 0;
 
+	if (edma_shared(priv)) {
+		NL_SET_ERR_MSG_MOD(extack, "the NSS firmware shares the rings");
+		return -EBUSY;
+	}
+
 	return edma_reconfigure(priv, netdev->mtu, priv->num_queues,
 				ring->tx_pending, ring->rx_pending);
 }
 
-/* The rebuild asserts the block's reset line, so it is the DMA reset too. */
+/* The rebuild asserts the block's reset line, so it is the DMA reset too.
+ * While the NSS firmware shares the block, only a request for the shared
+ * component resets it.
+ */
 static int edma_reset(struct net_device *netdev, u32 *flags)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
+	u32 shared = ETH_RESET_DMA << ETH_RESET_SHARED_SHIFT;
 	int ret;
 
-	if (!(*flags & ETH_RESET_DMA))
+	if (!(*flags & (ETH_RESET_DMA | shared)))
 		return -EINVAL;
+
+	if (!(*flags & shared) && edma_shared(priv))
+		return -EBUSY;
 
 	ret = edma_reconfigure(priv, netdev->mtu, priv->num_queues,
 			       priv->tx_ring_size, priv->rx_ring_size);
 	if (!ret)
-		*flags &= ~ETH_RESET_DMA;
+		*flags &= ~(ETH_RESET_DMA | shared);
 
 	return ret;
 }
@@ -1892,8 +1797,6 @@ static const char edma_stat_names[][ETH_GSTRING_LEN] = {
 	"rx_fill_starved",
 	"tx_desc_error",
 	"tx_unnamed_frame",
-	"rx_ppe_csum_drop",
-	"rx_ppe_csum_fallback",
 	"tx_pending_reopen",
 	"rx_pending_reopen",
 	"misc_error",
@@ -1954,6 +1857,9 @@ static int edma_set_channels(struct net_device *netdev,
 
 	if (ch->combined_count == priv->num_queues)
 		return 0;
+
+	if (edma_shared(priv))
+		return -EBUSY;
 
 	return edma_reconfigure(priv, netdev->mtu, ch->combined_count,
 				priv->tx_ring_size, priv->rx_ring_size);
@@ -2046,27 +1952,6 @@ static int edma_ndo_set_features(struct net_device *netdev,
 	return 0;
 }
 
-/* A producer can submit only while both the switch and its conduit are
- * ready. Stop callbacks may sleep waiting for RCU, so none run in an RX
- * read-side section. Packet callbacks are drained by synchronize_net().
- */
-static void edma_wifi_state(struct edma_priv *priv, bool ready)
-{
-	const struct qca_edma_switch_ops *ops;
-
-	mutex_lock(&priv->sw_lock);
-	priv->wifi_ready = ready;
-	ops = priv->sw_ops;
-	if (ready && !priv->wifi_published && ops && ops->wifi_register) {
-		ops->wifi_register(&priv->wifi_inject_ops);
-		priv->wifi_published = true;
-	} else if (!ready && priv->wifi_published) {
-		ops->wifi_unregister(&priv->wifi_inject_ops);
-		priv->wifi_published = false;
-	}
-	mutex_unlock(&priv->sw_lock);
-}
-
 static int edma_ndo_open(struct net_device *netdev)
 {
 	struct edma_priv *priv = netdev_priv(netdev);
@@ -2094,7 +1979,6 @@ static int edma_ndo_open(struct net_device *netdev)
 		napi_schedule(&priv->q[i].napi);
 	}
 
-	edma_wifi_state(priv, true);
 	return 0;
 }
 
@@ -2103,7 +1987,6 @@ static int edma_ndo_stop(struct net_device *netdev)
 	struct edma_priv *priv = netdev_priv(netdev);
 	unsigned int i;
 
-	edma_wifi_state(priv, false);
 	for (i = 0; i < priv->num_queues; i++) {
 		edma_tx_irq_mask(&priv->q[i]);
 		edma_rx_irq_mask(&priv->q[i]);
@@ -2252,7 +2135,7 @@ static netdev_tx_t edma_xmit(struct sk_buff *skb, struct net_device *netdev,
 	if (skb_cow_head(skb, netdev->needed_headroom))
 		goto drop;
 
-	return edma_ring_xmit(q, netdev, skb, dst_info, tagged, false);
+	return edma_ring_xmit(q, netdev, skb, dst_info, tagged);
 
 drop:
 	dev_kfree_skb_any(skb);
@@ -2289,19 +2172,6 @@ netdev_tx_t qca_edma_port_xmit(struct sk_buff *skb, struct net_device *conduit,
 }
 EXPORT_SYMBOL_GPL(qca_edma_port_xmit);
 
-/* Errors leave ownership and the private ingress headers with the caller. */
-static int edma_wifi_inject(struct net_device *dev, struct sk_buff *skb)
-{
-	struct edma_priv *priv = netdev_priv(dev);
-
-	if (!netif_running(dev) || !netif_carrier_ok(dev) ||
-	    skb_is_gso(skb) || skb_is_nonlinear(skb) ||
-	    skb_headroom(skb) < EDMA_TX_PREHDR_SIZE)
-		return -ENETDOWN;
-	return edma_ring_xmit(&priv->q[0], dev, skb, 0, false, true) ==
-		NETDEV_TX_OK ? 0 : -EBUSY;
-}
-
 static const struct net_device_ops edma_netdev_ops;
 
 /**
@@ -2320,9 +2190,6 @@ int qca_edma_switch_register(struct net_device *conduit, struct dsa_switch *ds,
 	if (conduit->netdev_ops != &edma_netdev_ops)
 		return -ENODEV;
 	priv = netdev_priv(conduit);
-	/* The register/unregister pair owns producer lifetime together. */
-	if (!!ops->wifi_register != !!ops->wifi_unregister)
-		return -EINVAL;
 	mutex_lock(&priv->sw_lock);
 	if (priv->sw_ops) {
 		mutex_unlock(&priv->sw_lock);
@@ -2330,10 +2197,6 @@ int qca_edma_switch_register(struct net_device *conduit, struct dsa_switch *ds,
 	}
 	WRITE_ONCE(priv->sw_ds, ds);
 	smp_store_release(&priv->sw_ops, ops);
-	if (priv->wifi_ready && ops->wifi_register) {
-		ops->wifi_register(&priv->wifi_inject_ops);
-		priv->wifi_published = true;
-	}
 	mutex_unlock(&priv->sw_lock);
 
 	return 0;
@@ -2354,10 +2217,6 @@ void qca_edma_switch_unregister(struct net_device *conduit)
 		return;
 	priv = netdev_priv(conduit);
 	mutex_lock(&priv->sw_lock);
-	if (priv->wifi_published) {
-		priv->sw_ops->wifi_unregister(&priv->wifi_inject_ops);
-		priv->wifi_published = false;
-	}
 	smp_store_release(&priv->sw_ops, NULL);
 	synchronize_net();
 	WRITE_ONCE(priv->sw_ds, NULL);
@@ -2402,6 +2261,51 @@ static int edma_irq_index(unsigned int queue, unsigned int which)
 	return queue ? EDMA_IRQS_PER_QUEUE + 1 +
 		       (queue - 1) * EDMA_IRQS_PER_QUEUE + which : which;
 }
+
+/* Point every CPU-port queue back at the host receive ring while the NSS
+ * firmware runs. Once written, the table reads back unchanged for as long as
+ * the firmware runs.
+ */
+int qca_edma_cpu_queues_to_host(struct net_device *conduit)
+{
+	if (!conduit || conduit->netdev_ops != &edma_netdev_ops)
+		return -EINVAL;
+
+	edma_qid2rid_set(netdev_priv(conduit));
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_edma_cpu_queues_to_host);
+
+/* Point every CPU-port queue at receive ring @ring, one the NSS firmware
+ * drains. The firmware writes its own table and then enables its rings, so
+ * this waits for @ring to be enabled first.
+ */
+int qca_edma_cpu_queues_to_ring(struct net_device *conduit, unsigned int ring)
+{
+	struct edma_priv *priv;
+	unsigned int i;
+	u32 val;
+	int ret;
+
+	if (!conduit || conduit->netdev_ops != &edma_netdev_ops ||
+	    ring > EDMA_QID2RID_RING_MASK)
+		return -EINVAL;
+
+	priv = netdev_priv(conduit);
+	ret = regmap_read_poll_timeout(priv->regmap, EDMA_REG_RXDESC_CTRL(ring),
+				       val, val & EDMA_RXDESC_RX_EN,
+				       100, 5 * USEC_PER_SEC);
+	if (ret)
+		return ret;
+
+	for (i = 0; i < EDMA_CPU_QUEUES / EDMA_QID2RID_QUEUES_PER_ENTRY; i++)
+		regmap_write(priv->regmap, EDMA_QID2RID_TABLE_MEM(i),
+			     ring * 0x11111111);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(qca_edma_cpu_queues_to_ring);
 
 static int edma_irq_init(struct edma_priv *priv)
 {
@@ -2639,9 +2543,15 @@ static int edma_ndo_change_mtu(struct net_device *netdev, int new_mtu)
 	struct edma_priv *priv = netdev_priv(netdev);
 	int ret = 0;
 
-	if (edma_rx_frame_len(new_mtu) != priv->rx_frame_len)
+	if (edma_rx_frame_len(new_mtu) != priv->rx_frame_len) {
+		if (edma_shared(priv)) {
+			netdev_warn(netdev, "the NSS firmware shares the rings\n");
+			return -EBUSY;
+		}
+
 		ret = edma_reconfigure(priv, new_mtu, priv->num_queues,
 				       priv->tx_ring_size, priv->rx_ring_size);
+	}
 	if (!ret)
 		WRITE_ONCE(netdev->mtu, new_mtu);
 
@@ -2765,15 +2675,13 @@ static int edma_matrix_snapshot_show(struct seq_file *s, void *data)
 			   "tx_pending_reopen:%llu rx_pending_reopen:%llu "
 			   "rx_untracked_page:%llu rx_bad_src_info:%llu rx_no_skb:%llu "
 			   "rx_no_tag:%llu rx_split_frame:%llu rx_fill_starved:%llu "
-			   "tx_desc_error:%llu tx_unnamed_frame:%llu "
-			   "rx_ppe_csum_drop:%llu rx_ppe_csum_fallback:%llu\n",
+			   "tx_desc_error:%llu tx_unnamed_frame:%llu\n",
 			   i, txp, txc, txcp, txcc, rxfp, rxfc, rxdp, rxdc,
 			   q->stats.tx_pending_reopen, q->stats.rx_pending_reopen,
 			   q->stats.rx_untracked_page, q->stats.rx_bad_src_info,
 			   q->stats.rx_no_skb, q->stats.rx_no_tag, q->stats.rx_split_frame,
 			   q->stats.rx_fill_starved, q->stats.tx_desc_error,
-			   q->stats.tx_unnamed_frame, q->stats.rx_ppe_csum_drop,
-			   q->stats.rx_ppe_csum_fallback);
+			   q->stats.tx_unnamed_frame);
 	}
 	rtnl_unlock();
 	return 0;
@@ -2895,9 +2803,6 @@ static int edma_probe(struct platform_device *pdev)
 	edma_page_pools_swap(priv, pools);
 
 	priv->netdev = netdev;
-	priv->wifi_inject_ops.dev = netdev;
-	priv->wifi_inject_ops.xmit = edma_wifi_inject;
-	priv->wifi_inject_ops.headroom = EDMA_TX_PREHDR_SIZE;
 	ret = edma_hw_init(priv);
 	if (ret)
 		goto err_page_pool;

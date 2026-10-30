@@ -9,13 +9,7 @@
 	compatible = "jdcloud,re-cs-07", "qcom,ipq6018";
 
 	aliases {
-		ethernet0 = &swport1;
-		ethernet1 = &swport2;
-		ethernet2 = &swport3;
-		ethernet3 = &swport4;
-
-		label-mac-device = &swport2;
-		serial0 = &blsp1_uart3;
+		label-mac-device = &swport1;
 	};
 
 	keys {
@@ -50,6 +44,8 @@
 		swport1: port@1 {
 			reg = <1>;
 			label = "wan";
+			nvmem-cells = <&macaddr_art 0>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_24>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 0>;
@@ -58,6 +54,8 @@
 		swport2: port@2 {
 			reg = <2>;
 			label = "lan1";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_25>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
@@ -66,6 +64,8 @@
 		swport3: port@3 {
 			reg = <3>;
 			label = "lan2";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_26>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 2>;
@@ -74,6 +74,8 @@
 		swport4: port@4 {
 			reg = <4>;
 			label = "lan3";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_27>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;

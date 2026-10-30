@@ -1,0 +1,478 @@
+From: Julius Bairaktaris <julius@bairaktaris.de>
+Date: Thu, 29 Oct 2026 09:41:02 +0800
+Subject: [PATCH v4] ath11k: hand data frames to the NSS firmware
+
+The firmware owns the transmit ring, so this driver cannot put a frame on
+it, and the handover left transmit refused. A frame goes to the firmware
+instead, addressed to the virtual device the firmware knows the interface
+by, and a frame the firmware hands up names the same device.
+
+The virtual device is registered once the interface's encapsulation mode
+is set and released before the interface goes, so the firmware never names
+one whose peers are already gone. Only an already-encapsulated frame is
+handed over: the hardware builds the 802.11 header from an ethernet frame,
+so a frame still carrying its own header is not one the firmware would read
+the same way. Management leaves over the control path above this, unchanged.
+
+The interface number the registration returns is what a transmitted frame
+is addressed to, so it is kept with the interface rather than looked up per
+frame.
+
+The firmware returns a frame with no transmit status, and the control block
+the subsystem reports against is overwritten on the way down. A frame that
+asks for a status is reported unacknowledged at the divert and a clone is
+sent instead, so its ack-status entry is released.
+
+The firmware also hands up frames the hardware did not decapsulate, such
+as a block ack request from a station, on the same path as ethernet. The
+receive descriptor at the head of the buffer gives the format, and such a
+frame goes to mac80211 as 802.11, as on the host receive path.
+
+Received data frames no longer pass through mac80211, which took a
+station's RX bitrate from them. The rate is taken from the monitor status
+ring instead, which carries the preamble type and frame control once the
+PPDU end user stats TLV is enabled; the last PPDU carrying data sets it.
+
+Retain local airtime accounting and the host TX scheduler. Select the
+mac80211 dequeue path while NSS owns TX, since aggregate NSS completions
+do not release individual host-ring or AQL reservations.
+
+Advertise AQL and host airtime fairness only on the host datapath. NSS
+aggregate completions cannot release mac80211 per-skb AQL reservations.
+
+Propagate NSS VDEV registration errors so mac80211 refuses an interface
+whose data rings belong to the firmware but whose VDEV was rejected.
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/drivers/net/wireless/ath/ath11k/core.c
++++ b/drivers/net/wireless/ath/ath11k/core.c
+@@ -42,6 +42,10 @@
+ module_param_named(nss_offload, ath11k_nss_offload, bool, 0644);
+ MODULE_PARM_DESC(nss_offload, "Hand the data-path rings to the NSS firmware");
+ 
++bool ath11k_nss_host_tx;
++module_param_named(nss_host_tx, ath11k_nss_host_tx, bool, 0644);
++MODULE_PARM_DESC(nss_host_tx, "Transmit from here rather than through the firmware");
++
+ bool ath11k_nss_keep_mask;
+ module_param_named(nss_keep_mask, ath11k_nss_keep_mask, bool, 0644);
+ MODULE_PARM_DESC(nss_keep_mask, "Leave the ring mask alone while offloading");
+--- a/drivers/net/wireless/ath/ath11k/core.h
++++ b/drivers/net/wireless/ath/ath11k/core.h
+@@ -67,6 +67,7 @@
+ extern bool ath11k_nss_prefill;
+ extern bool ath11k_nss_hash;
+ extern bool ath11k_nss_keep_mask;
++extern bool ath11k_nss_host_tx;
+ 
+ #define ATH11K_SCAN_TIMEOUT_HZ (20 * HZ)
+ 
+@@ -379,6 +380,9 @@
+ 	u8 hal_addr_search_flags;
+ 	u8 search_type;
+ 
++	/* What the NSS firmware calls this interface, or -1. */
++	int nss_ifnum;
++
+ 	struct ath11k *ar;
+ 	struct ieee80211_vif *vif;
+ 
+@@ -563,6 +567,8 @@
+ 	struct rate_info txrate;
+ 	u32 peer_nss;
+ 	struct rate_info last_txrate;
++	/* Set by PPDU reports while NSS owns data RX. */
++	struct rate_info rxrate;
+ 	u64 rx_duration;
+ 	u64 tx_duration;
+ 	u32 tx_retries;
+--- a/drivers/net/wireless/ath/ath11k/dp.c
++++ b/drivers/net/wireless/ath/ath11k/dp.c
+@@ -1000,6 +1000,7 @@
+ 	soc->priv = ab;
+ 	soc->reset = ath11k_nss_reset;
+ 	soc->link_desc_return = ath11k_nss_link_desc_return;
++	soc->rx_80211 = ath11k_dp_rx_nss_80211;
+ 
+ 	for (i = 0; i < soc->num_tcl; i++) {
+ 		ath11k_nss_wifi_ring(&soc->tcl[i], ab,
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.c
+@@ -2701,6 +2701,55 @@
+ 	ieee80211_rx_napi(ar->hw, pubsta, msdu, napi);
+ }
+ 
++/* A frame the NSS firmware hands back as 802.11, with the receive
++ * descriptor the hardware wrote still at the head of the buffer.
++ */
++void ath11k_dp_rx_from_nss(struct ath11k *ar, struct sk_buff *msdu,
++			   struct napi_struct *napi)
++{
++	struct ath11k_skb_rxcb *rxcb = ATH11K_SKB_RXCB(msdu);
++	struct ieee80211_rx_status rx_status = {};
++
++	memset(rxcb, 0, sizeof(*rxcb));
++	rxcb->rx_desc = (struct hal_rx_desc *)msdu->head;
++	rxcb->is_first_msdu = true;
++	rxcb->is_last_msdu = true;
++
++	ath11k_dp_rx_h_ppdu(ar, rxcb->rx_desc, &rx_status);
++	ath11k_dp_rx_h_mpdu(ar, msdu, rxcb->rx_desc, &rx_status);
++
++	rx_status.flag |= RX_FLAG_SKIP_MONITOR | RX_FLAG_DUP_VALIDATED;
++
++	ath11k_dp_rx_deliver_msdu(ar, napi, msdu, &rx_status);
++}
++
++/* The NSS firmware hands up a frame the hardware did not decapsulate, such
++ * as a block ack request, on the same path as ethernet. It goes to mac80211
++ * as on the host's own receive path.
++ */
++bool ath11k_dp_rx_nss_80211(void *priv, struct net_device *dev,
++			    struct sk_buff *msdu, struct napi_struct *napi)
++{
++	struct hal_rx_desc *desc = (struct hal_rx_desc *)msdu->head;
++	struct ieee80211_vif *vif;
++
++	switch (ath11k_dp_rx_h_msdu_start_decap_type(priv, desc)) {
++	case DP_RX_DECAP_TYPE_RAW:
++	case DP_RX_DECAP_TYPE_NATIVE_WIFI:
++		break;
++	default:
++		return false;
++	}
++
++	vif = wdev_to_ieee80211_vif(dev->ieee80211_ptr);
++	if (vif)
++		ath11k_dp_rx_from_nss(ath11k_vif_to_arvif(vif)->ar, msdu, napi);
++	else
++		dev_kfree_skb_any(msdu);
++
++	return true;
++}
++
+ static bool ath11k_dp_rx_check_nwifi_hdr_len_valid(struct ath11k_base *ab,
+ 						   struct hal_rx_desc *rx_desc,
+ 						   struct sk_buff *msdu)
+@@ -2977,6 +3026,68 @@
+ 	return total_msdu_reaped;
+ }
+ 
++/* The receive rate mac80211 reports comes from data frames, which do not
++ * reach it while the NSS firmware takes them. Take it from the PPDU status.
++ */
++static void ath11k_dp_rx_update_peer_rxrate(struct ath11k_sta *arsta,
++					    struct hal_rx_mon_ppdu_info *ppdu_info)
++{
++	/* 100 kbps, by L-SIG rate: CCK 1-7, OFDM 8-15 */
++	static const u16 legacy[] = { 0, 10, 20, 55, 110, 20, 55, 110,
++				      480, 240, 120, 60, 540, 360, 180, 90 };
++	struct rate_info r = {};
++	u8 nss = ppdu_info->nss;
++	u8 mcs = ppdu_info->mcs;
++
++	if (!ieee80211_is_data_present(cpu_to_le16(ppdu_info->frame_control)))
++		return;
++
++	switch (ppdu_info->preamble_type) {
++	case HAL_RX_PREAMBLE_11A:
++	case HAL_RX_PREAMBLE_11B:
++		r.legacy = legacy[ppdu_info->rate];
++		if (r.legacy)
++			arsta->rxrate = r;
++		return;
++	case HAL_RX_PREAMBLE_11N:
++		if (mcs > 7)
++			return;
++		r.mcs = mcs + 8 * (nss - 1);
++		r.flags = RATE_INFO_FLAGS_MCS;
++		if (ppdu_info->gi)
++			r.flags |= RATE_INFO_FLAGS_SHORT_GI;
++		break;
++	case HAL_RX_PREAMBLE_11AC:
++		if (mcs > ATH11K_VHT_MCS_MAX)
++			return;
++		r.mcs = mcs;
++		r.flags = RATE_INFO_FLAGS_VHT_MCS;
++		if (ppdu_info->gi)
++			r.flags |= RATE_INFO_FLAGS_SHORT_GI;
++		break;
++	case HAL_RX_PREAMBLE_11AX:
++		if (mcs > ATH11K_HE_MCS_MAX)
++			return;
++		/* HE-SIG-A carries space-time streams */
++		if (ppdu_info->is_stbc)
++			nss = DIV_ROUND_UP(nss, 2);
++		r.mcs = mcs;
++		r.flags = RATE_INFO_FLAGS_HE_MCS;
++		r.he_gi = ath11k_mac_he_gi_to_nl80211_he_gi(ppdu_info->gi);
++		r.he_dcm = ppdu_info->dcm;
++		break;
++	default:
++		return;
++	}
++
++	if (!nss)
++		return;
++
++	r.nss = nss;
++	r.bw = ath11k_mac_bw_to_mac80211_bw(ppdu_info->bw);
++	arsta->rxrate = r;
++}
++
+ static void ath11k_dp_rx_update_peer_stats(struct ath11k_sta *arsta,
+ 					   struct hal_rx_mon_ppdu_info *ppdu_info)
+ {
+@@ -5522,6 +5633,8 @@
+ 		}
+ 
+ 		arsta = ath11k_sta_to_arsta(peer->sta);
++		if (ab->nss_offload)
++			ath11k_dp_rx_update_peer_rxrate(arsta, ppdu_info);
+ 		ath11k_dp_rx_update_peer_stats(arsta, ppdu_info);
+ 
+ 		/* Charged once per PPDU with the measured duration, as on
+--- a/drivers/net/wireless/ath/ath11k/dp_rx.h
++++ b/drivers/net/wireless/ath/ath11k/dp_rx.h
+@@ -100,4 +100,9 @@
+ 
+ int ath11k_dp_rx_crypto_mic_len(struct ath11k *ar, enum hal_encrypt_type enctype);
+ 
++void ath11k_dp_rx_from_nss(struct ath11k *ar, struct sk_buff *msdu,
++			   struct napi_struct *napi);
++bool ath11k_dp_rx_nss_80211(void *priv, struct net_device *dev,
++			    struct sk_buff *msdu, struct napi_struct *napi);
++
+ #endif /* ATH11K_DP_RX_H */
+--- a/drivers/net/wireless/ath/ath11k/hal_rx.c
++++ b/drivers/net/wireless/ath/ath11k/hal_rx.c
+@@ -929,6 +929,10 @@
+ 		ppdu_info->num_mpdu_fcs_err =
+ 			FIELD_GET(HAL_RX_PPDU_END_USER_STATS_INFO0_MPDU_CNT_FCS_ERR,
+ 				  info0);
++		if (info1 & HAL_RX_PPDU_END_USER_STATS_INFO1_FC_VALID)
++			ppdu_info->frame_control =
++				FIELD_GET(HAL_RX_PPDU_END_USER_STATS_INFO2_FRAME_CTRL,
++					  __le32_to_cpu(eu_stats->info2));
+ 		switch (ppdu_info->preamble_type) {
+ 		case HAL_RX_PREAMBLE_11N:
+ 			ppdu_info->ht_flags = 1;
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include <net/mac80211.h>
++#include <linux/soc/qcom/nss_wifi.h>
+ #include <net/cfg80211.h>
+ #include <linux/etherdevice.h>
+ #include <linux/bitfield.h>
+@@ -6550,9 +6551,57 @@
+ 		return ret;
+ 	}
+ 
+-	/* Management has already left over WMI. NSS owns data TX. */
+-	if (ar->ab->nss_offload) {
+-		ieee80211_free_txskb(ar->hw, skb);
++	/* The transmit ring belongs to the firmware, so a frame goes to the
++	 * virtual device the firmware knows this interface by instead. The
++	 * virtual device carries ethernet, because the hardware builds the
++	 * 802.11 header from it.
++	 *
++	 * Most frames arrive that way already, but not all: the subsystem
++	 * sends every frame for a station that is not yet authorised, and
++	 * every control-port frame at any time, down the 802.11 path instead.
++	 * That is the whole of the authentication exchange, so a divert that
++	 * took only the encapsulated ones would let a station associate and
++	 * never get further. Those are converted rather than refused.
++	 * Management has already left over the control path above.
++	 *
++	 * The conversion is the subsystem's own, and it is written for the
++	 * receiving side: it refuses a frame travelling away from the
++	 * distribution system on an access point, which is every frame an
++	 * access point sends. A frame leaving here is bit for bit the frame a
++	 * station receives, so it is converted as that station would - the
++	 * address it is told to expect is the frame's own first address,
++	 * which is what makes the check it performs vacuous rather than
++	 * wrong.
++	 */
++	if (ar->ab->nss_offload && !ath11k_nss_host_tx) {
++		struct sk_buff *orig = skb;
++
++		if (!(info_flags & IEEE80211_TX_CTL_HW_80211_ENCAP) &&
++		    ieee80211_data_to_8023(skb, hdr->addr1,
++					   NL80211_IFTYPE_STATION)) {
++			ieee80211_free_txskb(ar->hw, skb);
++			return 0;
++		}
++
++		/* The firmware returns a frame without saying whether it was
++		 * acknowledged, and the control block holding the status
++		 * request is overwritten on the way down. A frame that asks
++		 * for a status is reported unacknowledged now and a clone is
++		 * sent.
++		 */
++		if (info_flags & IEEE80211_TX_CTL_REQ_TX_STATUS) {
++			skb = skb_clone(orig, GFP_ATOMIC);
++			ieee80211_free_txskb(ar->hw, orig);
++			if (!skb)
++				return 0;
++		}
++
++		if (nss_wifi_vdev_tx(arvif->nss_ifnum, skb)) {
++			if (skb == orig)
++				ieee80211_free_txskb(ar->hw, skb);
++			else
++				dev_kfree_skb_any(skb);
++		}
+ 		return 0;
+ 	}
+ 
+@@ -6892,6 +6941,61 @@
+ 	return 0;
+ }
+ 
++/* Give the NSS firmware a virtual device for this interface.
++ *
++ * The firmware addresses a transmitted frame to a virtual device and names
++ * the same device on a frame it hands up, so the network device is what the
++ * registration binds the number to. Frames across it are ethernet, which is
++ * what the hardware encapsulation and decapsulation this driver has already
++ * been told to use produce.
++ */
++/* The mode the WLAN firmware was given for this direction a moment ago, in
++ * ath11k_mac_op_update_vif_offload(). The NSS firmware has to declare the same
++ * one, and mac80211 grants the encapsulation offload rather than the driver
++ * choosing it, so it is read back here rather than derived from frame_mode.
++ */
++static u8 ath11k_nss_vdev_mode(struct ath11k_base *ab,
++			       struct ieee80211_vif *vif, u32 offload_flag)
++{
++	if (vif->offload_flags & offload_flag)
++		return ATH11K_HW_TXRX_ETHERNET;
++	if (test_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags))
++		return ATH11K_HW_TXRX_RAW;
++	return ATH11K_HW_TXRX_NATIVE_WIFI;
++}
++
++/* The firmware owns the radio's rings, so an interface it does not take
++ * cannot carry data at all and is refused.
++ */
++static int ath11k_nss_vdev_register(struct ath11k_vif *arvif,
++				    struct ieee80211_vif *vif)
++{
++	struct ath11k *ar = arvif->ar;
++	struct wireless_dev *wdev;
++	int ret;
++
++	wdev = ieee80211_vif_to_wdev(vif);
++	if (!wdev || !wdev->netdev)
++		return 0;
++
++	ret = nss_wifi_vdev_register(ar->ab->nss_soc, wdev->netdev,
++				     ar->pdev_idx, arvif->vdev_id, vif->addr,
++				     vif->type == NL80211_IFTYPE_AP,
++				     ath11k_nss_vdev_mode(ar->ab, vif,
++							  IEEE80211_OFFLOAD_ENCAP_ENABLED),
++				     ath11k_nss_vdev_mode(ar->ab, vif,
++							  IEEE80211_OFFLOAD_DECAP_ENABLED));
++	if (ret < 0) {
++		ath11k_warn(ar->ab, "failed to give vdev %d to the NSS firmware: %d\n",
++			    arvif->vdev_id, ret);
++		return ret;
++	}
++
++	arvif->nss_ifnum = ret;
++
++	return 0;
++}
++
+ static void ath11k_mac_op_update_vif_offload(struct ieee80211_hw *hw,
+ 					     struct ieee80211_vif *vif)
+ {
+@@ -7138,6 +7242,7 @@
+ 
+ 	arvif->ar = ar;
+ 	arvif->vif = vif;
++	arvif->nss_ifnum = -1;
+ 
+ 	INIT_LIST_HEAD(&arvif->list);
+ 	INIT_WORK(&arvif->bcn_tx_work, ath11k_mac_bcn_tx_work);
+@@ -7223,6 +7328,12 @@
+ 
+ 	ath11k_mac_op_update_vif_offload(hw, vif);
+ 
++	if (ab->nss_offload) {
++		ret = ath11k_nss_vdev_register(arvif, vif);
++		if (ret)
++			goto err_vdev_del;
++	}
++
+ 	nss = get_num_chains(ar->cfg_tx_chainmask) ? : 1;
+ 	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
+ 					    WMI_VDEV_PARAM_NSS, nss);
+@@ -7410,6 +7521,17 @@
+ 				    arvif->vdev_id, ret);
+ 	}
+ 
++	/* Before the vdev goes, so the firmware stops naming an interface
++	 * whose peers are already gone.
++	 */
++	if (arvif->nss_ifnum >= 0) {
++		struct wireless_dev *wdev = ieee80211_vif_to_wdev(vif);
++
++		if (wdev && wdev->netdev)
++			nss_wifi_vdev_unregister(wdev->netdev);
++		arvif->nss_ifnum = -1;
++	}
++
+ 	ret = ath11k_mac_vdev_delete(ar, arvif);
+ 	if (ret) {
+ 		ath11k_warn(ab, "failed to delete vdev %d: %d\n",
+@@ -9487,6 +9609,11 @@
+ 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+ 	}
+ 
++	if (arsta->rxrate.legacy || arsta->rxrate.nss) {
++		sinfo->rxrate = arsta->rxrate;
++		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
++	}
++
+ 	ath11k_mac_put_chain_rssi(sinfo, arsta, "ppdu", false);
+ 
+ 	mutex_lock(&ar->conf_mutex);
+@@ -10258,6 +10385,14 @@
+ 	if (unlikely(test_bit(ATH11K_FLAG_CRASH_FLUSH, &ar->ab->dev_flags)))
+ 		return;
+ 
++	/* NSS reports aggregate completions and owns data TX; its generic
++	 * dequeue path must not wait for host ring/AQL completions.
++	 */
++	if (ar->ab->nss_offload) {
++		ieee80211_handle_wake_tx_queue(hw, txq);
++		return;
++	}
++
+ 	set_bit(txq->ac, &ar->txq_woken);
+ 	queue_work(system_bh_wq, &ar->txq_work);
+ }
+@@ -10797,9 +10932,14 @@
+ 	ar->hw->sta_data_size = sizeof(struct ath11k_sta);
+ 
+ 	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_CQM_RSSI_LIST);
+-	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_AQL);
+-	wiphy_ext_feature_set(ar->hw->wiphy,
+-			      NL80211_EXT_FEATURE_AIRTIME_FAIRNESS);
++	/* NSS owns TX and reports aggregate counters without the per-skb
++	 * completion needed to release host AQL airtime reservations.
++	 */
++	if (!ar->ab->nss_offload) {
++		wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_AQL);
++		wiphy_ext_feature_set(ar->hw->wiphy,
++				      NL80211_EXT_FEATURE_AIRTIME_FAIRNESS);
++	}
+ 	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_STA_TX_PWR);
+ 	if (test_bit(WMI_TLV_SERVICE_BSS_COLOR_OFFLOAD,
+ 		     ar->ab->wmi_ab.svc_map)) {

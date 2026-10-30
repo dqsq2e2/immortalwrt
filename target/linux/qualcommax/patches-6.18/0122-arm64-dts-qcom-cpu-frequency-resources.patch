@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Thu, 29 Oct 2026 09:46:42 +0800
 Subject: [PATCH] arm64: dts: qcom: complete CPU frequency and cooling resources
 
 Now that CPU clock is exposed and can be controlled, add the necessary
@@ -32,6 +32,8 @@ Original-commit: cb3ef99c1553565e1dc0301ccd5c1c0fa2d15c15
 Original-commit: 347ca56e86c99021fad059b9a8ef101245b8507e
 Original-commit: 04d2fc6a551bbd972a6428059b45ce79cb9de9d7
 Original-commit: a20c4e8738a00087aa5d53fe5148ed484e23d229
+
+Refresh against the explicit IPQ8074 CMN PLL clock topology.
 
 Signed-off-by: Robert Marko <robimarko@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -78,10 +80,10 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #include <dt-bindings/interrupt-controller/arm-gic.h>
  #include <dt-bindings/clock/qcom,gcc-ipq8074.h>
 +#include <dt-bindings/clock/qcom,apss-ipq.h>
+ #include <dt-bindings/clock/qcom,ipq8074-cmn-pll.h>
  
  / {
- 	#address-cells = <2>;
-@@ -38,6 +39,10 @@
+@@ -45,6 +46,10 @@
  			reg = <0x0>;
  			next-level-cache = <&l2_0>;
  			enable-method = "psci";
@@ -92,7 +94,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		};
  
  		cpu1: cpu@1 {
-@@ -46,6 +51,10 @@
+@@ -53,6 +58,10 @@
  			enable-method = "psci";
  			reg = <0x1>;
  			next-level-cache = <&l2_0>;
@@ -103,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		};
  
  		cpu2: cpu@2 {
-@@ -54,6 +63,10 @@
+@@ -61,6 +70,10 @@
  			enable-method = "psci";
  			reg = <0x2>;
  			next-level-cache = <&l2_0>;
@@ -114,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		};
  
  		cpu3: cpu@3 {
-@@ -62,6 +75,10 @@
+@@ -69,6 +82,10 @@
  			enable-method = "psci";
  			reg = <0x3>;
  			next-level-cache = <&l2_0>;
@@ -125,7 +127,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		};
  
  		l2_0: l2-cache {
-@@ -71,6 +88,54 @@
+@@ -78,6 +95,54 @@
  		};
  	};
  
@@ -180,7 +182,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	pmu {
  		compatible = "arm,cortex-a53-pmu";
  		interrupts = <GIC_PPI 7 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
-@@ -321,6 +386,106 @@
+@@ -340,6 +405,106 @@
  			reg = <0x000a4000 0x2000>;
  			#address-cells = <1>;
  			#size-cells = <1>;

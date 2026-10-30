@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Thu, 29 Oct 2026 09:46:42 +0800
 Subject: [PATCH] arm64: dts: qcom: connect IPQ8074 secure WCSS and WLAN
 
 Describe the IPQ8074 WCSS remote processor using the secure PIL compatible.
@@ -19,12 +19,14 @@ Based on work by:
 Original-commit: 0000000000000000000000000000000000000000
 Original-commit: a67d1901741c162645eda0dbdc3a2c0c2aff5cf4
 
+Refresh against the explicit IPQ8074 CMN PLL clock topology.
+
 Signed-off-by: Robert Marko <robimarko@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
-@@ -150,6 +150,32 @@
+@@ -157,6 +157,32 @@
  		};
  	};
  
@@ -57,7 +59,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	soc: soc@0 {
  		#address-cells = <1>;
  		#size-cells = <1>;
-@@ -1036,6 +1062,155 @@
+@@ -1059,6 +1085,155 @@
  				ranges;
  			};
  		};

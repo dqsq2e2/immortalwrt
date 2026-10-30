@@ -1,0 +1,32 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 28 Oct 2026 22:34:51 +0800
+Subject: [PATCH v2] mac80211: use the JB NSS AP receive policy
+
+The NSS data path replaces the native PPE WLAN ingress hook on AX.
+Use the ordinary AP GRO policy when applying the NSS wireless series.
+The shared mac80211 patch set remains unchanged for other targets.
+
+Rebase this NSS integration onto the shared mac80211/ath11k patch
+series while preserving the local host-path fixes.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+---
+--- a/net/mac80211/iface.c
++++ b/net/mac80211/iface.c
+@@ -1388,16 +1388,6 @@
+ 
+ 	lockdep_assert_wiphy(local->hw.wiphy);
+ 
+-	/*
+-	 * Native PPE ingress accepts MTU-sized frames. Keep AP RX unaggregated
+-	 * by default; the ordinary TC/netfilter receive path still runs.
+-	 */
+-	if (IS_ENABLED(CONFIG_QCOM_80211AX_PPE) && dev &&
+-	    sdata->vif.type == NL80211_IFTYPE_AP) {
+-		dev->wanted_features &= ~NETIF_F_GRO;
+-		netdev_update_features(dev);
+-	}
+-
+ 	switch (sdata->vif.type) {
+ 	case NL80211_IFTYPE_AP_VLAN: {
+ 		struct ieee80211_sub_if_data *master;

@@ -7,6 +7,43 @@
 #include "ipq6018-nss.dtsi"
 #include "ipq6018-common.dtsi"
 
+&sdhc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	card@0 {
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-art {
+					partname = "0:ART";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						macaddr_art: macaddr@6 {
+							compatible = "mac-base";
+							reg = <0x6 0x6>;
+							#nvmem-cell-cells = <1>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+&edma {
+	nvmem-cells = <&macaddr_art 1>;
+	nvmem-cell-names = "mac-address";
+};
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
@@ -16,13 +53,9 @@
 	compatible = "jdcloud,re-ss-01", "qcom,ipq6018";
 
 	aliases {
-		ethernet1 = &swport2;
-		ethernet2 = &swport3;
-		ethernet3 = &swport4;
-		ethernet4 = &swport5;
 		serial0 = &blsp1_uart3;
+		label-mac-device = &swport5;
 
-		label-mac-device = &swport2;
 		led-boot = &led_status_red;
 		led-failsafe = &led_status_red;
 		led-running = &led_status_green;
@@ -142,6 +175,8 @@
 		swport2: port@2 {
 			reg = <2>;
 			label = "lan1";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_1>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 1>;
@@ -150,6 +185,8 @@
 		swport3: port@3 {
 			reg = <3>;
 			label = "lan2";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_2>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 2>;
@@ -158,6 +195,8 @@
 		swport4: port@4 {
 			reg = <4>;
 			label = "lan3";
+			nvmem-cells = <&macaddr_art 1>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_3>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 3>;
@@ -166,6 +205,8 @@
 		swport5: port@5 {
 			reg = <5>;
 			label = "wan";
+			nvmem-cells = <&macaddr_art 0>;
+			nvmem-cell-names = "mac-address";
 			phy-handle = <&qca8075_4>;
 			phy-mode = "psgmii";
 			pcs-handle = <&uniphy0 4>;

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Thu, 29 Oct 2026 09:46:42 +0800
 Subject: [PATCH] arm64: dts: qcom: describe reserved WCSS firmware memory
 
 Consolidate consecutive changes within this functional responsibility.
@@ -12,6 +12,8 @@ Merged from:
 
 Based on work by:
   OpenWrt community <openwrt-devel@lists.openwrt.org>
+
+Refresh against the explicit IPQ8074 CMN PLL clock topology.
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
@@ -122,7 +124,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	soc: soc@0 {
 --- a/arch/arm64/boot/dts/qcom/ipq8074.dtsi
 +++ b/arch/arm64/boot/dts/qcom/ipq8074.dtsi
-@@ -86,17 +86,27 @@
+@@ -93,17 +93,27 @@
  		#size-cells = <2>;
  		ranges;
  
@@ -153,7 +155,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			compatible = "qcom,smem";
  			reg = <0x0 0x4ab00000 0x0 0x100000>;
  			no-map;
-@@ -104,10 +114,33 @@
+@@ -111,10 +121,33 @@
  			hwlocks = <&tcsr_mutex 3>;
  		};
  

@@ -12,8 +12,7 @@ int ppe_xlt_idx_alloc(struct qca_ppe_priv *priv)
 	lockdep_assert_held(&priv->vlan_lock);
 
 	/* Entries 0..7 are the fixed DSA/CPU VLAN translation slots. They are
-	 * programmed outside this allocator and must never be reused by a flow
-	 * or WLAN private tag. */
+	 * programmed outside this allocator and must never be reused by a flow. */
 	/* The upper rows carry routed VLAN selectors. Bridge/DSA rules must
 	 * never consume them: their source-info action is a separate resource
 	 * class and is selected by the routed allocator below. */

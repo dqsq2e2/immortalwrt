@@ -1414,6 +1414,7 @@ enum ppe_flow_reject {
 	PPE_REJECT_ACTION,
 	PPE_REJECT_L2,
 	PPE_REJECT_EGRESS_PORT,
+	PPE_REJECT_CPU_PATH,
 	PPE_REJECT_HAIRPIN,
 	PPE_REJECT_NAT_BOTH,
 	PPE_REJECT_NAT_IPV6,
@@ -1763,6 +1764,8 @@ struct qca_ppe_priv {
 	u64 flow_failure_sequence;
 	struct ppe_flow_failure flow_failures[PPE_FLOW_FAILURE_HISTORY];
 	u32 flow_hw_errors[6];
+	/* Which devices the NSS firmware forwards to, while it runs. */
+	bool (__rcu *fw_carries)(int ifindex);
 	u32 flow_offloaded;
 	u32 flow_reinstalled;
 	u32 flow_destroy_miss;
@@ -1778,13 +1781,15 @@ struct qca_ppe_priv {
 	u32 flow_profile_inplace;
 	u32 flow_profile_failed;
 	u32 flow_profile_rollback_failed;
-	u64 wifi_slot_generation;
 	/* Guards the VSI, translation-index and bridge-VLAN state, and the
 	 * read-modify-write an MDB update makes of an FDB entry. The switchdev
 	 * ops reach it under rtnl, the FDB and MDB work from a workqueue that
 	 * holds none. Taken after flow_lock wherever both are needed.
 	 */
 	struct mutex vlan_lock;
+	/* Serializes the MRU/MTU entries, which the NSS firmware rewrites. */
+	struct mutex mtu_lock;
+	u32 port_frame_size[QCA_PPE_MAX_PORTS];
 	/* Free entries of every ACL hardware list. Guarded by its own lock
 	 * because the small-packet module parameters reach the table from a
 	 * writer that holds no rtnl.
@@ -2034,6 +2039,9 @@ int qca_ppe_port_vlan_del(struct dsa_switch *ds, int port,
 			  const struct switchdev_obj_port_vlan *vlan);
 
 void ppe_flow_init(struct qca_ppe_priv *priv);
+void ppe_flow_excep_init(struct qca_ppe_priv *priv);
+void ppe_qm_pri_map_init(struct qca_ppe_priv *priv);
+void ppe_flow_qos_init(struct qca_ppe_priv *priv);
 int ppe_flow_op(struct qca_ppe_priv *priv, u32 op_type,
 		const u32 *entry, int nentry, const u32 *host, int nhost,
 		u32 *index, u32 *host_index);
@@ -2085,6 +2093,7 @@ int ppe_flow_shaper_set(struct qca_ppe_priv *priv, bool upload,
 #define PPE_XDEV_DL		BIT(29)
 #define PPE_XDEV_UL		BIT(30)
 void ppe_flow_purge_vsi(struct qca_ppe_priv *priv, u32 vsi);
+void ppe_flow_fw_purge(struct qca_ppe_priv *priv);
 void ppe_flow_purge_bridge_port(struct qca_ppe_priv *priv, int port);
 void ppe_flow_offload_exit(struct qca_ppe_priv *priv);
 
