@@ -1032,6 +1032,11 @@ static int ppe_acl_parse_action(struct qca_ppe_priv *priv,
 			}
 			act[2] |= PPE_ACL_DSCP_TC_CHANGE_EN |
 				  FIELD_PREP(PPE_ACL_DSCP_TC, val >> shift);
+			/* CPPE requires the changed traffic-class bits to be
+			 * enabled separately in the action's rewrite mask.
+			 */
+			if (priv->data->type == PPE_TYPE_IPQ6018)
+				act[4] |= FIELD_PREP(PPE_ACL_DSCP_TC_MASK, 0xff);
 			break;
 		}
 		case FLOW_ACTION_POLICE: {

@@ -4,8 +4,13 @@
 read -r usr sys < <(top -bn1 | awk '/^CPU:/ {print $2, $4; exit}')
 read -r ipv4 ipv6 total < /sys/kernel/debug/3a000000.ppe/active_flows 2>/dev/null
 
-# The driver counts installed bidirectional rules without formatting tuples.
-read -r nss_ipv4 nss_ipv6 nss_total nss_limit \
-	< /sys/bus/platform/devices/39000000.nss/flow_stats 2>/dev/null
+echo -n "USR: ${usr:-N/A} SYS: ${sys:-N/A} PPE: ${total:-N/A} (IPv4: ${ipv4:-N/A} IPv6: ${ipv6:-N/A})"
 
-echo -n "USR: ${usr:-N/A} SYS: ${sys:-N/A} PPE: ${total:-N/A} (IPv4: ${ipv4:-N/A} IPv6: ${ipv6:-N/A}) NSS: ${nss_total:-N/A}/${nss_limit:-N/A} (IPv4: ${nss_ipv4:-N/A} IPv6: ${nss_ipv6:-N/A})"
+read -r nss_wlan 2>/dev/null < /sys/module/nss_wifi_drv/parameters/wlan
+if [ "${nss_wlan:-0}" -ne 0 ]; then
+	# The driver counts installed bidirectional rules without formatting tuples.
+	read -r nss_ipv4 nss_ipv6 nss_total nss_limit 2>/dev/null \
+		< /sys/bus/platform/devices/39000000.nss/flow_stats
+
+	echo -n " NSS: ${nss_total:-N/A}/${nss_limit:-N/A} (IPv4: ${nss_ipv4:-N/A} IPv6: ${nss_ipv6:-N/A})"
+fi

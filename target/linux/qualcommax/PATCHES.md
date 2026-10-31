@@ -30,3 +30,19 @@ numeric application prefix and validate the full replay result.
 PPE (0952) and EDMA (0953) registration remain separate to follow upstream
 driver updates. Common flowtable/FDB/VLAN interfaces are owned by generic;
 platform patches provide only their hardware consumers.
+
+IPQ6018 and IPQ8074 ownership follows the same boundary: SoC-common clock
+providers and GCC inputs live in the kernel DTS patches, while the target
+ESS/NSS overlays contain the local UNIPHY, PPE, EDMA and NSS consumers. Do not
+reintroduce a second `&gcc` or CMN PLL definition in an ESS overlay when the
+corresponding SoC patch already supplies it. Local NSS node unit-addresses
+match the first `reg` address; firmware load addresses remain explicit properties.
+
+Keep upstream patch filenames and application positions when extending their
+scope. Refresh later local contexts from exact source pairs. Preserve the
+separate upstream IPQ8074 USB conversion rather than folding it into the older
+IPQ5018/IPQ6018 conversion. Board USB mode, GPIO wiring, PHY reset delays,
+MAC/calibration cells, CPU corners and memory layouts stay in their applicable
+board or family include. Differences in register cell widths, UNIPHY counts,
+NSS cores, clock names/rates, IRQ numbers and regulator data describe hardware;
+they must not be flattened into a common include for cosmetic consistency.

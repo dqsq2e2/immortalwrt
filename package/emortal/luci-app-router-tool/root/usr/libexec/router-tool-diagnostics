@@ -14,7 +14,11 @@ cat /etc/openwrt_release
 cat /proc/uptime
 
 section router-tool
-for option in router_tool_auto router_tool_ap router_tool_ula_cleanup_done router_tool_offload_defaults_done router_tool_steering_defaults_done packet_steering steering_flows; do
+for option in auto_role ap_mode ula_cleanup_done offload_defaults_done steering_defaults_done; do
+	value=$(uci -q get "router-tool.main.$option")
+	printf '%s=%s\n' "$option" "$value"
+done
+for option in packet_steering steering_flows; do
 	value=$(uci -q get "network.@globals[0].$option")
 	printf '%s=%s\n' "$option" "$value"
 done

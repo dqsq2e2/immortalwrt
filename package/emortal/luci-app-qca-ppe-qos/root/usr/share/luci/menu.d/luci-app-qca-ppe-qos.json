@@ -1,6 +1,6 @@
 {
 	"admin/network/qca-ppe-qos": {
-		"title": "PPE QoS",
+		"title": "PPE Hardware QoS",
 		"order": 61,
 		"action": {
 			"type": "view",

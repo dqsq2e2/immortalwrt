@@ -147,6 +147,11 @@ return view.extend({
 		s.tab('general', _('General Settings'));
 		s.tab('advanced', _('Advanced Settings'));
 
+		o = s.taboption('general', form.Flag, 'active', _('Enable hardware QoS'),
+			_('Apply marking rules, DSCP maps and small packet priorities.'));
+		o.default = o.enabled;
+		o.rmempty = false;
+
 		o = s.taboption('general', form.Flag, 'enabled', _('Enable marking rules'),
 			_('The DSCP map and the small packet priority stay in effect either way.'));
 		o.default = o.enabled;

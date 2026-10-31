@@ -37,6 +37,13 @@
 		ipq9574_s1: s1 {
 			regulator-min-microvolt = <725000>;
 			regulator-max-microvolt = <1075000>;
+			regulator-always-on;
+		};
+
+		ipq9574_s2: s2 {
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-always-on;
 		};
 	};
 };

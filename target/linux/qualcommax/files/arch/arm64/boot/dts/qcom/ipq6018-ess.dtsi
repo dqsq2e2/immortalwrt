@@ -1,44 +1,4 @@
-#include <dt-bindings/clock/qcom,ipq6018-cmn-pll.h>
-
-/* Use explicit CMN PLL parents; GCC name lookups remain a fallback. */
-&gcc {
-	clocks = <&xo>,
-		 <&sleep_clk>,
-		 <&uniphy0 UNIPHY_CLK_RX>,
-		 <&uniphy0 UNIPHY_CLK_TX>,
-		 <&uniphy1 UNIPHY_CLK_RX>,
-		 <&uniphy1 UNIPHY_CLK_TX>,
-		 <&cmn_pll IPQ6018_BIAS_PLL_CC_CLK>,
-		 <&cmn_pll IPQ6018_BIAS_PLL_NSS_NOC_CLK>;
-	clock-names = "xo",
-		      "sleep_clk",
-		      "uniphy0_gcc_rx_clk",
-		      "uniphy0_gcc_tx_clk",
-		      "uniphy1_gcc_rx_clk",
-		      "uniphy1_gcc_tx_clk",
-		      "bias_pll_cc_clk",
-		      "bias_pll_nss_noc_clk";
-};
-
 &soc {
-	cmn_pll_ref_clk: cmn-pll-ref-clk {
-		compatible = "fixed-clock";
-		clock-frequency = <48000000>;
-		#clock-cells = <0>;
-	};
-
-	cmn_pll: clock-controller@9b000 {
-		compatible = "qcom,ipq6018-cmn-pll";
-		reg = <0x0 0x0009b000 0x0 0x800>;
-		clocks = <&cmn_pll_ref_clk>,
-			 <&gcc GCC_CMN_12GPLL_AHB_CLK>,
-			 <&gcc GCC_CMN_12GPLL_SYS_CLK>;
-		clock-names = "ref", "ahb", "sys";
-		#clock-cells = <1>;
-		assigned-clocks = <&cmn_pll IPQ6018_CMN_PLL_CLK>;
-		assigned-clock-rates-u64 = /bits/ 64 <12000000000>;
-	};
-
 	uniphy0: ethernet-pcs@7a00000 {
 		compatible = "qualcomm,ipq6018-uniphy";
 		reg = <0x0 0x07a00000 0x0 0x10000>;

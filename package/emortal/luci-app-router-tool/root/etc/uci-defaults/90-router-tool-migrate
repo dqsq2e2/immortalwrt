@@ -1,0 +1,69 @@
+#!/bin/sh
+
+# The uci-defaults runner removes this script only after success.
+# Keep legacy fields out of the normal web and interface-event paths.
+/usr/bin/ucode - <<'EOF'
+'use strict';
+import { cursor } from 'uci';
+import { open, mkdir, stat, readfile, unlink } from 'fs';
+import { configuration, transaction, save_transaction, commit_transaction } from '/usr/share/router-tool/transaction.uc';
+
+const path = '/etc/router-tool/pending.json';
+let lock = open('/var/lock/router-tool.lock', 'a');
+if (!lock || !lock.lock('x')) die('Cannot lock router tool configuration migration');
+for (let config in [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ])
+	if (stat('/tmp/.uci/' + config)?.size)
+		die('Unapplied UCI changes defer router tool configuration migration');
+
+mkdir('/var/run/router-tool-migration-delta', 0700);
+for (let config in [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ])
+	unlink('/var/run/router-tool-migration-delta/' + config);
+let uci = cursor('/etc/config', '/var/run/router-tool-migration-delta', '');
+function commit(state) {
+	return commit_transaction(state, path, () => {}, () => {},
+		cursor('/etc/config', '/var/run/router-tool-migration-delta', ''));
+}
+if (stat(path)) commit(json(readfile(path)));
+let before = configuration(uci);
+
+function ensure(sid, type_name) {
+	let section = uci.get_all('router-tool', sid);
+	if (section && section['.type'] != type_name)
+		die(`Cannot migrate router tool settings: section type changed at router-tool.${sid}`);
+	if (!section && !uci.set('router-tool', sid, type_name))
+		die(`Cannot create router-tool.${sid}`);
+}
+function move(config, sid, option, target, name) {
+	let value = uci.get(config, sid, option);
+	if (value == null) return;
+	let saved = uci.get('router-tool', target, name);
+	if (saved != null && sprintf('%J', saved) != sprintf('%J', value))
+		die(`Conflicting legacy router tool setting at ${config}.${sid}.${option}`);
+	if (saved == null && !uci.set('router-tool', target, name, value))
+		die(`Cannot migrate ${config}.${sid}.${option}`);
+	if (!uci.delete(config, sid, option)) die(`Cannot remove ${config}.${sid}.${option}`);
+}
+
+ensure('main', 'settings');
+let fields = {
+	router_tool_auto: 'auto_role', router_tool_ap: 'ap_mode',
+	router_tool_state: 'state', router_tool_ap_state: 'ap_state',
+	router_tool_steering_defaults_done: 'steering_defaults_done',
+	router_tool_offload_defaults_done: 'offload_defaults_done',
+	router_tool_ula_cleanup_done: 'ula_cleanup_done'
+};
+uci.foreach('network', 'globals', section => {
+	for (let old, name in fields) move('network', section['.name'], old, 'main', name);
+});
+uci.foreach('wireless', 'wifi-device', radio => {
+	if (radio.router_tool_defaults_done == null) return;
+	ensure(radio['.name'], 'radio');
+	move('wireless', radio['.name'], 'router_tool_defaults_done', radio['.name'], 'defaults_done');
+});
+
+let pending = transaction(uci, before);
+if (length(pending.edits)) {
+	save_transaction(path, pending);
+	commit(pending);
+}
+EOF

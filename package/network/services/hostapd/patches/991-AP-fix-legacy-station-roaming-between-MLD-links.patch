@@ -1,6 +1,6 @@
 From 4b5bcc3cd2d90a83c04bb0408dfef125ea306d7b Mon Sep 17 00:00:00 2001
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 22 Jan 2025 15:15:03 +0530
+Date: Fri, 30 Oct 2026 22:40:51 +0800
 Subject: [PATCH] AP: fix legacy station roaming between MLD links
 
 When a station first attempts an MLO association and then reconnects as a
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4699,7 +4699,7 @@
+@@ -4789,7 +4789,7 @@ static void handle_auth(struct hostapd_d
  	    !(hapd->conf->mesh & MESH_ENABLED) &&
  	    (!sta->added_unassoc || link_addr_changed) &&
  	    auth_alg != WLAN_AUTH_PASN) {
@@ -51,7 +51,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			resp = WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA;
  			goto fail;
  		}
-@@ -6774,6 +6774,7 @@
+@@ -6899,6 +6899,7 @@ static int add_associated_sta(struct hos
  		hostapd_drv_sta_remove(hapd, sta->addr);
  		wpa_auth_sm_event(sta->wpa_sm, WPA_DRV_STA_REMOVED);
  		set = 0;
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		  * once per authentication exchange to guarantee a new TK is
 --- a/src/ap/sta_info.c
 +++ b/src/ap/sta_info.c
-@@ -274,7 +274,46 @@
+@@ -295,7 +295,46 @@ static void __ap_free_sta(struct hostapd
  	}
  #endif /* CONFIG_IEEE80211BE */
  
@@ -109,7 +109,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  
-@@ -368,7 +407,7 @@
+@@ -389,7 +428,7 @@ int ap_sta_reset_prev_assoc(struct hosta
  	ap_sta_free_wpa_sm(hapd, sta);
  	/* ap_free_sta() of the earlier association link station clears the
  	 * state machine of all its partner link stations, this one included. */
@@ -118,7 +118,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	sta->wpa_sm = sm;
  	if (res < 0)
  		return -1;
-@@ -2247,10 +2286,14 @@
+@@ -2386,10 +2425,14 @@ void ap_sta_link_event(struct hostapd_da
  
  
  static void ap_sta_remove_link_sta(struct hostapd_data *hapd,
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	for_each_mld_link(tmp_hapd, hapd) {
  		struct sta_info *tmp_sta;
  
-@@ -2263,8 +2306,13 @@
+@@ -2402,8 +2445,13 @@ static void ap_sta_remove_link_sta(struc
  			    !ether_addr_equal(tmp_sta->addr, sta->addr))
  				continue;
  
@@ -150,16 +150,26 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  }
-@@ -2281,13 +2329,15 @@
+@@ -2420,7 +2468,7 @@ void hostapd_free_mld_partner_stas(struc
  		    sta->mld_assoc_link_id != hapd->mld_link_id)
  			continue;
  
 -		ap_sta_remove_link_sta(hapd, sta);
-+		/* BSS teardown must also remove authorized partner stations. */
 +		ap_sta_remove_link_sta(hapd, sta, 0);
  	}
  }
- #endif /* CONFIG_IEEE80211BE */
+ 
+@@ -2458,7 +2506,7 @@ void ap_free_sta_all_links(struct hostap
+ 
+ 	assoc_sta = hostapd_ml_get_assoc_sta(hapd, sta, &assoc_hapd);
+ 	if (assoc_sta) {
+-		ap_sta_remove_link_sta(assoc_hapd, assoc_sta);
++		ap_sta_remove_link_sta(assoc_hapd, assoc_sta, 0);
+ 		hapd = assoc_hapd;
+ 		sta = assoc_sta;
+ 	}
+@@ -2467,7 +2515,8 @@ void ap_free_sta_all_links(struct hostap
+ }
  
  
 -int ap_sta_re_add(struct hostapd_data *hapd, struct sta_info *sta)
@@ -168,7 +178,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	const u8 *mld_link_addr = NULL;
  	bool mld_link_sta = false, epp_sta = false;
-@@ -2305,18 +2355,15 @@
+@@ -2485,18 +2534,15 @@ int ap_sta_re_add(struct hostapd_data *h
  	 */
  
  #ifdef CONFIG_IEEE80211BE
@@ -190,7 +200,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  #endif /* CONFIG_IEEE80211BE */
  
-@@ -2338,6 +2385,7 @@
+@@ -2518,6 +2564,7 @@ int ap_sta_re_add(struct hostapd_data *h
  	}
  
  	sta->added_unassoc = 1;
@@ -200,15 +210,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -350,6 +350,7 @@
- 	struct link_reconf_req_list *reconf_req;
- 	bool link_removal_tx;
+@@ -378,6 +378,8 @@ struct sta_info {
+ 	bool neg_ttlm_assoc_reject;
  #endif /* CONFIG_IEEE80211BE */
-+	u8 skip_kernel_delete;
  
++	u8 skip_kernel_delete;
++
  	u16 max_idle_period; /* if nonzero, the granted BSS max idle period in
  			      * units of 1000 TUs */
-@@ -462,7 +463,8 @@
+ 
+@@ -515,7 +517,8 @@ void ap_sta_delayed_1x_auth_fail_disconn
  					    unsigned timeout);
  int ap_sta_pending_delayed_1x_auth_fail_disconnect(struct hostapd_data *hapd,
  						   struct sta_info *sta);
@@ -218,7 +229,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  void ap_free_sta_pasn(struct hostapd_data *hapd, struct sta_info *sta);
  
-@@ -480,6 +482,8 @@
+@@ -535,6 +538,8 @@ void clear_wpa_sm_for_each_partner_link(
  					struct sta_info *psta);
  void clear_wpa_sm_for_all_sta(struct hostapd_data *hapd,
  			      struct wpa_state_machine *wpa_sm);
@@ -229,7 +240,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			   struct wpa_state_machine *prev_sm);
 --- a/src/ap/utils.c
 +++ b/src/ap/utils.c
-@@ -75,8 +75,15 @@
+@@ -75,8 +75,15 @@ static int prune_associations(struct hos
  
  #ifdef CONFIG_IEEE80211BE
  		if (data->mld_assoc_link_id >= 0 &&
@@ -247,7 +258,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		wpa_printf(MSG_INFO, "%s: Prune association for " MACSTR,
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -1335,7 +1335,7 @@
+@@ -1335,7 +1335,7 @@ static int hostapd_wpa_auth_add_sta_ft(v
  		 * previous association. */
  		wpa_printf(MSG_DEBUG,
  			   "FT: Remove and re-add driver STA entry after successful FT authentication");

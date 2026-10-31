@@ -8,7 +8,8 @@
 			"ubus": {
 				"file": [ "read" ],
 				"luci-rpc": [ "getBoardJSON" ]
-			}
+			},
+			"uci": [ "router-tool" ]
 		},
 		"write": {
 			"file": {
@@ -16,7 +17,8 @@
 			},
 			"ubus": {
 				"file": [ "exec" ]
-			}
+			},
+			"uci": [ "router-tool" ]
 		}
 	}
 }

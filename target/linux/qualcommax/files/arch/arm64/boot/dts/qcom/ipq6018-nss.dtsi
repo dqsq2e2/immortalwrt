@@ -12,7 +12,7 @@
 };
 
 &soc {
-	nss-common {
+	nss-common@1868010 {
 		compatible = "qcom,nss-common";
 		reg = <0x0 0x01868010 0x0 0x1000>,
 		      <0x0 0x40000000 0x0 0x1000>;
@@ -23,8 +23,7 @@
 		/*
 		 * Clocks the NSS block requires while the firmware runs and
 		 * that no host driver on the qca_edma/qca_ppe stack turns on.
-		 * The
-		 * uniphy domains are listed because firmware PPE init walks
+		 * The UNIPHY domains are listed because firmware PPE init walks
 		 * every port, while the PCS driver only clocks the domains
 		 * with an active port. This SoC has two uniphys, not three.
 		 */
@@ -42,7 +41,7 @@
 			      "gcc_uniphy1_port5_tx_clk";
 	};
 
-	nss0: nss@40000000 {
+	nss0: nss@39000000 {
 		compatible = "qcom,nss";
 		interrupts = <GIC_SPI 402 IRQ_TYPE_EDGE_RISING>,
 			     <GIC_SPI 401 IRQ_TYPE_EDGE_RISING>,

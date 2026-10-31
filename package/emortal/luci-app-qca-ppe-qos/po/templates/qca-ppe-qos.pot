@@ -1,0 +1,287 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:59
+msgid "%d - bulk band"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:58
+msgid "%d - priority band"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:180
+msgid ""
+"A rule marks the download direction of the flows it matches. The switch "
+"matches addresses and ports only, not domain names."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:241
+msgid "A rule needs an address or a port, or it would mark all traffic"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:148
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:187
+msgid "Advanced Settings"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:177
+msgid ""
+"Also installs each rule on every client-facing port. This costs a classifier "
+"entry per port, and small upload packets are prioritized without it."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:151
+msgid "Apply marking rules, DSCP maps and small packet priorities."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:10
+msgid "Best effort"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:20
+msgid "Broadcast video"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:199
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:227
+msgid "Class"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:264
+msgid "DSCP"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:258
+msgid "DSCP Map"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:215
+msgid "Destination address"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:221
+msgid "Destination port"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:203
+msgid "Enable"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:150
+msgid "Enable hardware QoS"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:155
+msgid "Enable marking rules"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:235
+msgid "Expecting a class name or a DSCP value from 0 to 63"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:96
+msgid "From"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:147
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:186
+msgid "General Settings"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/root/usr/share/rpcd/acl.d/luci-app-qca-ppe-qos.json:3
+msgid "Grant access to the PPE hardware QoS configuration"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:13
+msgid "High-throughput data"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:216
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:247
+msgid "IPv4 and IPv6 addresses or subnets."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:118
+msgid "Invalid class"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:17
+msgid "Low-latency data"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:11
+msgid "Lower effort"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:176
+msgid "Mark upload"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:179
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:188
+msgid "Marking Rules"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:195
+msgid "Match"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:25
+msgid "Multimedia conferencing, calls"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:21
+msgid "Multimedia streaming"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:191
+msgid "Name"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:31
+msgid "Network control"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:16
+msgid "Operations, administration"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:143
+#: luci-app-qca-ppe-qos/root/usr/share/luci/menu.d/luci-app-qca-ppe-qos.json:3
+msgid "PPE Hardware QoS"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:161
+msgid ""
+"Packets up to this IP length take the small packet priority whatever their "
+"marking: ACKs, DNS, VoIP and game traffic. Keep it below a full-size "
+"segment. 0 disables."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:222
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:253
+msgid "Ports or port ranges, such as 5000-5500."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:275
+msgid "Priority"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:124
+msgid "Priority %s"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:208
+msgid "Protocol"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:24
+msgid "Real-time interactive, games"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:32
+msgid "Reserved"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:12
+msgid "Scavenger, bulk"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:28
+msgid "Signalling, DNS"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:160
+msgid "Small packet length"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:165
+msgid "Small packet priority"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:144
+msgid ""
+"Sorts traffic into the egress queues of the switch. Marking rules put a DSCP "
+"on a flow, the DSCP map turns a DSCP into a priority, and priorities 4 to 7 "
+"are served ahead of the bulk band of a shaped port. The switch does all of "
+"this itself, so it covers flows the PPE has offloaded. Shaper rates belong "
+"to SQM."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:246
+msgid "Source address"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:252
+msgid "Source port"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:30
+msgid "Telephony, voice"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:156
+msgid "The DSCP map and the small packet priority stay in effect either way."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:228
+msgid ""
+"The DSCP to mark with, as a class name or a number from 0 to 63. It picks "
+"the switch queue through the DSCP map below and the Wi-Fi access category "
+"directly."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:170
+msgid ""
+"The switch port the download half of each rule is installed on. Left empty, "
+"it is taken from the WAN interface."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:272
+msgid "This DSCP is already mapped"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:104
+msgid "To"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:124
+msgid "Unmapped - bulk band"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:188
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:189
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:192
+msgid "Unnamed rule"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:169
+msgid "Uplink switch port"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:29
+msgid "Voice admit"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:259
+msgid ""
+"What a DSCP is worth once the switch reads it, for traffic these rules mark "
+"and traffic that arrives marked alike. Unlisted values stay in the bulk band."
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:218
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:224
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:249
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:255
+msgid "any"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:98
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:106
+msgid "any host"
+msgstr ""
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:100
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:108
+msgid "port"
+msgstr ""

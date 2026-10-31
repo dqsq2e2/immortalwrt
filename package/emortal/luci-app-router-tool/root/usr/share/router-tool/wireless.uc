@@ -37,47 +37,78 @@ function htmode(caps, requested) {
 	return null;
 }
 
-function default_ssid(uci, board, suffix) {
-	let hostname = uci.get_first('system', 'system', 'hostname') || 'OWRT';
-	let vendor = split(board?.model?.id, ',')?.[0] || 'UNKNOWN';
-	// Keep the vendor and band visible within the 32-byte SSID limit.
-	let tail = substr(vendor, 0, 32 - length(suffix) - 3) + '-' + suffix;
-	return uc(substr(hostname, 0, 31 - length(tail)) + '-' + tail);
+function default_ssid(uci, board, suffix, custom_ssid) {
+	let hostname = custom_ssid || uci.get_first('system', 'system', 'hostname') || 'OWRT';
+	let tail = suffix;
+	if (!custom_ssid) {
+		let vendor = split(board?.model?.id, ',')?.[0] || 'unknown';
+		vendor = uc(substr(vendor, 0, 1)) + substr(vendor, 1);
+		// Keep the vendor and band visible within the 32-byte SSID limit.
+		tail = substr(vendor, 0, 32 - length(suffix) - 3) + '-' + suffix;
+	}
+	let size = min(length(hostname), 31 - length(tail));
+	// Ucode string offsets count bytes. Avoid cutting a UTF-8 code point.
+	while (size > 0 && (ord(hostname, size) & 0xc0) == 0x80) size--;
+	return substr(hostname, 0, size) + '-' + tail;
 }
 
 export function synchronize_wireless(uci, board) {
 	if (type(board?.wlan) != 'object') return false;
-	let radios = [], interfaces = [], changed = false;
-	uci.foreach('wireless', 'wifi-device', section => push(radios, section));
-	uci.foreach('wireless', 'wifi-iface', section => push(interfaces, section));
-	function set(sid, values) {
-		for (let option, value in values) {
-			let old = uci.get('wireless', sid, option);
-			if (sprintf('%J', old) == sprintf('%J', value)) continue;
-			let ok = value == null ? uci.delete('wireless', sid, option) : uci.set('wireless', sid, option, value);
-			if (!ok) die(`Cannot set wireless.${sid}.${option}`);
-			changed = true;
+	let defaults_loaded = false, custom_ssid, custom_key;
+	let radios = [], interfaces = [], changed = {};
+	function load_defaults() {
+		if (defaults_loaded) return;
+		defaults_loaded = true;
+		let defaults = uci.get_all('router-tool', 'defaults');
+		if (defaults && defaults['.type'] != 'wireless') die('Invalid router-tool.defaults wireless section');
+		custom_ssid = defaults?.ssid;
+		custom_key = defaults?.key;
+		let use_custom = type(custom_ssid) == 'string' && type(custom_key) == 'string' &&
+			length(custom_ssid) && length(custom_key);
+		if (use_custom && (length(custom_ssid) > 32 || match(custom_ssid, /[[:cntrl:]]/)))
+			die('Wireless SSID must contain 1 to 32 bytes without control characters');
+		if (use_custom && (length(custom_key) < 8 || length(custom_key) > 63 || match(custom_key, /[^ -~]/)))
+			die('Wireless password must contain 8 to 63 printable ASCII characters');
+		if (!use_custom) {
+			custom_ssid = null;
+			custom_key = '12345678';
 		}
 	}
+	uci.foreach('wireless', 'wifi-device', section => push(radios, section));
+	uci.foreach('wireless', 'wifi-iface', section => push(interfaces, section));
+	function set(config, sid, values) {
+		for (let option, value in values) {
+			let old = uci.get(config, sid, option);
+			if (sprintf('%J', old) == sprintf('%J', value)) continue;
+			let ok = value == null ? uci.delete(config, sid, option) : uci.set(config, sid, option, value);
+			if (!ok) die(`Cannot set ${config}.${sid}.${option}`);
+			changed[config] = true;
+		}
+	}
+	function mark_done(sid) {
+		let saved = uci.get_all('router-tool', sid);
+		if (saved && saved['.type'] != 'radio') die(`Cannot store wireless defaults marker at router-tool.${sid}`);
+		if (!saved && !uci.set('router-tool', sid, 'radio')) die(`Cannot create router-tool.${sid}`);
+		if (!saved) changed['router-tool'] = true;
+		set('router-tool', sid, { defaults_done: '1' });
+	}
 	for (let radio in radios) {
-		if (radio.router_tool_defaults_done == '1') continue;
+		if (uci.get('router-tool', radio['.name'], 'defaults_done') == '1') continue;
 		let attached = filter(interfaces, iface => index(array(iface.device), radio['.name']) >= 0);
 		// Decide once as soon as a radio has interfaces. Custom SSIDs and
 		// station/mesh/WDS backhauls are explicit user configuration.
 		if (!length(attached)) continue;
-		let has_ap = length(filter(attached, iface => iface.mode == 'ap')) > 0;
 		if (length(filter(attached, iface => iface.mode != 'ap' || iface.wds == '1' || length(array(iface.device)) != 1 || iface.mlo == '1'))) {
-			set(radio['.name'], { router_tool_defaults_done: '1' });
+			mark_done(radio['.name']);
 			continue;
 		}
 		let aps = attached;
-		if (!has_ap) { set(radio['.name'], { router_tool_defaults_done: '1' }); continue; }
 		if (length(filter(aps, iface => iface.ssid != 'OWRT' || iface.key != '12345678' || iface.encryption != 'psk2+ccmp'))) {
-			set(radio['.name'], { router_tool_defaults_done: '1' });
+			mark_done(radio['.name']);
 			continue;
 		}
 		let band = { '2g': '2G', '5g': '5G', '6g': '6G' }[radio.band];
-		if (!band) { set(radio['.name'], { router_tool_defaults_done: '1' }); continue; }
+		if (!band) { mark_done(radio['.name']); continue; }
 		let caps = capabilities(board, radio, band);
 		// PHY capabilities may arrive after the first boot event. Retry when
 		// they are available instead of permanently skipping the defaults.
@@ -88,11 +119,13 @@ export function synchronize_wireless(uci, board) {
 		else if (caps.width == 80) { suffix = '5.8G'; channel = '149'; width = 80; }
 		else { suffix = '5.2G'; channel = '36'; width = 160; }
 		let mode = htmode(caps, width);
-		if (!mode) { set(radio['.name'], { router_tool_defaults_done: '1' }); continue; }
-		set(radio['.name'], { country: 'US', channel, htmode: mode });
+		if (!mode) { mark_done(radio['.name']); continue; }
+		load_defaults();
+		set('wireless', radio['.name'], { country: 'US', channel, htmode: mode });
 		for (let ap in aps)
-			set(ap['.name'], { ssid: default_ssid(uci, board, suffix), encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
-		set(radio['.name'], { router_tool_defaults_done: '1' });
+			set('wireless', ap['.name'], { ssid: default_ssid(uci, board, suffix, custom_ssid), key: custom_key, encryption: band == '6G' ? 'sae+ccmp' : 'psk2+ccmp', ieee80211w: band == '6G' ? '2' : null });
+		mark_done(radio['.name']);
 	}
-	return changed;
+	let result = keys(changed);
+	return length(result) ? result : false;
 }

@@ -271,12 +271,17 @@ struct nss_skb_cb {
 	dma_addr_t dma;
 	bool tx;	/* a frame handed down, not a buffer handed over */
 	bool bidir;	/* mapped both ways: the firmware may hand it back filled */
-	u32 slot;	/* where the lent-buffer table holds this one */
+	u64 cookie;	/* host slot and generation, never an skb address */
 };
 
 #define NSS_SKB_CB(skb) ((struct nss_skb_cb *)(skb)->cb)
 
 static_assert(sizeof(struct nss_skb_cb) <= sizeof_field(struct sk_buff, cb));
+
+struct nss_lent_buffer {
+	struct sk_buff *skb;
+	u64 cookie;
+};
 
 /* A host-to-firmware ring and the buffers in flight on it. */
 struct nss_h2n_ring {
@@ -459,10 +464,11 @@ struct nss_core {
 	 * so by the time it holds a poolful the descriptors that handed the
 	 * first ones over have been written many times since.
 	 */
-	struct sk_buff **lent;
+	struct nss_lent_buffer *lent;
 	u32 *lent_free;
 	u32 lent_free_n;
 	u32 lent_size;
+	u32 lent_shift;
 	spinlock_t lent_lock;
 	struct completion booted;
 

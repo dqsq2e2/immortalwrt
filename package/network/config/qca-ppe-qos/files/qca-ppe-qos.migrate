@@ -1,0 +1,33 @@
+#!/bin/sh
+# Keep an explicitly configured backend in preference to a legacy config.
+# Retain the legacy file for recovery. This script runs once after installation.
+old=/etc/config/ppe-qos
+new=/etc/config/qca-ppe-qos
+template=/usr/share/qca-ppe-qos/config.default
+
+[ -f "$old" ] || exit 0
+if [ -f "$new" ] && ! cmp -s "$new" "$template"; then
+	logger -t qca-ppe-qos "keeping existing qca-ppe-qos configuration; legacy configuration retained at $old"
+	exit 0
+fi
+
+stage=$(mktemp -d /etc/config/.qca-ppe-qos.XXXXXX) || exit 1
+trap 'rm -rf "$stage"' EXIT HUP INT TERM
+package="qos_migrate_${stage##*.}"
+cp "$old" "$stage/$package" || exit 1
+uci -c "$stage" -C "" -t "$stage/delta" -q show "$package" >/dev/null || exit 1
+
+# The old global switch disabled maps and small packets as well as marking.
+# Preserve that meaning without discarding its DSCP or length configuration.
+enabled=$(uci -c "$stage" -C "" -t "$stage/delta" -q get "$package.global.enabled")
+case "$enabled" in
+0|off|false|no|disabled)
+	uci -c "$stage" -C "" -t "$stage/delta" -q set "$package.global.active=0" || exit 1
+	uci -c "$stage" -C "" -t "$stage/delta" -q commit "$package" || exit 1
+	;;
+esac
+chmod 600 "$stage/$package" || exit 1
+mv "$stage/$package" "$new" || exit 1
+rm -f /etc/rc.d/[SK][0-9][0-9]ppe-qos
+logger -t qca-ppe-qos "migrated legacy configuration; original retained at $old"
+exit 0

@@ -251,22 +251,6 @@
 	};
 };
 
-&rpm_requests {
-	regulators {
-		s1 {
-			regulator-boot-on;
-			regulator-always-on;
-		};
-
-		s2 {
-			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1000000>;
-			regulator-boot-on;
-			regulator-always-on;
-		};
-	};
-};
-
 &sdhc_1 {
 	#address-cells = <1>;
 	#size-cells = <0>;

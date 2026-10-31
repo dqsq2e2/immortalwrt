@@ -26,6 +26,8 @@
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
 #include <linux/if_vlan.h>
+#include <linux/hashtable.h>
+#include <linux/jhash.h>
 #include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <linux/rhashtable.h>
@@ -104,6 +106,7 @@ static struct nss_flow_pppoe nss_flow_pppoe_tbl[4];
 
 struct nss_flow_entry {
 	struct rhash_head node;
+	struct hlist_node sync_node;
 	struct rcu_head rcu;	/* the debugfs walker holds no lock */
 	unsigned long flow;
 	struct nss_flow_dir dir[FLOW_OFFLOAD_DIR_MAX];
@@ -133,6 +136,12 @@ static const struct rhashtable_params nss_flow_ht_params = {
 static DEFINE_MUTEX(nss_flow_lock);
 static LIST_HEAD(nss_flow_blocks);
 static struct rhashtable nss_flow_table;
+/* The cookie table owns lifetime; this index only matches firmware syncs.
+ * Receive-side notifications and process-side sweeps share the short lock.
+ * A tuple is immutable while its entry is linked here.
+ */
+static DEFINE_HASHTABLE(nss_flow_sync_table, 10);
+static DEFINE_SPINLOCK(nss_flow_sync_lock);
 static bool nss_flow_ready;
 static struct nss_core *nss_flow_core;
 /* Why a flow was not taken. A flow the firmware does not carry and a flow it
@@ -893,8 +902,47 @@ static int nss_flow_send_v6(struct nss_core *core, struct nss_flow_entry *e,
 	return ret;
 }
 
+static u32 nss_flow_sync_hash_v4(u32 protocol, u32 flow_ip, u32 flow_ident,
+			       u32 return_ip, u32 return_ident)
+{
+	return jhash_3words(flow_ip, return_ip,
+			    jhash_2words(flow_ident, return_ident, protocol), 0);
+}
+
+static u32 nss_flow_sync_hash_v6(u32 protocol, const u32 *flow_ip, u32 flow_ident,
+			       const u32 *return_ip, u32 return_ident)
+{
+	return jhash_3words(jhash(flow_ip, 4 * sizeof(u32), 0),
+			    jhash(return_ip, 4 * sizeof(u32), 0),
+			    jhash_2words(flow_ident, return_ident, protocol), 1);
+}
+
+static void nss_flow_sync_unindex(struct nss_flow_entry *e)
+{
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	hash_del(&e->sync_node);
+}
+
+static void nss_flow_sync_install(struct nss_flow_entry *e)
+{
+	u32 key;
+
+	if (e->v6)
+		key = nss_flow_sync_hash_v6(e->t6.protocol, e->t6.flow_ip,
+					    e->t6.flow_ident, e->t6.return_ip,
+					    e->t6.return_ident);
+	else
+		key = nss_flow_sync_hash_v4(e->t4.protocol, e->t4.flow_ip,
+					    e->t4.flow_ident, e->t4.return_ip,
+					    e->t4.return_ident);
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	WRITE_ONCE(e->installed, true);
+	hash_add(nss_flow_sync_table, &e->sync_node, key);
+}
+
 static void nss_flow_withdraw(struct nss_core *core, struct nss_flow_entry *e)
 {
+	nss_flow_sync_unindex(e);
 	if (!e->installed)
 		return;
 
@@ -1077,7 +1125,7 @@ static int nss_flow_replace(struct nss_core *core, struct flow_cls_offload *f)
 		goto drop;
 	}
 
-	e->installed = true;
+	nss_flow_sync_install(e);
 	e->lastused = jiffies;
 	nss_flow_pushed++;
 
@@ -1129,8 +1177,8 @@ static bool nss_flow_is_v6(const struct nss_flow_entry *e,
  */
 static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 {
-	struct rhashtable_iter iter;
 	struct nss_flow_entry *e;
+	u32 key;
 
 	bool gone = r->reason == NSS_IPV4_RULE_SYNC_REASON_FLUSH ||
 		    r->reason == NSS_IPV4_RULE_SYNC_REASON_EVICT;
@@ -1139,15 +1187,16 @@ static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 		       r->return_rx_packet_count | r->return_tx_packet_count))
 		return;
 
-	rhashtable_walk_enter(&nss_flow_table, &iter);
-	rhashtable_walk_start(&iter);
-	while ((e = rhashtable_walk_next(&iter)) != NULL) {
-		if (IS_ERR(e))
-			continue;
+	key = nss_flow_sync_hash_v4(r->protocol, r->flow_ip, r->flow_ident,
+				    r->return_ip, r->return_ident);
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	hash_for_each_possible(nss_flow_sync_table, e, sync_node, key) {
 		if (!e->installed || !nss_flow_is_v4(e, r))
 			continue;
-		if (gone)
+		if (gone) {
+			hash_del(&e->sync_node);
 			WRITE_ONCE(e->installed, false);
+		}
 		e->lastused = jiffies;
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
@@ -1155,14 +1204,12 @@ static void nss_flow_sync_mark_v4(const struct nss_ipv4_conn_sync *r)
 		e->cnt[3] += r->return_tx_packet_count;
 		break;
 	}
-	rhashtable_walk_stop(&iter);
-	rhashtable_walk_exit(&iter);
 }
 
 static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 {
-	struct rhashtable_iter iter;
 	struct nss_flow_entry *e;
+	u32 key;
 
 	bool gone = r->reason == NSS_IPV6_RULE_SYNC_REASON_FLUSH ||
 		    r->reason == NSS_IPV6_RULE_SYNC_REASON_EVICT;
@@ -1171,15 +1218,16 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 		       r->return_rx_packet_count | r->return_tx_packet_count))
 		return;
 
-	rhashtable_walk_enter(&nss_flow_table, &iter);
-	rhashtable_walk_start(&iter);
-	while ((e = rhashtable_walk_next(&iter)) != NULL) {
-		if (IS_ERR(e))
-			continue;
+	key = nss_flow_sync_hash_v6(r->protocol, r->flow_ip, r->flow_ident,
+				    r->return_ip, r->return_ident);
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	hash_for_each_possible(nss_flow_sync_table, e, sync_node, key) {
 		if (!e->installed || !nss_flow_is_v6(e, r))
 			continue;
-		if (gone)
+		if (gone) {
+			hash_del(&e->sync_node);
 			WRITE_ONCE(e->installed, false);
+		}
 		e->lastused = jiffies;
 		e->cnt[0] += r->flow_rx_packet_count;
 		e->cnt[1] += r->flow_tx_packet_count;
@@ -1187,24 +1235,21 @@ static void nss_flow_sync_mark_v6(const struct nss_ipv6_conn_sync *r)
 		e->cnt[3] += r->return_tx_packet_count;
 		break;
 	}
-	rhashtable_walk_stop(&iter);
-	rhashtable_walk_exit(&iter);
 }
 
 /* The firmware drops a connection on its own, flushed or evicted, and says so
  * with a sync carrying the reason. Its rule is gone: a destroy for it is
  * refused, and the flow table's next refresh has to push it again. From the
- * receive poll, so the table is read under RCU without a walker.
+ * receive poll, sharing the tuple index lock with process-side sweeps.
  */
 void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 {
 	u32 iface = NSS_INTERFACE_NUM_GET(ncm->interface);
 	const struct nss_ipv4_msg *m4;
 	const struct nss_ipv6_msg *m6;
-	const struct bucket_table *tbl;
 	struct nss_flow_entry *e;
-	struct rhash_head *pos;
-	u32 i;
+	struct hlist_node *tmp;
+	u32 key;
 
 	m4 = container_of_const(ncm, struct nss_ipv4_msg, cm);
 	m6 = container_of_const(ncm, struct nss_ipv6_msg, cm);
@@ -1217,26 +1262,34 @@ void nss_flow_notify(const struct nss_cmn_msg *ncm, u32 len)
 		    (m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_FLUSH &&
 		     m4->msg.conn_stats.reason != NSS_IPV4_RULE_SYNC_REASON_EVICT))
 			return;
+		key = nss_flow_sync_hash_v4(m4->msg.conn_stats.protocol,
+					    m4->msg.conn_stats.flow_ip,
+					    m4->msg.conn_stats.flow_ident,
+					    m4->msg.conn_stats.return_ip,
+					    m4->msg.conn_stats.return_ident);
 	} else if (iface == NSS_INTERFACE_IPV6) {
 		if (ncm->type != NSS_IPV6_RX_CONN_STATS_SYNC_MSG ||
 		    len < offsetofend(struct nss_ipv6_msg, msg.conn_stats) ||
 		    (m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_FLUSH &&
 		     m6->msg.conn_stats.reason != NSS_IPV6_RULE_SYNC_REASON_EVICT))
 			return;
+		key = nss_flow_sync_hash_v6(m6->msg.conn_stats.protocol,
+					    m6->msg.conn_stats.flow_ip,
+					    m6->msg.conn_stats.flow_ident,
+					    m6->msg.conn_stats.return_ip,
+					    m6->msg.conn_stats.return_ident);
 	} else {
 		return;
 	}
 
-	rcu_read_lock();
-	for (tbl = rht_dereference_rcu(nss_flow_table.tbl, &nss_flow_table);
-	     tbl; tbl = rht_dereference_rcu(tbl->future_tbl, &nss_flow_table))
-		for (i = 0; i < tbl->size; i++)
-			rht_for_each_entry_rcu(e, pos, tbl, i, node)
-				if (iface == NSS_INTERFACE_IPV4 ?
-				    nss_flow_is_v4(e, &m4->msg.conn_stats) :
-				    nss_flow_is_v6(e, &m6->msg.conn_stats))
-					WRITE_ONCE(e->installed, false);
-	rcu_read_unlock();
+	guard(spinlock_bh)(&nss_flow_sync_lock);
+	hash_for_each_possible_safe(nss_flow_sync_table, e, tmp, sync_node, key)
+		if (iface == NSS_INTERFACE_IPV4 ?
+		    nss_flow_is_v4(e, &m4->msg.conn_stats) :
+		    nss_flow_is_v6(e, &m6->msg.conn_stats)) {
+			hash_del(&e->sync_node);
+			WRITE_ONCE(e->installed, false);
+		}
 }
 
 /* Sweep the firmware's connection table for what moved.
@@ -1551,7 +1604,7 @@ int nss_flow_br_add(struct nf_conn *ct, const struct nss_flow_br_dir *dir,
 		return ret;
 	}
 
-	e->installed = true;
+	nss_flow_sync_install(e);
 	e->lastused = jiffies;
 
 	return 0;
@@ -1715,6 +1768,7 @@ void nss_flow_flush(void)
 	while ((e = rhashtable_walk_next(&iter)) != NULL) {
 		if (IS_ERR(e))
 			continue;
+		nss_flow_sync_unindex(e);
 		rhashtable_remove_fast(&nss_flow_table, &e->node,
 				       nss_flow_ht_params);
 		kfree_rcu(e, rcu);
@@ -1746,6 +1800,7 @@ int nss_flow_init(void)
 
 static void nss_flow_free(void *ptr, void *arg)
 {
+	nss_flow_sync_unindex(ptr);
 	kfree(ptr);
 }
 

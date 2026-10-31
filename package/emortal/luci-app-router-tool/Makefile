@@ -3,8 +3,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-router-tool
-PKG_VERSION:=20261027
-PKG_RELEASE:=2
+PKG_VERSION:=20261031
+PKG_RELEASE:=12
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 PKG_LICENSE:=GPL-2.0-only
 
@@ -14,6 +14,7 @@ LUCI_DEFAULT:=y if PACKAGE_luci-mod-network
 LUCI_PKGARCH:=all
 
 define Package/$(PKG_NAME)/conffiles
+/etc/config/router-tool
 /etc/router-tool/
 endef
 

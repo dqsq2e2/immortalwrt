@@ -12,7 +12,7 @@
 };
 
 &soc {
-	nss-common {
+	nss-common@1868010 {
 		compatible = "qcom,nss-common";
 		reg = <0x01868010 0x1000>;
 		reg-names = "nss-misc-reset";
@@ -35,7 +35,7 @@
 			 <&gcc GCC_UNIPHY2_PORT6_TX_CLK>;
 	};
 
-	nss0: nss@40000000 {
+	nss0: nss@39000000 {
 		compatible = "qcom,nss";
 		interrupts = <GIC_SPI 377 IRQ_TYPE_EDGE_RISING>,
 			     <GIC_SPI 378 IRQ_TYPE_EDGE_RISING>,
@@ -96,7 +96,7 @@
 		npu-supply = <&nss_dummy_reg>;
 	};
 
-	nss1: nss@40800000 {
+	nss1: nss@39400000 {
 		compatible = "qcom,nss";
 		interrupts = <GIC_SPI 390 IRQ_TYPE_EDGE_RISING>,
 			     <GIC_SPI 391 IRQ_TYPE_EDGE_RISING>,

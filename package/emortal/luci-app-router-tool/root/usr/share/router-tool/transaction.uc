@@ -5,7 +5,7 @@ import { equal, section_values, value_valid } from './snapshot.uc';
 
 export function configuration(uci) {
 	let result = {};
-	for (let config in [ 'network', 'dhcp', 'firewall', 'wireless' ]) result[config] = uci.get_all(config) || {};
+	for (let config in [ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ]) result[config] = uci.get_all(config) || {};
 	return result;
 }
 
@@ -65,7 +65,7 @@ export function commit_transaction(state, path, before_commit, after_commit, cur
 	// Validate the complete journal before inspecting or staging any edit.
 	for (let edit in state.edits) {
 		let id = `${edit.config}/${edit.sid}`;
-		if (index([ 'network', 'dhcp', 'firewall', 'wireless' ], edit.config) < 0 ||
+		if (index([ 'network', 'dhcp', 'firewall', 'wireless', 'router-tool' ], edit.config) < 0 ||
 			type(edit.sid) != 'string' || !match(edit.sid, /^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/) ||
 			type(edit.type) != 'string' || !length(edit.type) || exists(edit_by_section, id) ||
 			(type(edit.created) == 'object') == (type(edit.options) == 'array'))
@@ -118,7 +118,8 @@ export function commit_transaction(state, path, before_commit, after_commit, cur
 			if (!ok) die(`Cannot set ${edit.config}.${edit.sid}.${option.key}`);
 		}
 	}
-	let changed_configs = filter([ 'firewall', 'dhcp', 'wireless', 'network' ], name => changed[name]);
+	// Persist ownership state before the corresponding network changes.
+	let changed_configs = filter([ 'router-tool', 'firewall', 'dhcp', 'wireless', 'network' ], name => changed[name]);
 	for (let config in changed_configs) {
 		before_commit(config);
 		if (!current.commit(config)) die(`Unable to commit router tool settings in ${config}`);

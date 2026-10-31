@@ -44,6 +44,8 @@ function task_name(pid)
 }
 
 function set_task_cpu(pid, cpu) {
+	if (pid == null)
+		return;
 	if (disable)
 		cpu = join(",", map(cpus, (cpu) => cpu.id));
 	let name = task_name(pid);
@@ -57,19 +59,23 @@ function set_task_cpu(pid, cpu) {
 
 function cpu_mask(cpu)
 {
-	let mask;
-	if (cpu < 0)
-		mask = (1 << length(cpus)) - 1;
-	else
-		mask = (1 << int(cpu));
-	return sprintf("%x", mask);
+	let ids = type(cpu) == "array" ? cpu :
+	          cpu < 0 ? map(cpus, (c) => c.id) : [ int(cpu) ];
+	let words = [];
+	for (let id in ids) {
+		let word = int(id / 32);
+		words[word] = (words[word] ?? 0) | (1 << (id % 32));
+	}
+	if (!length(words))
+		return "0";
+	return join(",", reverse(map(words, (word) => sprintf("%08x", word ?? 0))));
 }
 
 function set_netdev_cpu(dev, cpu, rx_queue) {
 	rx_queue ??= "rx-*";
 	let queues = glob(`/sys/class/net/${dev}/queues/${rx_queue}/rps_cpus`);
 	let val = cpu_mask(cpu);
-	if (disable)
+	if (disable || cpu == null)
 		val = 0;
 	for (let queue in queues) {
 		if (debug || do_nothing)
@@ -100,21 +106,24 @@ function task_device_match(name, device)
 	return false;
 }
 
-cpus = map(glob("/sys/bus/cpu/devices/*"), (path) => {
+cpus = map(glob("/sys/bus/cpu/devices/cpu[0-9]*"), (path) => {
 	return {
 		id: int(match(path, /.*cpu(\d+)/)[1]),
 		core: int(trim(readfile(`${path}/topology/core_id`))),
+		online: trim(readfile(`${path}/online`)) != "0",
 		load: 0.0,
 	};
 });
 
-cpus = slice(cpus, 0, 64);
+cpus = slice(sort(filter(cpus, (cpu) => cpu.online), (a, b) => a.id - b.id), 0, 64);
 if (length(cpus) < 2)
 	exit(0);
 
 function cpu_add_weight(cpu_id, weight)
 {
-	let cpu = cpus[cpu_id];
+	let cpu = filter(cpus, (c) => c.id == cpu_id)[0];
+	if (!cpu)
+		return;
 	cpu.load += weight;
 	for (let sibling in cpus) {
 		if (sibling == cpu || sibling.core != cpu.core)
@@ -126,7 +135,7 @@ function cpu_add_weight(cpu_id, weight)
 function get_next_cpu(weight, prev_cpu)
 {
 	if (disable)
-		return 0;
+		return cpus[0].id;
 
 	let sort_cpus = sort(slice(cpus), (a, b) => a.load - b.load);
 	let idx = 0;
@@ -170,6 +179,13 @@ for (let dev in netdevs) {
 		let phy = `phy${phyidx}`;
 		if (index(pdev.phy, phy) < 0)
 			push(pdev.phy, phy);
+
+		// mac80211 gives the netdev one receive queue even when the
+		// driver spreads its receive rings over the CPUs by RSS
+		let wiphy = trim(readfile(`/sys/class/net/${dev}/phy80211/name`));
+		let hwflags = readfile(`/sys/kernel/debug/ieee80211/${wiphy}/hwflags`);
+		if (hwflags && index(hwflags, "USES_RSS") >= 0)
+			pdev.rss = true;
 	}
 
 	push(pdev.netdev, dev);
@@ -207,7 +223,7 @@ function assign_dev_queues_cpu(dev) {
 
 		let task = dev.rx_tasks[i];
 		if (num >= length(cpus))
-			cpu = i % length(cpus);
+			cpu = cpus[i % length(cpus)].id;
 		else if (task)
 			cpu = get_next_cpu(napi_weight);
 		else
@@ -219,7 +235,7 @@ function assign_dev_queues_cpu(dev) {
 			continue;
 
 		if (num >= length(cpus))
-			cpu = (i + 1) % length(cpus);
+			cpu = cpus[(i + 1) % length(cpus)].id;
 		else if (all_cpus)
 			cpu = -1;
 		else
@@ -229,10 +245,116 @@ function assign_dev_queues_cpu(dev) {
 	}
 }
 
+function be32(data, off)
+{
+	return (ord(data, off) << 24) | (ord(data, off + 1) << 16) |
+	       (ord(data, off + 2) << 8) | ord(data, off + 3);
+}
+
+// Interrupt numbers by GIC hwirq, and the phandles of the GIC nodes
+// taking three cell interrupt specifiers
+let dt = "/sys/firmware/devicetree/base";
+let gic_irqs = {}, gic_phandles = [];
+let interrupt_cpus;
+
+for (let line in split(readfile("/proc/interrupts") ?? "", "\n")) {
+	// irq: <count per CPU> <chip> <hwirq> ...
+	let f = split(trim(line), /\s+/);
+	if (match(f[0], /^CPU\d+$/)) {
+		interrupt_cpus = length(f);
+		continue;
+	}
+	if (interrupt_cpus && match(f[interrupt_cpus + 1], /^GIC/))
+		gic_irqs[f[interrupt_cpus + 2]] = rtrim(f[0], ":");
+}
+
+for (let path in glob(`${dt}/*/phandle`, `${dt}/*/*/phandle`)) {
+	let node = dirname(path);
+	let cells = readfile(`${node}/#interrupt-cells`);
+	if (readfile(`${node}/interrupt-controller`) == null ||
+	    index(readfile(`${node}/compatible`) ?? "", "gic") < 0 ||
+	    !cells || be32(cells, 0) != 3)
+		continue;
+	push(gic_phandles, be32(readfile(path), 0));
+}
+
+// Interrupts of a PCI device, or of a device tree node wired to a GIC
+function dev_irqs(path)
+{
+	let irqs = map(glob(`${path}/msi_irqs/*`), (v) => basename(v));
+	if (length(irqs) > 0)
+		return irqs;
+
+	let node = realpath(`${path}/of_node`);
+	let spec = node ? readfile(`${node}/interrupts`) : null;
+	if (!spec || length(spec) % 12)
+		return [];
+
+	let parent;
+	for (let dir = node; index(dir, dt) == 0 && parent == null;
+	     dir = dirname(dir)) {
+		let ph = readfile(`${dir}/interrupt-parent`);
+		if (ph)
+			parent = be32(ph, 0);
+	}
+	if (index(gic_phandles, parent) < 0)
+		return [];
+
+	for (let off = 0; off < length(spec); off += 12) {
+		// SPIs start at hwirq 32, PPIs at 16
+		let type = be32(spec, off);
+		if (type > 1)
+			continue;
+		let irq = gic_irqs[`${be32(spec, off + 4) + (type ? 16 : 32)}`];
+		if (irq)
+			push(irqs, irq);
+	}
+	return irqs;
+}
+
+// CPUs the receive interrupts of a device are pinned to; transmit
+// completions do not say where received packets are handled
+function dev_irq_cpus(path)
+{
+	let pinned = {};
+	for (let irq in dev_irqs(path)) {
+		let name = readfile(`/sys/kernel/irq/${irq}/actions`) ?? "";
+		if (match(name, /tx/i) && !match(name, /rx/i))
+			continue;
+
+		let cpu = trim(readfile(`/proc/irq/${irq}/effective_affinity_list`));
+		if (match(cpu, /^\d+$/))
+			pinned[cpu] = true;
+	}
+	return map(filter(cpus, (cpu) => pinned[`${cpu.id}`]), (cpu) => cpu.id);
+}
+
 function assign_dev_cpu(dev) {
 	if (length(dev.rx_queues) > 1 &&
 		length(dev.rx_tasks) > 1)
 		return assign_dev_queues_cpu(dev);
+
+	let irq_cpus = dev_irq_cpus(dev.path);
+
+	// Hardware RSS with a softirq NAPI per queue or ring already spreads
+	// the load over every CPU when the interrupts are spread too, and
+	// steering it to one CPU would funnel it back
+	let hw_spread = !length(dev.tasks) &&
+		(dev.rss || length(dev.rx_queues) >= length(cpus)) &&
+		length(irq_cpus) == length(cpus);
+
+	// A softirq NAPI runs where its interrupts are taken; spread the
+	// stack work over the other CPUs instead of piling it on top
+	let rps_cpus;
+	if (!all_cpus && !length(dev.tasks) && length(irq_cpus) > 0 &&
+	    length(irq_cpus) < length(cpus)) {
+		rps_cpus = map(filter(cpus, (cpu) => index(irq_cpus, cpu.id) < 0),
+			       (cpu) => cpu.id);
+		for (let cpu in irq_cpus)
+			cpu_add_weight(cpu, napi_weight / length(irq_cpus));
+		for (let cpu in rps_cpus)
+			cpu_add_weight(cpu, rx_weight / length(rps_cpus));
+	}
 
 	if (length(dev.tasks) > 0) {
 		let cpu = dev.napi_cpu = get_next_cpu(napi_weight);
@@ -244,7 +366,9 @@ function assign_dev_cpu(dev) {
 		let cpu;
 		if (all_cpus)
 			cpu = -1;
-		else
+		else if (rps_cpus)
+			cpu = rps_cpus;
+		else if (!hw_spread)
 			cpu = get_next_cpu(rx_weight, dev.napi_cpu);
 		for (let netdev in dev.netdev)
 			set_netdev_cpu(netdev, cpu);

@@ -1,0 +1,307 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-qca-ppe-qos\n"
+"PO-Revision-Date: 2026-10-30 11:00+0800\n"
+"Last-Translator: ViKing <viking.yfy@qq.com>\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:59
+msgid "%d - bulk band"
+msgstr "%d - 普通队列组"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:58
+msgid "%d - priority band"
+msgstr "%d - 优先队列组"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:180
+msgid ""
+"A rule marks the download direction of the flows it matches. The switch "
+"matches addresses and ports only, not domain names."
+msgstr "规则为匹配流量的下载方向添加标记。交换机仅匹配地址和端口，不匹配域名。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:241
+msgid "A rule needs an address or a port, or it would mark all traffic"
+msgstr "规则必须指定地址或端口，否则会标记所有流量"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:148
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:187
+msgid "Advanced Settings"
+msgstr "高级设置"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:177
+msgid ""
+"Also installs each rule on every client-facing port. This costs a classifier "
+"entry per port, and small upload packets are prioritized without it."
+msgstr ""
+"同时在每个客户端侧端口安装规则，每个端口都会占用分类器表项。即使不启用此项，"
+"上传小包也会获得优先处理。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:151
+msgid "Apply marking rules, DSCP maps and small packet priorities."
+msgstr "应用标记规则、DSCP 映射和小包优先级。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:10
+msgid "Best effort"
+msgstr "尽力而为"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:20
+msgid "Broadcast video"
+msgstr "广播视频"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:199
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:227
+msgid "Class"
+msgstr "类别"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:264
+msgid "DSCP"
+msgstr "DSCP"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:258
+msgid "DSCP Map"
+msgstr "DSCP 映射"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:215
+msgid "Destination address"
+msgstr "目标地址"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:221
+msgid "Destination port"
+msgstr "目标端口"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:203
+msgid "Enable"
+msgstr "启用"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:150
+msgid "Enable hardware QoS"
+msgstr "启用硬件 QoS"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:155
+msgid "Enable marking rules"
+msgstr "启用标记规则"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:235
+msgid "Expecting a class name or a DSCP value from 0 to 63"
+msgstr "请输入类别名称或 0 到 63 之间的 DSCP 值"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:96
+msgid "From"
+msgstr "来源"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:147
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:186
+msgid "General Settings"
+msgstr "常规设置"
+
+#: luci-app-qca-ppe-qos/root/usr/share/rpcd/acl.d/luci-app-qca-ppe-qos.json:3
+msgid "Grant access to the PPE hardware QoS configuration"
+msgstr "授予 PPE 硬件 QoS 配置的访问权限"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:13
+msgid "High-throughput data"
+msgstr "高吞吐量数据"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:216
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:247
+msgid "IPv4 and IPv6 addresses or subnets."
+msgstr "IPv4 和 IPv6 地址或子网。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:118
+msgid "Invalid class"
+msgstr "无效类别"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:17
+msgid "Low-latency data"
+msgstr "低延迟数据"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:11
+msgid "Lower effort"
+msgstr "低于尽力而为"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:176
+msgid "Mark upload"
+msgstr "标记上传流量"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:179
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:188
+msgid "Marking Rules"
+msgstr "标记规则"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:195
+msgid "Match"
+msgstr "匹配条件"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:25
+msgid "Multimedia conferencing, calls"
+msgstr "多媒体会议、通话"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:21
+msgid "Multimedia streaming"
+msgstr "多媒体流"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:191
+msgid "Name"
+msgstr "名称"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:31
+msgid "Network control"
+msgstr "网络控制"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:16
+msgid "Operations, administration"
+msgstr "运维管理"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:143
+#: luci-app-qca-ppe-qos/root/usr/share/luci/menu.d/luci-app-qca-ppe-qos.json:3
+msgid "PPE Hardware QoS"
+msgstr "PPE 硬件 QoS"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:161
+msgid ""
+"Packets up to this IP length take the small packet priority whatever their "
+"marking: ACKs, DNS, VoIP and game traffic. Keep it below a full-size "
+"segment. 0 disables."
+msgstr ""
+"IP 包长度不超过此值时，无论其标记如何，都采用小包优先级，适用于 ACK、DNS、"
+"VoIP 和游戏流量。此值应小于完整报文段的长度，设为 0 则禁用。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:222
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:253
+msgid "Ports or port ranges, such as 5000-5500."
+msgstr "端口或端口范围，例如 5000-5500。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:275
+msgid "Priority"
+msgstr "优先级"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:124
+msgid "Priority %s"
+msgstr "优先级 %s"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:208
+msgid "Protocol"
+msgstr "协议"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:24
+msgid "Real-time interactive, games"
+msgstr "实时交互、游戏"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:32
+msgid "Reserved"
+msgstr "保留"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:12
+msgid "Scavenger, bulk"
+msgstr "空闲带宽流量、批量传输"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:28
+msgid "Signalling, DNS"
+msgstr "信令、DNS"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:160
+msgid "Small packet length"
+msgstr "小包长度"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:165
+msgid "Small packet priority"
+msgstr "小包优先级"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:144
+msgid ""
+"Sorts traffic into the egress queues of the switch. Marking rules put a DSCP "
+"on a flow, the DSCP map turns a DSCP into a priority, and priorities 4 to 7 "
+"are served ahead of the bulk band of a shaped port. The switch does all of "
+"this itself, so it covers flows the PPE has offloaded. Shaper rates belong "
+"to SQM."
+msgstr ""
+"将流量分配到交换机的出站队列。标记规则为流量设置 DSCP，DSCP 映射将其转换为优"
+"先级；在启用整形的端口上，优先级 4 到 7 的队列先于普通队列组获得服务。这些处"
+"理均由交换机完成，因此也适用于已由 PPE 卸载的流量。整形速率由 SQM 设置。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:246
+msgid "Source address"
+msgstr "源地址"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:252
+msgid "Source port"
+msgstr "源端口"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:30
+msgid "Telephony, voice"
+msgstr "电话、语音"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:156
+msgid "The DSCP map and the small packet priority stay in effect either way."
+msgstr "无论是否启用此项，DSCP 映射和小包优先级都会保持生效。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:228
+msgid ""
+"The DSCP to mark with, as a class name or a number from 0 to 63. It picks "
+"the switch queue through the DSCP map below and the Wi-Fi access category "
+"directly."
+msgstr ""
+"要设置的 DSCP，可填写类别名称或 0 到 63 之间的数值。它通过下方的 DSCP 映射选"
+"择交换机队列，并直接决定 Wi-Fi 访问类别。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:170
+msgid ""
+"The switch port the download half of each rule is installed on. Left empty, "
+"it is taken from the WAN interface."
+msgstr "用于安装各条规则下载方向分类器的交换机端口。留空时从 WAN 接口获取。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:272
+msgid "This DSCP is already mapped"
+msgstr "此 DSCP 已有映射"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:104
+msgid "To"
+msgstr "目标"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:124
+msgid "Unmapped - bulk band"
+msgstr "未映射 - 普通队列组"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:188
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:189
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:192
+msgid "Unnamed rule"
+msgstr "未命名规则"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:169
+msgid "Uplink switch port"
+msgstr "上联交换机端口"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:29
+msgid "Voice admit"
+msgstr "准入语音"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:259
+msgid ""
+"What a DSCP is worth once the switch reads it, for traffic these rules mark "
+"and traffic that arrives marked alike. Unlisted values stay in the bulk band."
+msgstr ""
+"设置交换机读取 DSCP 后采用的优先级，同时适用于由本页规则标记和到达时已带标记"
+"的流量。未列出的值使用普通队列组。"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:218
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:224
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:249
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:255
+msgid "any"
+msgstr "任意"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:98
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:106
+msgid "any host"
+msgstr "任意主机"
+
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:100
+#: luci-app-qca-ppe-qos/htdocs/luci-static/resources/view/network/qca-ppe-qos.js:108
+msgid "port"
+msgstr "端口"
