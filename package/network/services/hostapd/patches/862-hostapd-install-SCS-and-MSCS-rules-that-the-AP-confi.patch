@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 16:37:42 +0200
+Date: Wed, 11 Nov 2026 12:18:57 +0800
 Subject: [PATCH] hostapd: install SCS and MSCS rules that the AP configures
 
 EasyMesh 6.1 section 20.2.4 has a Multi-AP Agent activate MSCS and SCS
@@ -28,10 +28,7 @@ its association link. The ubus caller of hostapd_robust_av_configure()
 already resolves that BSS with hostapd_ubus_sta_bss().
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- src/ap/scs.c | 312 +++++++++++++++++++++++++++++++++++++--------------
- src/ap/scs.h |   6 +
- 2 files changed, 233 insertions(+), 85 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c

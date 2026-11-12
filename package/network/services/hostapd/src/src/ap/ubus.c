@@ -1138,6 +1138,7 @@ hostapd_switch_chan(struct ubus_context *ctx, struct ubus_object *obj,
 	struct hostapd_data *hapd = get_hapd_from_object(obj);
 	struct hostapd_config *iconf = hapd->iface->conf;
 	struct hostapd_freq_params *freq_params;
+	struct hostapd_channel_info info;
 	struct hostapd_hw_modes *mode = hapd->iface->current_mode;
 	struct csa_settings css = {
 		.freq_params = {
@@ -1206,22 +1207,34 @@ hostapd_switch_chan(struct ubus_context *ctx, struct ubus_object *obj,
 		break;
 	}
 
-	hostapd_set_freq_params(&css.freq_params, iconf->hw_mode,
-				css.freq_params.freq,
-				css.freq_params.channel, iconf->enable_edmg,
-				iconf->edmg_channel,
-				css.freq_params.ht_enabled,
-				css.freq_params.vht_enabled,
-				css.freq_params.he_enabled,
-				css.freq_params.eht_enabled,
-				css.freq_params.sec_channel_offset,
-				chwidth, seg0, seg1,
-				iconf->vht_capab,
-				mode ? &mode->he_capab[IEEE80211_MODE_AP] :
-				NULL,
-				mode ? &mode->eht_capab[IEEE80211_MODE_AP] :
-				NULL,
-				hostapd_get_punct_bitmap(hapd));
+	if (css.freq_params.center_freq1 &&
+	    ieee80211_freq_to_chan(css.freq_params.center_freq1, &seg0) == NUM_HOSTAPD_MODES)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+	if (css.freq_params.center_freq2 &&
+	    ieee80211_freq_to_chan(css.freq_params.center_freq2, &seg1) == NUM_HOSTAPD_MODES)
+		return UBUS_STATUS_INVALID_ARGUMENT;
+
+	info = (struct hostapd_channel_info) {
+		.mode = iconf->hw_mode,
+		.freq = css.freq_params.freq,
+		.channel = css.freq_params.channel,
+		.edmg.enabled = iconf->enable_edmg,
+		.edmg.channel = iconf->edmg_channel,
+		.ht.enabled = css.freq_params.ht_enabled,
+		.vht.enabled = css.freq_params.vht_enabled,
+		.he.enabled = css.freq_params.he_enabled,
+		.eht.enabled = css.freq_params.eht_enabled,
+		.ht.sec_channel_offset = css.freq_params.sec_channel_offset,
+		.oper_chwidth = chwidth,
+		.center_segment0 = seg0,
+		.center_segment1 = seg1,
+		.vht.caps = iconf->vht_capab,
+		.he.cap = mode ? &mode->he_capab[IEEE80211_MODE_AP] : NULL,
+		.eht.cap = mode ? &mode->eht_capab[IEEE80211_MODE_AP] : NULL,
+		.eht.punct_bitmap = hostapd_get_punct_bitmap(hapd),
+	};
+	if (hostapd_set_freq_params(&css.freq_params, &info))
+		return UBUS_STATUS_INVALID_ARGUMENT;
 
 	for (i = 0; i < hapd->iface->num_bss; i++) {
 		struct hostapd_data *bss = hapd->iface->bss[i];
@@ -2225,7 +2238,7 @@ hostapd_rrm_lm_req(struct ubus_context *ctx, struct ubus_object *obj,
 
 	wpabuf_put_u8(buf, WLAN_ACTION_RADIO_MEASUREMENT);
 	wpabuf_put_u8(buf, WLAN_RRM_LINK_MEASUREMENT_REQUEST);
-	wpabuf_put_u8(buf, 1);
+	wpabuf_put_u8(buf, UBUS_LMR_TOKEN);
 	/* TX-Power used */
 	wpabuf_put_u8(buf, txp_used);
 	/* Max TX Power */
@@ -2247,7 +2260,7 @@ static struct ubus_object *hostapd_ubus_notify_obj(struct hostapd_data *hapd)
 	return &hostapd_ubus_state(hapd)->obj;
 }
 
-void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *data, size_t len)
+int hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *data, size_t len)
 {
 	struct ubus_object *obj = hostapd_ubus_notify_obj(hapd);
 	const struct ieee80211_mgmt *mgmt = (const struct ieee80211_mgmt *) data;
@@ -2259,10 +2272,11 @@ void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *d
 	pos = mgmt->u.action.u.rrm.variable;
 
 	if (end - pos < 8)
-		return;
+		return false; /* We will not handle this LMR, passing to upstream handler. */
 
-	if (!obj->has_subscribers)
-		return;
+	if (!obj->has_subscribers || token != UBUS_LMR_TOKEN
+	    || (hapd->link_mesr_req_active && token == hapd->link_measurement_req_token))
+		return false;
 
 	blob_buf_init(&b, 0);
 	blobmsg_add_macaddr(&b, "address", mgmt->sa);
@@ -2273,6 +2287,7 @@ void hostapd_ubus_handle_link_measurement(struct hostapd_data *hapd, const u8 *d
 	blobmsg_add_u16(&b, "rsni", pos[7]);
 
 	ubus_notify(ctx, obj, "link-measurement-report", b.head, -1);
+	return true;
 }
 
 

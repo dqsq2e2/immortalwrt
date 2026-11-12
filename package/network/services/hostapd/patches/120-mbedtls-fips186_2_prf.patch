@@ -1,18 +1,15 @@
-From c8dba4bd750269bcc80fed3d546e2077cb4cdf0e Mon Sep 17 00:00:00 2001
 From: Glenn Strauss <gstrauss@gluelogic.com>
-Date: Tue, 19 Jul 2022 20:02:21 -0400
+Date: Wed, 11 Nov 2026 12:12:08 +0800
 Subject: [PATCH 2/7] mbedtls: fips186_2_prf()
 
+
+
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
----
- hostapd/Makefile            |  4 ---
- src/crypto/crypto_mbedtls.c | 60 +++++++++++++++++++++++++++++++++++++
- wpa_supplicant/Makefile     |  4 ---
- 3 files changed, 60 insertions(+), 8 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -796,10 +796,6 @@ endif
+@@ -825,10 +825,6 @@ endif
  OBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  HOBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  SOBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
@@ -101,7 +98,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -1287,10 +1287,6 @@ endif
+@@ -1331,10 +1331,6 @@ endif
  OBJS += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  OBJS_p += ../src/crypto/crypto_$(CONFIG_CRYPTO).o
  OBJS_priv += ../src/crypto/crypto_$(CONFIG_CRYPTO).o

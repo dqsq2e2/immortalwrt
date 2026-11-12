@@ -1,5 +1,5 @@
 From: John Crispin <john@phrozen.org>
-Date: Tue, 6 Oct 2026 07:59:32 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] ACS: Scan for all links of an AP MLD with one request
 
 The links of an AP MLD share one wiphy, and the kernel runs one scan per
@@ -25,7 +25,7 @@ debug level.
 
 Signed-off-by: John Crispin <john@phrozen.org>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/acs.c
 +++ b/src/ap/acs.c
@@ -314,7 +314,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -774,6 +774,32 @@ bool hostapd_drv_nl80211(struct hostapd_
+@@ -813,6 +813,32 @@ bool hostapd_drv_nl80211(struct hostapd_
  }
  
  
@@ -347,7 +347,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int hostapd_driver_scan(struct hostapd_data *hapd,
  			struct wpa_driver_scan_params *params)
  {
-@@ -782,31 +808,12 @@ int hostapd_driver_scan(struct hostapd_d
+@@ -821,31 +847,12 @@ int hostapd_driver_scan(struct hostapd_d
  	if (hapd->conf->mld_ap)
  		params->link_id = hapd->mld_link_id;
  
@@ -387,7 +387,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -89,6 +89,7 @@ hostapd_get_hw_feature_data(struct hosta
+@@ -91,6 +91,7 @@ hostapd_get_hw_feature_data(struct hosta
  			    u16 *flags, u8 *dfs_domain);
  int hostapd_drv_none(struct hostapd_data *hapd);
  bool hostapd_drv_nl80211(struct hostapd_data *hapd);
@@ -397,7 +397,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  struct wpa_scan_results * hostapd_driver_get_scan_results(
 --- a/src/ap/drv_callbacks.c
 +++ b/src/ap/drv_callbacks.c
-@@ -2235,22 +2235,13 @@ static void hostapd_single_channel_get_s
+@@ -2236,22 +2236,13 @@ static void hostapd_single_channel_get_s
  }
  
  
@@ -424,7 +424,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	dl_list_for_each_safe(survey, tmp, &survey_results->survey_list,
  			      struct freq_survey, list) {
  		chan = hostapd_get_mode_channel(iface, survey->freq);
-@@ -2261,17 +2252,68 @@ void hostapd_event_get_survey(struct hos
+@@ -2262,17 +2253,68 @@ void hostapd_event_get_survey(struct hos
  		if (!(chan->flag & HOSTAPD_CHAN_SURVEY_LIST_INITIALIZED))
  			continue;
  
@@ -496,7 +496,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #ifdef NEED_AP_MLME
  
  static void hostapd_event_iface_unavailable(struct hostapd_data *hapd)
-@@ -2836,6 +2878,8 @@ void wpa_supplicant_event(void *ctx, enu
+@@ -2837,6 +2879,8 @@ void wpa_supplicant_event(void *ctx, enu
  			data->connect_failed_reason.code);
  		break;
  	case EVENT_SURVEY:

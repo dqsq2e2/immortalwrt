@@ -15,7 +15,8 @@ let prev_board_data = prev_data ? json(prev_data) : null;
 let board_data = json(base_data);
 
 function phy_idx(name) {
-	return +rtrim(readfile(`/sys/class/ieee80211/${name}/index`));
+	return +rtrim(readfile(`/sys/class/ieee80211/${name}/device_index`) ??
+		readfile(`/sys/class/ieee80211/${name}/index`));
 }
 
 function phy_path(name) {
@@ -160,11 +161,13 @@ function wiphy_detect() {
 				eht_phy_cap |= ift.eht_cap_phy[0];
 			}
 
-			if (band_name != "2G" &&
-			    (he_phy_cap & 0x18) || ((band.vht_capa >> 2) & 0x3))
+			if (band_name == "6G" && (eht_phy_cap & 2))
+				band_info.max_width = 320;
+			else if (band_name != "2G" &&
+			         ((he_phy_cap & 0x18) || ((band.vht_capa >> 2) & 0x3)))
 				band_info.max_width = 160;
 			else if (band_name != "2G" &&
-			         (he_phy_cap & 4) || band.vht_capa > 0)
+			         ((he_phy_cap & 4) || band.vht_capa > 0))
 				band_info.max_width = 80;
 			else if ((band.ht_capa & 0x2) || (he_phy_cap & 0x2))
 				band_info.max_width = 40;
@@ -240,7 +243,7 @@ function wiphy_detect() {
 			if (eht_phy_cap && he_phy_cap & 0x18)
 				push(modes, "EHT160");
 
-			if (eht_phy_cap & 2)
+			if (band_name == "6G" && (eht_phy_cap & 2))
 				push(modes, "EHT320");
 		}
 

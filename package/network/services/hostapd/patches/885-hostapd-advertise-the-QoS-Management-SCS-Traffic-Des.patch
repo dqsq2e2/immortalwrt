@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 10:50:16 +0100
+Date: Wed, 11 Nov 2026 12:19:17 +0800
 Subject: [PATCH] hostapd: advertise the QoS Management SCS Traffic Description
 
 An AP that enables QoS Management SCS Traffic Description sets bit 2 of
@@ -18,7 +18,8 @@ MAC Capabilities hold SCS Traffic Description Support. The bit does not
 depend on the operating mode of the BSS or on the station.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
 @@ -144,8 +144,7 @@ u8 * hostapd_eid_eht_capab(struct hostap
@@ -33,7 +34,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	os_memcpy(cap->phy_cap, eht_cap->phy_cap, EHT_PHY_CAPAB_LEN);
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -1380,6 +1380,11 @@ u8 * hostapd_eid_wfa_capab(struct hostap
+@@ -1595,6 +1595,11 @@ u8 * hostapd_eid_wfa_capab(struct hostap
  	    ap_pmf_enabled(hapd->conf) &&
  	    (!sta || (sta->flags & WLAN_STA_DSCP_POLICY)))
  		capab |= WFA_CAPA_QM_DSCP_POLICY | WFA_CAPA_QM_UNSOLIC_DSCP;

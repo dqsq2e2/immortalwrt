@@ -1,14 +1,16 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Jul 2021 20:28:58 +0200
+Date: Wed, 11 Nov 2026 12:15:19 +0800
 Subject: [PATCH] hostapd: make the snooping interface (for proxyarp)
  configurable
 
 Use the VLAN interface instead of the bridge, to ensure that hostapd receives
 untagged DHCP packets
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -2383,6 +2383,8 @@ static int hostapd_config_fill(struct ho
+@@ -2397,6 +2397,8 @@ static int hostapd_config_fill(struct ho
  			os_strlcpy(bss->wds_bridge, pos, sizeof(bss->wds_bridge));
  	} else if (os_strcmp(buf, "bridge_hairpin") == 0) {
  		bss->bridge_hairpin = atoi(pos);
@@ -29,7 +31,7 @@ untagged DHCP packets
  	int bridge_hairpin; /* hairpin_mode on bridge members */
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -369,12 +369,12 @@ static inline int hostapd_drv_br_port_se
+@@ -371,12 +371,12 @@ static inline int hostapd_drv_br_port_se
  
  static inline int hostapd_drv_br_set_net_param(struct hostapd_data *hapd,
  					       enum drv_br_net_param param,
@@ -112,7 +114,7 @@ untagged DHCP packets
  	hapd->x_snoop_initialized = false;
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -4870,7 +4870,7 @@ struct wpa_driver_ops {
+@@ -4937,7 +4937,7 @@ struct wpa_driver_ops {
  	 * Returns: 0 on success, negative (<0) on failure
  	 */
  	int (*br_set_net_param)(void *priv, enum drv_br_net_param param,
@@ -123,7 +125,7 @@ untagged DHCP packets
  	 * get_wowlan - Get wake-on-wireless status
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -13686,7 +13686,7 @@ static const char * drv_br_net_param_str
+@@ -13811,7 +13811,7 @@ static const char * drv_br_net_param_str
  
  
  static int wpa_driver_br_set_net_param(void *priv, enum drv_br_net_param param,
@@ -132,7 +134,7 @@ untagged DHCP packets
  {
  	struct i802_bss *bss = priv;
  	char path[128];
-@@ -13712,8 +13712,11 @@ static int wpa_driver_br_set_net_param(v
+@@ -13837,8 +13837,11 @@ static int wpa_driver_br_set_net_param(v
  			return -EINVAL;
  	}
  

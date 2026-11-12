@@ -1,6 +1,5 @@
-From be72d6aecea491ee202de81fc3a71c7ea9d34d2b Mon Sep 17 00:00:00 2001
 From: Tamizh Chelvam Raja <tamizh.raja@oss.qualcomm.com>
-Date: Wed, 1 Jul 2026 23:54:28 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: Set IEEE80211_OFFLOAD_ENCAP_4ADDR after
  tx_encap_type vdev param
 
@@ -24,9 +23,7 @@ Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260701182428.906441-1-tamizh.raja@oss.qualcomm.com
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/mac.c | 14 +++++++-------
- 1 file changed, 7 insertions(+), 7 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 13:29:58 +0000
+Date: Wed, 11 Nov 2026 12:18:46 +0800
 Subject: [PATCH] hostapd: add the control command DEL_MSCS
 
 Remove the MSCS of an associated station and tell the station with an
@@ -22,7 +22,8 @@ exists.
 Co-developed-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
 @@ -67,6 +67,7 @@
@@ -52,16 +53,18 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_ROBUST_AV */
  
  
-@@ -4863,6 +4876,9 @@ static int hostapd_ctrl_iface_receive_pr
- 	} else if (os_strncmp(buf, "SEND_UNSOLICITED_DSCP_REQ ", 26) == 0) {
- 		if (hostapd_ctrl_send_unsolicited_dscp_req(hapd, buf + 26))
+@@ -4866,6 +4879,11 @@ static int hostapd_ctrl_iface_receive_pr
+ 		if (hostapd_ctrl_afc_send_request(hapd, buf + 16) < 0)
  			reply_len = -1;
+ #endif /* CONFIG_AFC */
++#ifdef CONFIG_ROBUST_AV
 +	} else if (os_strncmp(buf, "DEL_MSCS ", 9) == 0) {
 +		if (hostapd_ctrl_iface_del_mscs(hapd, buf + 9))
 +			reply_len = -1;
- #endif /* CONFIG_ROBUST_AV */
++#endif /* CONFIG_ROBUST_AV */
  	} else {
  		os_memcpy(reply, "UNKNOWN COMMAND\n", 16);
+ 		reply_len = 16;
 --- a/hostapd/hostapd_cli.c
 +++ b/hostapd/hostapd_cli.c
 @@ -947,6 +947,13 @@ static int hostapd_cli_cmd_send_unsolici
@@ -78,15 +81,15 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_ROBUST_AV */
  
  
-@@ -2038,6 +2045,8 @@ static const struct hostapd_cli_cmd host
+@@ -2030,6 +2037,8 @@ static const struct hostapd_cli_cmd host
  	{"send_unsolicited_dscp_req", hostapd_cli_cmd_send_unsolicited_dscp_req,
  	 NULL,
  	 "<addr>, [reset=], [policy_id_list=], Send unsolicited DSCP request"},
 +	{ "del_mscs", hostapd_cli_cmd_del_mscs, NULL,
 +	  "<addr> = Remove the MSCS of a station" },
  #endif /* CONFIG_ROBUST_AV */
- 	{ NULL, NULL, NULL, NULL }
- };
+ #ifdef CONFIG_AFC
+ 	{ "afc_get_request", hostapd_cli_cmd_afc_get_request, NULL,
 --- a/src/ap/scs.c
 +++ b/src/ap/scs.c
 @@ -290,6 +290,34 @@ out:

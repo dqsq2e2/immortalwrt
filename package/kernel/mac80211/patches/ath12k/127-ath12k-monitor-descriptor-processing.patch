@@ -1,5 +1,5 @@
 From: Miaoqing Pan <miaoqing.pan@oss.qualcomm.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: decode and validate monitor descriptors across hardware revisions
 
 HAL_TLV_HDR_LEN was using the wrong bitmask; fix it to cover bits [21:10].

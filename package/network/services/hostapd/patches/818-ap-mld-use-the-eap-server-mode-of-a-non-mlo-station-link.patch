@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:47:14 +0200
+Date: Wed, 11 Nov 2026 12:15:55 +0800
 Subject: [PATCH] AP MLD: Use the EAP server mode of a non-MLO station's link
 
 The links of an AP MLD share the EAP server configuration of the first
@@ -21,7 +21,7 @@ internal EAP server in that configuration. The RADIUS server keeps the
 mode of its configuration for its own sessions.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
@@ -56,7 +56,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/eap_server/eap.h
 +++ b/src/eap_server/eap.h
-@@ -273,9 +273,11 @@ struct eap_config {
+@@ -274,9 +274,11 @@ struct eap_config {
  struct eap_session_data {
  	const struct wpabuf *assoc_wps_ie;
  	/* The links of an AP MLD share the EAP server configuration, while
@@ -166,7 +166,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int eapol_auth_dump_state(struct eapol_state_machine *sm, char *buf,
 --- a/src/radius/radius_server.c
 +++ b/src/radius/radius_server.c
-@@ -661,6 +661,7 @@ radius_server_get_new_session(struct rad
+@@ -665,6 +665,7 @@ radius_server_get_new_session(struct rad
  	os_memset(&eap_sess, 0, sizeof(eap_sess));
  	eap_sess.wps = data->eap_cfg->wps;
  	eap_sess.msg_ctx = data->eap_cfg->msg_ctx;

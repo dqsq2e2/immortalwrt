@@ -23,6 +23,21 @@ nss_module_present() {
 	return 1
 }
 
+# An ath10k AIoT radio can register a PHY before the ath11k service starts.
+# Only ath11k owns the WLAN rings whose offload mode is fixed at probe.
+wifi_ath11k_probed() {
+	local phy driver
+
+	for phy in /sys/class/ieee80211/phy*; do
+		[ -e "$phy/device/driver" ] || continue
+		driver=$(readlink -f "$phy/device/driver" 2>/dev/null) || continue
+		case "$driver" in
+			*/ath11k|*/ath11k_pci) return 0 ;;
+		esac
+	done
+	return 1
+}
+
 # A multi-profile build can include ath11k but omit it from this image.
 # Check both the installed integration and the physical, enabled targets.
 # Keep crash dumps available without holding AHB recovery until userspace
@@ -87,7 +102,7 @@ nss_state_has() {
 }
 
 nss_start() {
-	local dir fw i param token wlan
+	local dir fw i token wlan
 
 	dir=/sys/bus/platform/devices/39000000.nss
 	# Check before touching pending or boot: repeated service actions must
@@ -111,7 +126,7 @@ nss_start() {
 		return 0
 	}
 	wlan=$(nss_wlan_buses)
-	if [ "$wlan" -ne 0 ] && ls -d /sys/class/ieee80211/phy* >/dev/null 2>&1; then
+	if [ "$wlan" -ne 0 ] && wifi_ath11k_probed; then
 		logger -t nss-wifi "WLAN already probed; reboot to select offload"
 		return 1
 	fi
@@ -121,7 +136,13 @@ nss_start() {
 	# OpenWrt modprobe ignores arguments after the module name. The
 	# directory loader applies parameters while resolving dependencies.
 	mkdir "$LOCK/modules" || return 1
-	printf 'nss-wifi-drv wlan=%s\n' "$wlan" > "$LOCK/modules/nss-wifi"
+	if [ "$wlan" -eq 0 ]; then
+		# Standalone forwarding keeps an 8 MiB descriptor pool instead
+		# of the 32 MiB default used with WLAN receive rings.
+		printf 'nss-wifi-drv wlan=0 pbuf_bytes=8388608\n' > "$LOCK/modules/nss-wifi"
+	else
+		printf 'nss-wifi-drv wlan=%s\n' "$wlan" > "$LOCK/modules/nss-wifi"
+	fi
 	kmodloader "$LOCK/modules/" 2>/dev/null
 	rm -f "$LOCK/modules/nss-wifi"
 	rmdir "$LOCK/modules"
@@ -137,18 +158,7 @@ nss_start() {
 	fi
 	fw=$(uci -q get nss-wifi.general.firmware) &&
 		printf %s "$fw" > /sys/module/nss_wifi_drv/parameters/firmware
-	for param in $(uci -q get nss-wifi.general.param); do
-		case "$param" in
-			*=*) ;;
-			*) continue ;;
-		esac
-		case "${param%%=*}" in
-			*[!a-zA-Z0-9_]*|'') continue ;;
-		esac
-		if ! echo "${param#*=}" > "/sys/module/nss_wifi_drv/parameters/${param%%=*}" 2>/dev/null; then
-			logger -t nss-wifi "parameter rejected: ${param%%=*}"
-		fi
-	done
+	/usr/share/nss-wifi/flowtable.sh || return 1
 	if [ "$wlan" -ne 0 ]; then
 		modprobe ath11k 2>/dev/null
 		if ! echo 1 > /sys/module/ath11k/parameters/nss_offload 2>/dev/null; then

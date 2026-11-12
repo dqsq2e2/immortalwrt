@@ -21,7 +21,9 @@ define Build/fit-inline-rootfs
 	cp $@.kernel $@
 	$(call Build/fit-its,$(word 1,$(1)) $@.dtb with-rootfs)
 	$(call Build/fit-image,$(word 1,$(1)) $@.dtb with-rootfs)
-	rootfs_offset="$$(grep -oba hsqs $@ | head -n1 | cut -d: -f1)"; \
+	kernel_size="$$(stat -c%s $@.kernel)"; \
+	rootfs_offset="$$(grep -oba hsqs $@ | \
+		awk -F: -v limit="$$kernel_size" '$$1 >= limit {print $$1; exit}')"; \
 	[ -n "$$rootfs_offset" ] || { echo "Failed to locate SquashFS in $@"; exit 1; }; \
 	pad="$$(( (4096 - ($$rootfs_offset % 4096)) % 4096 ))"; \
 	cp $(word 2,$(1)) $@.dtb; \
@@ -29,6 +31,12 @@ define Build/fit-inline-rootfs
 	cp $@.kernel $@; \
 	$(call Build/fit-its,$(word 1,$(1)) $@.dtb with-rootfs)
 	$(call Build/fit-image,$(word 1,$(1)) $@.dtb with-rootfs)
+	kernel_size="$$(stat -c%s $@.kernel)"; \
+	rootfs_offset="$$(grep -oba hsqs $@ | \
+		awk -F: -v limit="$$kernel_size" '$$1 >= limit {print $$1; exit}')"; \
+	[ "$$(( $$rootfs_offset % 4096 ))" -eq 0 ] || { echo "SquashFS is misaligned in $@"; exit 1; }; \
+	cmp -s -n "$$(stat -c%s $(IMAGE_ROOTFS).pagesync)" -i "$$rootfs_offset:0" $@ $(IMAGE_ROOTFS).pagesync || \
+		{ echo "SquashFS payload mismatch in $@"; exit 1; }; \
 	rm -f $@.dtb $@.kernel
 endef
 
@@ -96,7 +104,8 @@ define Device/jdcloud_re-cs-08
 	KERNEL_SIZE := 7168k
 	SOC := ipq5322
 	SUPPORTED_DEVICES += jdcloud,re-cs-08
-	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl kmod-sfp \
+	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl \
+		-ath12k-firmware-ipq5332-ddwrt -ath12k-firmware-qcn9274-ddwrt kmod-sfp \
 		kmod-phy-marvell kmod-phy-marvell-10g
 	IMAGE/factory.bin := append-kernel | pad-to $$(KERNEL_SIZE) | append-rootfs | append-metadata
 endef
@@ -111,7 +120,9 @@ define Device/xiaomi_be3600-pro-wired-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	SOC := ipq5300
-	DEVICE_PACKAGES := -kmod-ath12k -kmod-leds-gpio kmod-dsa-rtl837x luci-app-tmi-poe luci-i18n-tmi-poe-zh-cn
+	DEVICE_PACKAGES := -kmod-ath12k -wpad-openssl -kmod-leds-gpio \
+		-ath12k-firmware-ipq5332-ddwrt -ath12k-firmware-qcn9274-ddwrt \
+		kmod-dsa-rtl837x luci-app-tmi-poe luci-i18n-tmi-poe-zh-cn
 endef
 
 define Device/xiaomi_be3600-pro-wired-p5

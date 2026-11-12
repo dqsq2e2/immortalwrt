@@ -1,43 +1,45 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
-Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup RX and diagnostics
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] wifi: ath12k: support QCN9274 HW1 startup and RX
 
 Consolidate consecutive changes within this functional responsibility.
 Retain the final implementation and its error handling directly.
 
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
 Merged from:
+  100-ath12k-qcn9274-hw1-compatibility.patch - wifi: ath12k: support QCN9274 HW1 startup and RX
+  917-ath12k-align-HW1-native-four-address-RX-headers.patch - wifi: ath12k: align HW1 native four-address RX headers
+
+Previous merged from (100-ath12k-qcn9274-hw1-compatibility.patch):
   100-01-ath12k-prevent-ltssm-startup-crash.patch
   100-02-wifi-ath12k-restore-qcn9274-hw10-rx-support.patch
-  100-03-ath12k-qcn9274-mhi-diagnostics.patch
 
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
---- a/drivers/net/wireless/ath/ath12k/mhi.c
-+++ b/drivers/net/wireless/ath/ath12k/mhi.c
-@@ -188,7 +188,7 @@ int ath12k_mhi_register(struct ath12k_pc
- {
- 	struct ath12k_base *ab = ab_pci->ab;
- 	struct mhi_controller *mhi_ctrl;
--	unsigned int board_id;
-+	unsigned int board_id = ATH12K_BOARD_ID_DEFAULT;
- 	int ret;
- 	bool dualmac = false;
+--- a/drivers/net/wireless/ath/ath12k/dp_rx.c
++++ b/drivers/net/wireless/ath/ath12k/dp_rx.c
+@@ -962,7 +962,18 @@ static void ath12k_dp_rx_h_undecap_nwifi
+ 	/* pull decapped header */
+ 	hdr = (struct ieee80211_hdr *)msdu->data;
+ 	hdr_len = ieee80211_hdrlen(hdr->frame_control);
+-	skb_pull(msdu, hdr_len);
++	/* WBE.1.0 can retain alignment after a native four-address header.
++	 * Some receive paths already remove it; require padding plus SNAP
++	 * rather than stripping two bytes from every HW1 WDS frame.
++	 */
++	if (dp_pdev->dp->ab->hw_rev == ATH12K_HW_QCN9274_HW10 &&
++	    ieee80211_has_a4(hdr->frame_control) && hdr_len % 4 &&
++	    msdu->len >= ALIGN(hdr_len, 4) + 6 &&
++	    !get_unaligned_le16(msdu->data + hdr_len) &&
++	    !memcmp(msdu->data + ALIGN(hdr_len, 4), "\xaa\xaa\x03\x00\x00", 5))
++		skb_pull(msdu, ALIGN(hdr_len, 4));
++	else
++		skb_pull(msdu, hdr_len);
  
-@@ -242,6 +242,14 @@ int ath12k_mhi_register(struct ath12k_pc
- 		}
- 	}
- 
-+	if (ab->hw_rev == ATH12K_HW_QCN9274_HW10 ||
-+	    ab->hw_rev == ATH12K_HW_QCN9274_HW20)
-+		ath12k_info(ab,
-+			    "QCN9274 MHI selection: hw_rev=%u board_id=0x%x dualmac=%u source=%s size=%zu\n",
-+			    ab->hw_rev, board_id, dualmac,
-+			    mhi_ctrl->fw_image ? mhi_ctrl->fw_image : "firmware-N.bin",
-+			    mhi_ctrl->fw_sz);
-+
- 	ret = ath12k_mhi_get_msi(ab_pci);
- 	if (ret) {
- 		ath12k_err(ab, "failed to get msi for mhi\n");
+ 	/*  Rebuild qos header */
+ 	hdr->frame_control |= __cpu_to_le16(IEEE80211_STYPE_QOS_DATA);
 --- a/drivers/net/wireless/ath/ath12k/pci.c
 +++ b/drivers/net/wireless/ath/ath12k/pci.c
 @@ -249,6 +249,9 @@ static void ath12k_pci_enable_ltssm(stru
@@ -531,22 +533,3 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		.supports_shadow_regs = false,
  
  		.num_tcl_banks = 48,
---- a/drivers/net/wireless/ath/ath12k/wifi7/pci.c
-+++ b/drivers/net/wireless/ath/ath12k/wifi7/pci.c
-@@ -9,6 +9,7 @@
- #include "../pci.h"
- #include "pci.h"
- #include "../core.h"
-+#include "../debug.h"
- #include "../hif.h"
- #include "../mhi.h"
- #include "hw.h"
-@@ -86,6 +87,8 @@ void ath12k_wifi7_pci_read_hw_version(st
- 	soc_hw_version = ath12k_pci_read32(ab, TCSR_SOC_HW_VERSION);
- 	*major = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MAJOR_MASK);
- 	*minor = u32_get_bits(soc_hw_version, TCSR_SOC_HW_VERSION_MINOR_MASK);
-+	ath12k_info(ab, "QCN9274 TCSR hardware version: raw=0x%08x major=%u minor=%u\n",
-+		    soc_hw_version, *major, *minor);
- }
- 
- static int ath12k_wifi7_pci_probe(struct pci_dev *pdev,

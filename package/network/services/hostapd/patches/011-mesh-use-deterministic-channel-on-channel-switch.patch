@@ -1,6 +1,5 @@
-From fc8ea40f6130ac18d9c66797de2cf1d5af55d496 Mon Sep 17 00:00:00 2001
 From: Markus Theil <markus.theil@tu-ilmenau.de>
-Date: Tue, 30 Jun 2020 14:19:07 +0200
+Date: Wed, 11 Nov 2026 12:11:39 +0800
 Subject: [PATCH 19/19] mesh: use deterministic channel on channel switch
 
 This patch uses a deterministic channel on DFS channel switch
@@ -14,9 +13,7 @@ of the mesh ID, in order to use at least a different number in each
 mesh network.
 
 Signed-off-by: Markus Theil <markus.theil@tu-ilmenau.de>
----
- src/ap/dfs.c | 20 +++++++++++++++++++-
- 1 file changed, 19 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/dfs.c
 +++ b/src/ap/dfs.c

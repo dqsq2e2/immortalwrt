@@ -1,0 +1,77 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 16:11:45 +0800
+Subject: [PATCH] net: dsa: offer flowtable blocks to the owning switch
+
+Offer a user-port flowtable to a switch which owns the hardware engine before trying the conduit, and remember the bind owner for unbind. Keep VLAN tag insertion policy in its separate transport unit.
+
+Split from:
+  0943-net-dsa-flowtable-and-vlan-transport.patch - net: dsa: coordinate flowtable forwarding and VLAN transport
+
+Previous merged from (0943-net-dsa-flowtable-and-vlan-transport.patch):
+  0943-net-dsa-offer-a-flowtable-to-the-switch-before-the-conduit.patch
+  0944-net-dsa-keep-TX-VLAN-offload-off-under-a-tag-in-the-frame.patch
+
+Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -299,6 +299,12 @@ struct dsa_port {
+ 
+ 	u8			setup:1;
+ 
++	/* Flowtable blocks on this user port go to the switch, not the
++	 * conduit; decided at bind time. Written without rtnl, so not one of
++	 * the bit fields above.
++	 */
++	bool			ft_on_switch;
++
+ 	struct device_node	*dn;
+ 	unsigned int		ageing_time;
+ 
+--- a/net/dsa/user.c
++++ b/net/dsa/user.c
+@@ -1752,15 +1752,30 @@ static int dsa_user_setup_tc_block(struc
+ 	}
+ }
+ 
+-static int dsa_user_setup_ft_block(struct dsa_switch *ds, int port,
+-				   void *type_data)
++static int dsa_user_setup_ft_block(struct dsa_port *dp,
++				   struct flow_block_offload *bo)
+ {
+-	struct net_device *conduit = dsa_port_to_conduit(dsa_to_port(ds, port));
++	struct net_device *conduit = dsa_port_to_conduit(dp);
++	struct dsa_switch *ds = dp->ds;
++	int err;
++
++	/* The unbind goes to the side that took the bind. */
++	if (bo->command == FLOW_BLOCK_BIND) {
++		err = -EOPNOTSUPP;
++		if (ds->ops->port_setup_tc)
++			err = ds->ops->port_setup_tc(ds, dp->index, TC_SETUP_FT,
++						     bo);
++		dp->ft_on_switch = !err;
++		if (err != -EOPNOTSUPP)
++			return err;
++	} else if (dp->ft_on_switch) {
++		return ds->ops->port_setup_tc(ds, dp->index, TC_SETUP_FT, bo);
++	}
+ 
+ 	if (!conduit->netdev_ops->ndo_setup_tc)
+ 		return -EOPNOTSUPP;
+ 
+-	return conduit->netdev_ops->ndo_setup_tc(conduit, TC_SETUP_FT, type_data);
++	return conduit->netdev_ops->ndo_setup_tc(conduit, TC_SETUP_FT, bo);
+ }
+ 
+ static int dsa_user_setup_tc(struct net_device *dev, enum tc_setup_type type,
+@@ -1773,7 +1788,7 @@ static int dsa_user_setup_tc(struct net_
+ 	case TC_SETUP_BLOCK:
+ 		return dsa_user_setup_tc_block(dev, type_data);
+ 	case TC_SETUP_FT:
+-		return dsa_user_setup_ft_block(ds, dp->index, type_data);
++		return dsa_user_setup_ft_block(dp, type_data);
+ 	default:
+ 		break;
+ 	}

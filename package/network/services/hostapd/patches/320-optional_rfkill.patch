@@ -1,6 +1,10 @@
 From: Felix Fietkau <nbd@openwrt.org>
-Date: Thu, 8 Jul 2010 18:36:22 +0000
+Date: Wed, 11 Nov 2026 12:14:15 +0800
 Subject: [PATCH] hostapd: make rfkill support optional
+
+
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/drivers.mak
 +++ b/src/drivers/drivers.mak
@@ -32,13 +36,13 @@ Subject: [PATCH] hostapd: make rfkill support optional
  
  ifdef NEED_RFKILL
  DRV_OBJS += ../src/drivers/rfkill.o
-+DRV_WPA_CFLAGS += -DCONFIG_RFKILL
++DRV_CFLAGS += -DCONFIG_RFKILL
  endif
  
  ifdef NEED_RADIOTAP
 --- a/src/drivers/rfkill.h
 +++ b/src/drivers/rfkill.h
-@@ -18,8 +18,24 @@ struct rfkill_config {
+@@ -18,8 +18,25 @@ struct rfkill_config {
  	void (*unblocked_cb)(void *ctx);
  };
  
@@ -49,6 +53,7 @@ Subject: [PATCH] hostapd: make rfkill support optional
 +#else
 +static inline struct rfkill_data * rfkill_init(struct rfkill_config *cfg)
 +{
++	os_free(cfg); /* rfkill_init() takes ownership on success */
 +	return (void *) 1;
 +}
 +

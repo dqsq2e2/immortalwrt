@@ -1,9 +1,11 @@
 From: Felix Fietkau <nbd@openwrt.org>
-Date: Sat, 9 Jul 2011 07:19:55 +0000
+Date: Wed, 11 Nov 2026 12:14:15 +0800
 Subject: [PATCH] hostapd: only advertise a single encryption type via WPS if
  multiple are supported
 
 Fixes windows 7 interop issues
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/wps_hostapd.c
 +++ b/src/ap/wps_hostapd.c

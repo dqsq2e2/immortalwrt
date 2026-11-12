@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:44:08 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] wpa_supplicant: Clamp the off-channel TX wait time to the driver limit
 
 offchannel_send_action() limits the wait time to max_remain_on_chan
@@ -19,7 +19,7 @@ Clamp the wait time on the driver TX path as well, so that every caller
 gets the same limit.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/wpa_supplicant/offchannel.c
 +++ b/wpa_supplicant/offchannel.c

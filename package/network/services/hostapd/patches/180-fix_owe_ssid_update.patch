@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:46:55 +0200
+Date: Wed, 11 Nov 2026 12:12:56 +0800
 Subject: [PATCH] OWE: Refresh the transition mode information of owe_transition_ifname
 
 hostapd_owe_trans_get_info() copies the BSSID and the SSID of the BSS
@@ -19,7 +19,7 @@ configured owe_transition_bssid and owe_transition_ssid keep their
 precedence over owe_transition_ifname.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
@@ -51,7 +51,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	wpa_printf(MSG_DEBUG, "%s(%s)", __func__, hapd->conf->iface);
  	accounting_deinit(hapd);
-@@ -2507,9 +2514,23 @@ void fst_hostapd_fill_iface_obj(struct h
+@@ -2513,9 +2520,23 @@ void fst_hostapd_fill_iface_obj(struct h
  
  #ifdef CONFIG_OWE
  
@@ -76,7 +76,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	size_t i;
  
  	for (i = 0; i < iface->num_bss; i++) {
-@@ -2526,17 +2547,12 @@ static int hostapd_owe_iface_iter(struct
+@@ -2532,17 +2553,12 @@ static int hostapd_owe_iface_iter(struct
  			   MAC2STR(bss->own_addr),
  			   wpa_ssid_txt(bss->conf->ssid.ssid,
  					bss->conf->ssid.ssid_len));
@@ -97,7 +97,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return 1;
  	}
  
-@@ -2544,20 +2560,55 @@ static int hostapd_owe_iface_iter(struct
+@@ -2550,20 +2566,55 @@ static int hostapd_owe_iface_iter(struct
  }
  
  
@@ -158,7 +158,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -2593,21 +2644,30 @@ static int hostapd_owe_iface_iter2(struc
+@@ -2599,21 +2650,30 @@ static int hostapd_owe_iface_iter2(struc
  #endif /* CONFIG_OWE */
  
  
@@ -198,7 +198,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static void hostapd_interface_setup_failure_handler(void *eloop_ctx,
  						    void *timeout_ctx)
  {
-@@ -3820,6 +3880,7 @@ int hostapd_disable_iface(struct hostapd
+@@ -3831,6 +3891,7 @@ int hostapd_disable_iface(struct hostapd
  		   hapd_iface->bss[0]->conf->iface);
  	hostapd_set_state(hapd_iface, HAPD_IFACE_DISABLED);
  	hostapd_refresh_all_iface_beacons(hapd_iface);
@@ -206,7 +206,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
  }
  
-@@ -4165,6 +4226,7 @@ static int hostapd_remove_bss(struct hos
+@@ -4176,6 +4237,7 @@ static int hostapd_remove_bss(struct hos
  	for (i = idx; i < iface->conf->num_bss; i++)
  		iface->conf->bss[i] = iface->conf->bss[i + 1];
  
@@ -214,7 +214,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return 0;
  }
  
-@@ -4179,8 +4241,12 @@ int hostapd_remove_iface(struct hapd_int
+@@ -4190,8 +4252,12 @@ int hostapd_remove_iface(struct hapd_int
  		if (hapd_iface == NULL)
  			return -1;
  		if (!os_strcmp(hapd_iface->conf->bss[0]->iface, buf)) {
@@ -230,7 +230,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		for (j = 0; j < hapd_iface->conf->num_bss; j++) {
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -281,6 +281,12 @@ struct hostapd_data {
+@@ -271,6 +271,12 @@ struct hostapd_data {
  	struct wps_context *wps;
  
  	int beacon_set_done;
@@ -243,7 +243,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct wpabuf *wps_beacon_ie;
  	struct wpabuf *wps_probe_resp_ie;
  #ifdef CONFIG_WPS
-@@ -853,6 +859,7 @@ hostapd_switch_channel_fallback(struct h
+@@ -849,6 +855,7 @@ hostapd_switch_channel_fallback(struct h
  void hostapd_cleanup_cs_params(struct hostapd_data *hapd);
  void hostapd_periodic_iface(struct hostapd_iface *iface);
  int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
@@ -253,7 +253,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -873,10 +873,22 @@ u8 hostapd_mbo_ie_len(struct hostapd_dat
+@@ -905,10 +905,22 @@ u8 hostapd_mbo_ie_len(struct hostapd_dat
  
  
  #ifdef CONFIG_OWE
@@ -279,7 +279,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  #endif /* CONFIG_OWE */
  
-@@ -884,9 +896,13 @@ static int hostapd_eid_owe_trans_enabled
+@@ -916,9 +928,13 @@ static int hostapd_eid_owe_trans_enabled
  size_t hostapd_eid_owe_trans_len(struct hostapd_data *hapd)
  {
  #ifdef CONFIG_OWE
@@ -295,7 +295,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #else /* CONFIG_OWE */
  	return 0;
  #endif /* CONFIG_OWE */
-@@ -898,13 +914,14 @@ u8 * hostapd_eid_owe_trans(struct hostap
+@@ -930,13 +946,14 @@ u8 * hostapd_eid_owe_trans(struct hostap
  {
  #ifdef CONFIG_OWE
  	u8 *pos = eid;
@@ -314,7 +314,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return pos;
  
  	elen = hostapd_eid_owe_trans_len(hapd);
-@@ -919,12 +936,11 @@ u8 * hostapd_eid_owe_trans(struct hostap
+@@ -951,12 +968,11 @@ u8 * hostapd_eid_owe_trans(struct hostap
  	WPA_PUT_BE24(pos, OUI_WFA);
  	pos += 3;
  	*pos++ = OWE_OUI_TYPE;

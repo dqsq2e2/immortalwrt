@@ -1,22 +1,12 @@
---- a/src/drivers/driver_nl80211.h
-+++ b/src/drivers/driver_nl80211.h
-@@ -101,6 +101,7 @@ struct i802_bss {
- 	u64 wdev_id;
- 	char ifname[IFNAMSIZ + 1];
- 	char brname[IFNAMSIZ];
-+	u32 radio_mask;
- 	unsigned int added_if_into_bridge:1;
- 	unsigned int already_in_bridge:1;
- 	unsigned int added_bridge:1;
-@@ -357,7 +358,7 @@ send_and_recv_resp(struct wpa_driver_nl8
- 
- int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
- 			 const char *ifname, enum nl80211_iftype iftype,
--			 const u8 *addr, int wds,
-+			 const u8 *addr, int wds, u32 radio_mask,
- 			 int (*handler)(struct nl_msg *, void *),
- 			 void *arg, int use_existing);
- void nl80211_remove_iface(struct wpa_driver_nl80211_data *drv, int ifidx);
+From: ViKing <viking.yfy@qq.com>
+Date: Wed, 11 Nov 2026 12:20:29 +0800
+Subject: [PATCH] nl80211: preserve the radio mask during setup
+
+Retain the existing OpenWrt package adaptation when rebasing onto
+hostap commit 6d3d778451a9329085eab5777386db0b78d56987.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
 @@ -909,6 +909,7 @@ struct wiphy_idx_data {
@@ -67,7 +57,7 @@
  	if (drv->capa.flags2 & WPA_DRIVER_FLAGS2_CONTROL_PORT_TX_STATUS) {
  		drv->control_port_ap = 1;
  		goto skip_wifi_status;
-@@ -6831,7 +6851,7 @@ const char * nl80211_iftype_str(enum nl8
+@@ -6856,7 +6876,7 @@ const char * nl80211_iftype_str(enum nl8
  static int nl80211_create_iface_once(struct wpa_driver_nl80211_data *drv,
  				     const char *ifname,
  				     enum nl80211_iftype iftype,
@@ -76,7 +66,7 @@
  				     int (*handler)(struct nl_msg *, void *),
  				     void *arg)
  {
-@@ -6851,6 +6871,10 @@ static int nl80211_create_iface_once(str
+@@ -6876,6 +6896,10 @@ static int nl80211_create_iface_once(str
  	if (wds && nla_put_u8(msg, NL80211_ATTR_4ADDR, wds))
  		goto fail;
  
@@ -87,7 +77,7 @@
  	/*
  	 * Tell cfg80211 that the interface belongs to the socket that created
  	 * it, and the interface should be deleted when the socket is closed.
-@@ -6962,7 +6986,7 @@ static int nl80211_use_existing_iface(st
+@@ -6987,7 +7011,7 @@ static int nl80211_use_existing_iface(st
  
  int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
  			 const char *ifname, enum nl80211_iftype iftype,
@@ -96,7 +86,7 @@
  			 int (*handler)(struct nl_msg *, void *),
  			 void *arg, int use_existing)
  {
-@@ -6971,8 +6995,8 @@ int nl80211_create_iface(struct wpa_driv
+@@ -6996,8 +7020,8 @@ int nl80211_create_iface(struct wpa_driv
  	if (use_existing && if_nametoindex(ifname))
  		return nl80211_use_existing_iface(drv, ifname, iftype, addr);
  
@@ -107,7 +97,7 @@
  
  	/* if error occurred and interface exists already */
  	if (ret < 0 && if_nametoindex(ifname)) {
-@@ -6987,7 +7011,7 @@ int nl80211_create_iface(struct wpa_driv
+@@ -7012,7 +7036,7 @@ int nl80211_create_iface(struct wpa_driv
  
  		/* Try to create the interface again */
  		ret = nl80211_create_iface_once(drv, ifname, iftype, addr,
@@ -116,7 +106,7 @@
  	}
  
  	if (ret >= 0 && is_p2p_net_interface(iftype)) {
-@@ -9354,8 +9378,8 @@ static int i802_set_wds_sta(void *priv,
+@@ -9468,8 +9492,8 @@ static int i802_set_wds_sta(void *priv,
  		if (!if_nametoindex(name)) {
  			if (nl80211_create_iface(drv, name,
  						 NL80211_IFTYPE_AP_VLAN,
@@ -127,7 +117,7 @@
  				return -1;
  
  			if (bridge_ifname)
-@@ -9732,7 +9756,8 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -9846,7 +9870,8 @@ static int wpa_driver_nl80211_if_add(voi
  
  		os_memset(&nonnetdev_info, 0, sizeof(nonnetdev_info));
  		ifidx = nl80211_create_iface(drv, ifname, nlmode, addr,
@@ -137,7 +127,7 @@
  					     &nonnetdev_info, use_existing);
  		if (!nonnetdev_info.wdev_id_set || ifidx != 0) {
  			wpa_printf(MSG_ERROR,
-@@ -9751,7 +9776,8 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -9865,7 +9890,8 @@ static int wpa_driver_nl80211_if_add(voi
  			   (long long unsigned int) nonnetdev_info.wdev_id);
  	} else {
  		ifidx = nl80211_create_iface(drv, ifname, nlmode, addr,
@@ -147,7 +137,7 @@
  		if (use_existing && ifidx == -ENFILE) {
  			added = 0;
  			ifidx = if_nametoindex(ifname);
-@@ -9821,6 +9847,8 @@ static int wpa_driver_nl80211_if_add(voi
+@@ -9935,6 +9961,8 @@ static int wpa_driver_nl80211_if_add(voi
  		new_bss->ctx = bss_ctx;
  		new_bss->added_if = added;
  
@@ -156,6 +146,25 @@
  		/* Set interface mode to NL80211_IFTYPE_AP */
  		if (nl80211_set_mode(new_bss, nlmode)) {
  			if (added)
+--- a/src/drivers/driver_nl80211.h
++++ b/src/drivers/driver_nl80211.h
+@@ -101,6 +101,7 @@ struct i802_bss {
+ 	u64 wdev_id;
+ 	char ifname[IFNAMSIZ + 1];
+ 	char brname[IFNAMSIZ];
++	u32 radio_mask;
+ 	unsigned int added_if_into_bridge:1;
+ 	unsigned int already_in_bridge:1;
+ 	unsigned int added_bridge:1;
+@@ -357,7 +358,7 @@ send_and_recv_resp(struct wpa_driver_nl8
+ 
+ int nl80211_create_iface(struct wpa_driver_nl80211_data *drv,
+ 			 const char *ifname, enum nl80211_iftype iftype,
+-			 const u8 *addr, int wds,
++			 const u8 *addr, int wds, u32 radio_mask,
+ 			 int (*handler)(struct nl_msg *, void *),
+ 			 void *arg, int use_existing);
+ void nl80211_remove_iface(struct wpa_driver_nl80211_data *drv, int ifidx);
 --- a/src/drivers/driver_nl80211_monitor.c
 +++ b/src/drivers/driver_nl80211_monitor.c
 @@ -98,7 +98,7 @@ static int nl80211_create_monitor_interf

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Fri, 06 Nov 2026 02:36:39 +0800
 Subject: [PATCH] net: dsa: implement QCA 8021Q service tag transport
 
 Consolidate consecutive changes within this functional responsibility.
@@ -9,9 +9,9 @@ Merged from:
   0386-net-dsa-add-qca-8021q-tag.patch
   0387-net-dsa-qca8k-configure-qca-8021q-protocol.patch
   0390-net-dsa-qca8k-preserve-qca-8021q-egress-tags.patch
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 @@ -55,6 +55,7 @@ properties:
@@ -379,22 +379,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * Only 7 bridges can be enumerated.
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -57,6 +57,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_BRCM_LEGACY_FCS_VALUE	29
- #define DSA_TAG_PROTO_MXL862_VALUE		30
- #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
-+#define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
- #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+@@ -62,6 +62,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_YT922X_4B_VALUE		34
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	38
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
++#define DSA_TAG_PROTO_QCA_8021Q_VALUE		37
  
-@@ -93,6 +94,7 @@ enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_VSC73XX_8021Q	= DSA_TAG_PROTO_VSC73XX_8021Q_VALUE,
- 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
- 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
-+	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -101,6 +102,7 @@ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_YT922X_4B		= DSA_TAG_PROTO_YT922X_4B_VALUE,
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
++	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
  };
+ 
+ struct dsa_switch;
 --- a/net/dsa/Makefile
 +++ b/net/dsa/Makefile
 @@ -34,6 +34,7 @@ obj-$(CONFIG_NET_DSA_TAG_NONE) += tag_no

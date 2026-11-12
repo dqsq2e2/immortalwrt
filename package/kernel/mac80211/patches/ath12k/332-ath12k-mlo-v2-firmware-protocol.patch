@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: implement MLO v2 topology association and peer maps
 
 Qualcomm's multi-chip firmware supports a version 2 MLO topology TLV that
@@ -20,13 +20,10 @@ supplies the AST index and cache set used by the data path. The driver
 currently consumes only the first two values and entirely ignores the
 matching MLO peer unmap event.
 
-Merged from:
+Previous merged from (332-ath12k-mlo-v2-firmware-protocol.patch):
   332-wifi-ath12k-advertise-MLO-v2-adjacency-topology.patch
   333-wifi-ath12k-align-MLO-peer-assoc-ABI.patch
   334-wifi-ath12k-handle-complete-MLO-peer-map-events.patch
-
-Based on work by:
-  JiaY-shi <shi05275@163.com>
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
@@ -523,7 +520,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	req->mlo_num_chips_valid = 0;
 --- a/drivers/net/wireless/ath/ath12k/qmi.h
 +++ b/drivers/net/wireless/ath/ath12k/qmi.h
-@@ -161,7 +161,7 @@ struct ath12k_qmi {
+@@ -174,7 +174,7 @@ struct ath12k_qmi {
  	struct dev_mem_info dev_mem[ATH12K_QMI_WLFW_MAX_DEV_MEM_NUM_V01];
  };
  
@@ -532,7 +529,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QMI_WLANFW_HOST_CAP_REQ_V01			0x0034
  #define QMI_WLANFW_HOST_CAP_RESP_MSG_V01_MAX_LEN	7
  #define QMI_WLFW_HOST_CAP_RESP_V01			0x0034
-@@ -194,7 +194,9 @@ enum qmi_wlanfw_host_build_type {
+@@ -207,7 +207,9 @@ enum qmi_wlanfw_host_build_type {
  };
  
  #define QMI_WLFW_MAX_NUM_MLO_CHIPS_V01 3
@@ -542,7 +539,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  struct wlfw_host_mlo_chip_info_s_v01 {
  	u8 chip_id;
-@@ -203,6 +205,12 @@ struct wlfw_host_mlo_chip_info_s_v01 {
+@@ -216,6 +218,12 @@ struct wlfw_host_mlo_chip_info_s_v01 {
  	u8 valid_mlo_link_id[QMI_WLFW_MAX_NUM_MLO_LINKS_PER_CHIP_V01];
  };
  
@@ -555,7 +552,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  enum ath12k_qmi_cnss_feature {
  	CNSS_FEATURE_MIN_ENUM_VAL_V01 = INT_MIN,
  	CNSS_QDSS_CFG_MISS_V01 = 3,
-@@ -260,6 +268,9 @@ struct qmi_wlanfw_host_cap_req_msg_v01 {
+@@ -273,6 +281,9 @@ struct qmi_wlanfw_host_cap_req_msg_v01 {
  	u8 mlo_num_chips;
  	u8 mlo_chip_info_valid;
  	struct wlfw_host_mlo_chip_info_s_v01 mlo_chip_info[QMI_WLFW_MAX_NUM_MLO_CHIPS_V01];

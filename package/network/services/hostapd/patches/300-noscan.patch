@@ -1,11 +1,14 @@
-From c61daab867671af884a7bb707f9bc0f086241bcd Mon Sep 17 00:00:00 2001
 From: Felix Fietkau <nbd@openwrt.org>
-Date: Wed, 20 Jan 2010 02:26:00 +0000
+Date: Wed, 11 Nov 2026 12:13:55 +0800
 Subject: [PATCH] Add noscan, no_ht_coex config options
+
+
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3666,6 +3666,10 @@ static int hostapd_config_fill(struct ho
+@@ -3710,6 +3710,10 @@ static int hostapd_config_fill(struct ho
  		if (bss->ocv && !bss->ieee80211w)
  			bss->ieee80211w = 1;
  #endif /* CONFIG_OCV */
@@ -18,7 +21,7 @@ Subject: [PATCH] Add noscan, no_ht_coex config options
  	} else if (os_strcmp(buf, "ht_capab") == 0) {
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1143,6 +1143,8 @@ struct hostapd_config {
+@@ -1157,6 +1157,8 @@ struct hostapd_config {
  
  	int ht_op_mode_fixed;
  	u16 ht_capab;

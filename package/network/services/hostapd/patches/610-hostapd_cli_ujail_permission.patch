@@ -1,5 +1,5 @@
 From: Mark Mentovai <mark@moxienet.com>
-Date: Tue, 23 Nov 2021 12:28:55 -0500
+Date: Wed, 11 Nov 2026 12:15:06 +0800
 Subject: [PATCH] hostapd: allow hostapd under ujail to communicate with
  hostapd_cli
 
@@ -37,6 +37,8 @@ uid 101 and gid 101, respectively, per
 package/base-files/files/etc/passwd and USERID in
 package/network/services/hostapd/Makefile, this patch also uses a
 constant 101 for the uid and gid.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/common/wpa_ctrl.c
 +++ b/src/common/wpa_ctrl.c

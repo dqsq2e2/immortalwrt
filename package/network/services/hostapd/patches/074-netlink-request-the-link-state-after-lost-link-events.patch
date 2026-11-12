@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:25:11 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] netlink: Request the link state after lost link events
 
 If the receive queue of the RTMGRP_LINK socket of netlink_init() is
@@ -18,7 +18,7 @@ AF_BRIDGE port event, since it reports neither removed interfaces nor
 bridge ports.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/drivers/netlink.c
 +++ b/src/drivers/netlink.c

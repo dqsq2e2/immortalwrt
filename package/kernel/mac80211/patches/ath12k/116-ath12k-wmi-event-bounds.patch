@@ -1,5 +1,5 @@
 From: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: validate WMI capability event and TLV bounds
 
 Currently, in ath12k_wmi_mac_phy_caps_parse(), kzalloc() sizes the

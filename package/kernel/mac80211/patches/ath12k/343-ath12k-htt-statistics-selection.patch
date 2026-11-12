@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Tue, 27 Oct 2026 09:40:00 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: control HTT statistics and validate vendor layouts
 
 Consolidate consecutive changes within this functional responsibility.
@@ -8,12 +8,11 @@ Retain the final implementation and its error handling directly.
 Merged from:
   343-ath12k-allow-clearing-htt-statistics-selection.patch
   344-ath12k-guard-vendor-pdev-statistics-layout.patch
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -1225,6 +1225,8 @@ struct ath12k_fw_stats_bcn {
+@@ -1224,6 +1224,8 @@ struct ath12k_fw_stats_bcn {
  
  struct ath12k_fw_stats_pdev {
  	struct list_head list;

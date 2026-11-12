@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Fri, 28 Aug 2026 19:38:14 +0800
+Date: Fri, 06 Nov 2026 02:37:13 +0800
 Subject: [PATCH] net: dsa: add Qualcomm four-byte header tag
 
 Port the QSDK 6.6 qca_4b transport needed by MPPE Atheros-header
@@ -7,8 +7,8 @@ virtual ports.
 
 Keep it separate from the legacy two-byte and VLAN-based protocols.
 Disable checksum offload while the four-byte header is present.
-
 Signed-off-by: ViKing <viking.yfy@qq.com>
+
 ---
 --- a/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/dsa-port.yaml
@@ -62,22 +62,22 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  #define QCA_HDR_XMIT_TYPE_NORMAL	0x0
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -58,6 +58,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_MXL862_VALUE		30
- #define DSA_TAG_PROTO_MXL862_8021Q_VALUE	31
- #define DSA_TAG_PROTO_QCA_8021Q_VALUE		32
-+#define DSA_TAG_PROTO_QCA_4B_VALUE		33
- #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+@@ -63,6 +63,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	38
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
+ #define DSA_TAG_PROTO_QCA_8021Q_VALUE		37
++#define DSA_TAG_PROTO_QCA_4B_VALUE		39
  
-@@ -95,6 +96,7 @@ enum dsa_tag_protocol {
- 	DSA_TAG_PROTO_MXL862		= DSA_TAG_PROTO_MXL862_VALUE,
- 	DSA_TAG_PROTO_MXL862_8021Q	= DSA_TAG_PROTO_MXL862_8021Q_VALUE,
- 	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
-+	DSA_TAG_PROTO_QCA_4B		= DSA_TAG_PROTO_QCA_4B_VALUE,
+ enum dsa_tag_protocol {
+ 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
+@@ -103,6 +104,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
+ 	DSA_TAG_PROTO_QCA_8021Q		= DSA_TAG_PROTO_QCA_8021Q_VALUE,
++	DSA_TAG_PROTO_QCA_4B		= DSA_TAG_PROTO_QCA_4B_VALUE,
  };
+ 
+ struct dsa_switch;
 --- a/net/dsa/tag_qca.c
 +++ b/net/dsa/tag_qca.c
 @@ -11,29 +11,54 @@
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +module_dsa_tag_drivers(qca_tag_drivers);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -2849,6 +2849,9 @@ void dsa_user_setup_tagger(struct net_de
+@@ -2864,6 +2864,9 @@ void dsa_user_setup_tagger(struct net_de
  		user->features &= ~(NETIF_F_SG | NETIF_F_FRAGLIST);
  	if (ds->needs_standalone_vlan_filtering)
  		user->features |= NETIF_F_HW_VLAN_CTAG_FILTER;

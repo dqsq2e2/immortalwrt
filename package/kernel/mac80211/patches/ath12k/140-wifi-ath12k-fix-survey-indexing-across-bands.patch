@@ -1,6 +1,5 @@
-From c42b27336eeffd7926a77604cdefcc8918bed926 Mon Sep 17 00:00:00 2001
 From: Matthew Leach <matthew.leach@collabora.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: fix survey indexing across bands
 
 When running 'iw dev wlan0 survey dump' the values for the channel busy
@@ -39,11 +38,7 @@ Link: https://patch.msgid.link/20260703-ath12-survey-band-fix-v3-1-2fb050c2505a@
 Signed-off-by: Matthew Leach <matthew.leach@collabora.com>
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
----
- drivers/net/wireless/ath/ath12k/core.h |  8 ++-
- drivers/net/wireless/ath/ath12k/mac.c  | 33 +++++++------
- drivers/net/wireless/ath/ath12k/wmi.c  | 68 ++++++++++++++------------
- 3 files changed, 62 insertions(+), 47 deletions(-)
+
 --- a/drivers/net/wireless/ath/ath12k/core.h
 +++ b/drivers/net/wireless/ath/ath12k/core.h
 @@ -666,7 +666,7 @@ struct ath12k {

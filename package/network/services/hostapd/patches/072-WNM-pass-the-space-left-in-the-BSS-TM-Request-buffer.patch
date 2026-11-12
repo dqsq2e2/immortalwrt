@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:36:29 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] WNM: Pass the space left in the BSS TM Request buffer to mbo_add_ie()
 
 wnm_send_bss_tm_req() passes buf + sizeof(buf) - pos as the space left
@@ -13,8 +13,9 @@ MBO attributes takes at most 305 of the 1000 octets that the allocation
 adds for it.
 
 Fixes: c0e2a172a768 ("hostapd: Add MBO IE to BSS Transition Management Request frame")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/wnm_ap.c
 +++ b/src/ap/wnm_ap.c

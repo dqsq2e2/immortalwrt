@@ -1,5 +1,5 @@
 From: JiaY-shi <shi05275@163.com>
-Date: Tue, 18 Aug 2026 03:25:00 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: append MLO context to peer delete commands
 
 Qualcomm's Wi-Fi 7 firmware ABI expects WMI peer delete commands to carry
@@ -16,10 +16,7 @@ delete completion and recovery barriers.
 Based on Qualcomm's TIP ath12k peer deletion implementation.
 
 Signed-off-by: JiaY-shi <shi05275@163.com>
----
- drivers/net/wireless/ath/ath12k/wmi.c | 24 +++++++++++++++++++++---
- drivers/net/wireless/ath/ath12k/wmi.h |  6 ++++++
- 2 files changed, 27 insertions(+), 3 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c

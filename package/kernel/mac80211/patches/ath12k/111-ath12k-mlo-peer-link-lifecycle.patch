@@ -1,5 +1,5 @@
 From: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: synchronize MLO peer links and deletion lifetime
 
 ath12k_mac_vdev_create() for an AP vdev creates the bss self-peer via
@@ -46,6 +46,7 @@ Signed-off-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 Signed-off-by: Akshay Kakatkar <me@kakatkarakshay.dev>
 Signed-off-by: Ramya Gnanasekar <rgnanase@qti.qualcomm.com>
+Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/core.c
@@ -59,6 +60,78 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			complete(&ar->install_key_done);
  			complete(&ar->vdev_setup_done);
  			complete(&ar->vdev_delete_done);
+--- a/drivers/net/wireless/ath/ath12k/core.h
++++ b/drivers/net/wireless/ath/ath12k/core.h
+@@ -666,7 +666,8 @@ struct ath12k {
+ 
+ 	/* protects the radio specific data like debug stats, ppdu_stats_info stats,
+ 	 * vdev_stop_status info, scan data, ath12k_sta info, ath12k_link_vif info,
+-	 * channel context data, survey info, test mode data, regd_channel_update_queue.
++	 * channel context data, survey info, test mode data, regd_channel_update_queue,
++	 * peer_delete_waits.
+ 	 */
+ 	spinlock_t data_lock;
+ 
+@@ -688,7 +689,7 @@ struct ath12k {
+ 	u8 radio_idx;
+ 
+ 	struct completion peer_assoc_done;
+-	struct completion peer_delete_done;
++	struct list_head peer_delete_waits;
+ 
+ 	int install_key_status;
+ 	struct completion install_key_done;
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -4311,9 +4311,9 @@ static void ath12k_mac_unassign_link_vif
+ 
+ 	lockdep_assert_wiphy(ah->hw->wiphy);
+ 
++	ahvif->links_map &= ~BIT(arvif->link_id);
+ 	rcu_assign_pointer(ahvif->link[arvif->link_id], NULL);
+ 	synchronize_rcu();
+-	ahvif->links_map &= ~BIT(arvif->link_id);
+ 
+ 	if (arvif != &ahvif->deflink)
+ 		kfree(arvif);
+@@ -10614,22 +10614,8 @@ int ath12k_mac_vdev_create(struct ath12k
+ 
+ err_peer_del:
+ 	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
+-		reinit_completion(&ar->peer_delete_done);
+-
+-		ret = ath12k_wmi_send_peer_delete_cmd(ar, arvif->bssid,
+-						      arvif->vdev_id);
+-		if (ret) {
+-			ath12k_warn(ar->ab, "failed to delete peer vdev_id %d addr %pM\n",
+-				    arvif->vdev_id, arvif->bssid);
+-			goto err_dp_peer_del;
+-		}
+-
+-		ret = ath12k_wait_for_peer_delete_done(ar, arvif->vdev_id,
+-						       arvif->bssid);
+-		if (ret)
+-			goto err_dp_peer_del;
+-
+-		ar->num_peers--;
++		/* ignore return value: propagate the original error */
++		ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid);
+ 	}
+ 
+ err_dp_peer_del:
+@@ -15137,11 +15123,11 @@ static void ath12k_mac_setup(struct ath1
+ 	spin_lock_init(&ar->dp.ppdu_list_lock);
+ 	INIT_LIST_HEAD(&ar->arvifs);
+ 	INIT_LIST_HEAD(&ar->dp.ppdu_stats_info);
++	INIT_LIST_HEAD(&ar->peer_delete_waits);
+ 
+ 	init_completion(&ar->vdev_setup_done);
+ 	init_completion(&ar->vdev_delete_done);
+ 	init_completion(&ar->peer_assoc_done);
+-	init_completion(&ar->peer_delete_done);
+ 	init_completion(&ar->install_key_done);
+ 	init_completion(&ar->bss_survey_done);
+ 	init_completion(&ar->scan.started);
 --- a/drivers/net/wireless/ath/ath12k/peer.c
 +++ b/drivers/net/wireless/ath/ath12k/peer.c
 @@ -9,6 +9,55 @@
@@ -303,65 +376,6 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (ret) {
  			err_ret = ret;
  			continue;
---- a/drivers/net/wireless/ath/ath12k/core.h
-+++ b/drivers/net/wireless/ath/ath12k/core.h
-@@ -666,7 +666,8 @@ struct ath12k {
- 
- 	/* protects the radio specific data like debug stats, ppdu_stats_info stats,
- 	 * vdev_stop_status info, scan data, ath12k_sta info, ath12k_link_vif info,
--	 * channel context data, survey info, test mode data, regd_channel_update_queue.
-+	 * channel context data, survey info, test mode data, regd_channel_update_queue,
-+	 * peer_delete_waits.
- 	 */
- 	spinlock_t data_lock;
- 
-@@ -688,7 +689,7 @@ struct ath12k {
- 	u8 radio_idx;
- 
- 	struct completion peer_assoc_done;
--	struct completion peer_delete_done;
-+	struct list_head peer_delete_waits;
- 
- 	int install_key_status;
- 	struct completion install_key_done;
---- a/drivers/net/wireless/ath/ath12k/wmi.c
-+++ b/drivers/net/wireless/ath/ath12k/wmi.c
-@@ -7076,25 +7076,29 @@ static void ath12k_peer_delete_resp_even
- {
- 	struct wmi_peer_delete_resp_event peer_del_resp;
- 	struct ath12k *ar;
-+	u32 vdev_id;
- 
- 	if (ath12k_pull_peer_del_resp_ev(ab, skb, &peer_del_resp) != 0) {
--		ath12k_warn(ab, "failed to extract peer delete resp");
-+		ath12k_warn(ab, "failed to extract peer delete resp\n");
- 		return;
- 	}
- 
-+	vdev_id = le32_to_cpu(peer_del_resp.vdev_id);
-+
- 	rcu_read_lock();
--	ar = ath12k_mac_get_ar_by_vdev_id(ab, le32_to_cpu(peer_del_resp.vdev_id));
-+	ar = ath12k_mac_get_ar_by_vdev_id(ab, vdev_id);
- 	if (!ar) {
--		ath12k_warn(ab, "invalid vdev id in peer delete resp ev %d",
--			    peer_del_resp.vdev_id);
-+		ath12k_warn(ab, "invalid vdev id in peer delete resp ev %d\n",
-+			    vdev_id);
- 		rcu_read_unlock();
- 		return;
- 	}
- 
--	complete(&ar->peer_delete_done);
-+	ath12k_peer_delete_resp_signal(ar, vdev_id,
-+				       peer_del_resp.peer_macaddr.addr);
- 	rcu_read_unlock();
- 	ath12k_dbg(ab, ATH12K_DBG_WMI, "peer delete resp for vdev id %d addr %pM\n",
--		   peer_del_resp.vdev_id, peer_del_resp.peer_macaddr.addr);
-+		   vdev_id, peer_del_resp.peer_macaddr.addr);
- }
- 
- static void ath12k_vdev_delete_resp_event(struct ath12k_base *ab,
 --- a/drivers/net/wireless/ath/ath12k/peer.h
 +++ b/drivers/net/wireless/ath/ath12k/peer.h
 @@ -9,13 +9,23 @@
@@ -404,54 +418,41 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		link_id = ath12k_mac_get_tx_link(sta, vif, link_id, skb, info_flags);
  		if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS) {
  			ieee80211_free_txskb(hw, skb);
---- a/drivers/net/wireless/ath/ath12k/mac.c
-+++ b/drivers/net/wireless/ath/ath12k/mac.c
-@@ -4311,9 +4311,9 @@ static void ath12k_mac_unassign_link_vif
+--- a/drivers/net/wireless/ath/ath12k/wmi.c
++++ b/drivers/net/wireless/ath/ath12k/wmi.c
+@@ -7076,25 +7076,29 @@ static void ath12k_peer_delete_resp_even
+ {
+ 	struct wmi_peer_delete_resp_event peer_del_resp;
+ 	struct ath12k *ar;
++	u32 vdev_id;
  
- 	lockdep_assert_wiphy(ah->hw->wiphy);
- 
-+	ahvif->links_map &= ~BIT(arvif->link_id);
- 	rcu_assign_pointer(ahvif->link[arvif->link_id], NULL);
- 	synchronize_rcu();
--	ahvif->links_map &= ~BIT(arvif->link_id);
- 
- 	if (arvif != &ahvif->deflink)
- 		kfree(arvif);
-@@ -10614,22 +10614,8 @@ int ath12k_mac_vdev_create(struct ath12k
- 
- err_peer_del:
- 	if (ahvif->vdev_type == WMI_VDEV_TYPE_AP) {
--		reinit_completion(&ar->peer_delete_done);
--
--		ret = ath12k_wmi_send_peer_delete_cmd(ar, arvif->bssid,
--						      arvif->vdev_id);
--		if (ret) {
--			ath12k_warn(ar->ab, "failed to delete peer vdev_id %d addr %pM\n",
--				    arvif->vdev_id, arvif->bssid);
--			goto err_dp_peer_del;
--		}
--
--		ret = ath12k_wait_for_peer_delete_done(ar, arvif->vdev_id,
--						       arvif->bssid);
--		if (ret)
--			goto err_dp_peer_del;
--
--		ar->num_peers--;
-+		/* ignore return value: propagate the original error */
-+		ath12k_peer_delete(ar, arvif->vdev_id, arvif->bssid);
+ 	if (ath12k_pull_peer_del_resp_ev(ab, skb, &peer_del_resp) != 0) {
+-		ath12k_warn(ab, "failed to extract peer delete resp");
++		ath12k_warn(ab, "failed to extract peer delete resp\n");
+ 		return;
  	}
  
- err_dp_peer_del:
-@@ -15137,11 +15123,11 @@ static void ath12k_mac_setup(struct ath1
- 	spin_lock_init(&ar->dp.ppdu_list_lock);
- 	INIT_LIST_HEAD(&ar->arvifs);
- 	INIT_LIST_HEAD(&ar->dp.ppdu_stats_info);
-+	INIT_LIST_HEAD(&ar->peer_delete_waits);
++	vdev_id = le32_to_cpu(peer_del_resp.vdev_id);
++
+ 	rcu_read_lock();
+-	ar = ath12k_mac_get_ar_by_vdev_id(ab, le32_to_cpu(peer_del_resp.vdev_id));
++	ar = ath12k_mac_get_ar_by_vdev_id(ab, vdev_id);
+ 	if (!ar) {
+-		ath12k_warn(ab, "invalid vdev id in peer delete resp ev %d",
+-			    peer_del_resp.vdev_id);
++		ath12k_warn(ab, "invalid vdev id in peer delete resp ev %d\n",
++			    vdev_id);
+ 		rcu_read_unlock();
+ 		return;
+ 	}
  
- 	init_completion(&ar->vdev_setup_done);
- 	init_completion(&ar->vdev_delete_done);
- 	init_completion(&ar->peer_assoc_done);
--	init_completion(&ar->peer_delete_done);
- 	init_completion(&ar->install_key_done);
- 	init_completion(&ar->bss_survey_done);
- 	init_completion(&ar->scan.started);
+-	complete(&ar->peer_delete_done);
++	ath12k_peer_delete_resp_signal(ar, vdev_id,
++				       peer_del_resp.peer_macaddr.addr);
+ 	rcu_read_unlock();
+ 	ath12k_dbg(ab, ATH12K_DBG_WMI, "peer delete resp for vdev id %d addr %pM\n",
+-		   peer_del_resp.vdev_id, peer_del_resp.peer_macaddr.addr);
++		   vdev_id, peer_del_resp.peer_macaddr.addr);
+ }
+ 
+ static void ath12k_vdev_delete_resp_event(struct ath12k_base *ab,

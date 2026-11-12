@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 13:38:14 +0200
+Date: Wed, 11 Nov 2026 12:18:56 +0800
 Subject: [PATCH] hostapd: report SCS and MSCS requests on ubus and apply disallow
  lists
 
@@ -23,10 +23,11 @@ the Controller's QoS Management Policy with REQUEST_DECLINED.
   station from the driver, and the MSCS that DEL_MSCS removes.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -160,6 +160,7 @@ int hostapd_drv_set_secure_ranging_ctx(s
+@@ -162,6 +162,7 @@ int hostapd_drv_set_secure_ranging_ctx(s
  
  
  #include "drivers/driver.h"
@@ -34,7 +35,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  int hostapd_drv_wnm_oper(struct hostapd_data *hapd,
  			 enum wnm_oper oper, const u8 *peer,
-@@ -211,6 +212,10 @@ static inline int hostapd_drv_get_inact_
+@@ -213,6 +214,10 @@ static inline int hostapd_drv_get_inact_
  static inline int hostapd_drv_sta_remove(struct hostapd_data *hapd,
  					 const u8 *addr)
  {

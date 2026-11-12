@@ -1,6 +1,5 @@
-From 784f7dabf5d3bce23c69c48a0441ff2b1536f069 Mon Sep 17 00:00:00 2001
 From: Manish Dharanenthiran <manish.dharanenthiran@oss.qualcomm.com>
-Date: Tue, 23 Jun 2026 11:16:21 +0530
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: advertise ieee_link_id in vdev start MLO params
 
 Firmware builds the AP MLD partner profile from the hw_link_id passed in
@@ -45,11 +44,7 @@ Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260623-ieee_link_id-v2-1-8a89d71baf58@oss.qualcomm.com
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/mac.c |  3 +++
- drivers/net/wireless/ath/ath12k/wmi.c | 32 +++++++++++++++++----------
- drivers/net/wireless/ath/ath12k/wmi.h |  7 ++++++
- 3 files changed, 30 insertions(+), 12 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/mac.c
 +++ b/drivers/net/wireless/ath/ath12k/mac.c

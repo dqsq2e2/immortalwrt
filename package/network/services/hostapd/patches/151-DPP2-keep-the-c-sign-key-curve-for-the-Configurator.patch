@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:22:05 +0200
+Date: Wed, 11 Nov 2026 12:12:42 +0800
 Subject: [PATCH] DPP2: Keep the c-sign-key curve for the Configurator
 
 Since the ppKey was added, dpp_keygen_configurator() passes conf->curve
@@ -25,8 +25,9 @@ DPP specification says that the ppKey "uses the same curve as the
 C-sign-key".
 
 Fixes: 9c1fbff07404 ("DPP2: Generate a privacy protection key for Configurator")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/common/dpp.c
 +++ b/src/common/dpp.c

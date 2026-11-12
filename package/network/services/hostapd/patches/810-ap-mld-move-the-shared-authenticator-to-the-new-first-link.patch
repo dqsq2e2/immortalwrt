@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:38:57 +0200
+Date: Wed, 11 Nov 2026 12:15:44 +0800
 Subject: [PATCH] AP MLD: Move the shared authenticator to the new first link
 
 Since commit a213fee11da3 ("AP: MLO: Make IEEE 802.1X SM, authserv, and
@@ -73,7 +73,7 @@ radius_server_init() enables the internal EAP server in the shared
 configuration for the sessions of that server.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/accounting.c
 +++ b/src/ap/accounting.c
@@ -186,7 +186,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* ACCOUNTING_H */
 --- a/src/ap/authsrv.c
 +++ b/src/ap/authsrv.c
-@@ -387,6 +387,9 @@ int authsrv_init(struct hostapd_data *ha
+@@ -388,6 +388,9 @@ int authsrv_init(struct hostapd_data *ha
  #ifdef EAP_SIM_DB
  		hapd->eap_sim_db_priv = first->eap_sim_db_priv;
  #endif /* EAP_SIM_DB */
@@ -196,7 +196,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return 0;
  	}
  #endif /* CONFIG_IEEE80211BE */
-@@ -503,6 +506,41 @@ int authsrv_init(struct hostapd_data *ha
+@@ -509,6 +512,41 @@ int authsrv_init(struct hostapd_data *ha
  }
  
  
@@ -261,7 +261,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_NO_RADIUS */
  
  	ssid = &hapd->conf->ssid;
-@@ -6235,6 +6236,28 @@ int hostapd_mld_add_link(struct hostapd_
+@@ -6259,6 +6260,28 @@ int hostapd_mld_add_link(struct hostapd_
  }
  
  
@@ -290,7 +290,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  int hostapd_mld_remove_link(struct hostapd_data *hapd)
  {
  	struct hostapd_mld *mld = hapd->mld;
-@@ -6276,6 +6299,10 @@ int hostapd_mld_remove_link(struct hosta
+@@ -6300,6 +6323,10 @@ int hostapd_mld_remove_link(struct hosta
  			hostapd_mld_move_vlan_list(hapd, next_fbss);
  
  		mld->fbss = next_fbss;
@@ -314,7 +314,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_NO_RADIUS */
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2678,6 +2678,54 @@ void ieee802_1x_erp_flush(struct hostapd
+@@ -2681,6 +2681,54 @@ void ieee802_1x_erp_flush(struct hostapd
  }
  
  
@@ -369,7 +369,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void ieee802_1x_deinit(struct hostapd_data *hapd)
  {
  #ifdef CONFIG_IEEE80211BE
-@@ -2694,6 +2742,11 @@ void ieee802_1x_deinit(struct hostapd_da
+@@ -2697,6 +2745,11 @@ void ieee802_1x_deinit(struct hostapd_da
  	eloop_cancel_timeout(ieee802_1x_rekey, hapd, NULL);
  #endif /* CONFIG_WEP */
  
@@ -426,7 +426,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				u8 *_rand, u8 *kc, u8 *sres,
 --- a/src/radius/radius_client.c
 +++ b/src/radius/radius_client.c
-@@ -324,6 +324,102 @@ int radius_client_register(struct radius
+@@ -328,6 +328,102 @@ int radius_client_register(struct radius
  
  
  /**
@@ -529,7 +529,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * radius_client_set_interim_erro_cb - Register an interim acct error callback
   * @radius: RADIUS client context from radius_client_init()
   * @addr: Station address from the failed message
-@@ -342,6 +438,24 @@ void radius_client_set_interim_error_cb(
+@@ -346,6 +442,24 @@ void radius_client_set_interim_error_cb(
  }
  
  
@@ -619,7 +619,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	struct dl_list erp_keys; /* struct eap_server_erp_key */
  
-@@ -2089,7 +2089,11 @@ radius_server_init(struct radius_server_
+@@ -2093,7 +2093,11 @@ radius_server_init(struct radius_server_
  			  conf->eap_req_id_text_len);
  		data->eap_req_id_text_len = conf->eap_req_id_text_len;
  	}
@@ -632,7 +632,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (conf->t_c_server_url) {
  		data->t_c_server_url = os_strdup(conf->t_c_server_url);
-@@ -2181,6 +2185,18 @@ void radius_server_erp_flush(struct radi
+@@ -2185,6 +2189,18 @@ void radius_server_erp_flush(struct radi
  
  
  /**
@@ -651,7 +651,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * radius_server_deinit - Deinitialize RADIUS server
   * @data: RADIUS server context from radius_server_init()
   */
-@@ -2206,6 +2222,7 @@ void radius_server_deinit(struct radius_
+@@ -2210,6 +2226,7 @@ void radius_server_deinit(struct radius_
  	os_free(data->dump_msk_file);
  #endif /* CONFIG_RADIUS_TEST */
  	os_free(data->t_c_server_url);

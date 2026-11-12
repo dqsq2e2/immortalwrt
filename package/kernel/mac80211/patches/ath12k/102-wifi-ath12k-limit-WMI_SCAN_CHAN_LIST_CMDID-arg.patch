@@ -81,7 +81,7 @@ Received: from [127.0.1.1] ([78.62.132.154])
         (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
         Mon, 10 Mar 2025 06:28:45 -0700 (PDT)
 From: Mantas Pucka <mantas@8devices.com>
-Date: Mon, 10 Mar 2025 15:28:18 +0200
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH ath-next] wifi: ath12k: limit WMI_SCAN_CHAN_LIST_CMDID
  argument size
 Precedence: bulk
@@ -116,17 +116,7 @@ specified in WMI interface description [1].
 Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.4.1-00199-QCAHKSWPL_SILICONZ-1
 
 Signed-off-by: Mantas Pucka <mantas@8devices.com>
----
- drivers/net/wireless/ath/ath12k/wmi.c | 3 +++
- drivers/net/wireless/ath/ath12k/wmi.h | 2 ++
- 2 files changed, 5 insertions(+)
-
-
----
-base-commit: 42aa76e608ca845c98e79f9e23af0bdb07b2eb1d
-change-id: 20250310-limit-wmi-chanlist-17cb8d27cba6
-
-Best regards,
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c

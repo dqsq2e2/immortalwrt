@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Fri, 06 Nov 2026 02:34:28 +0800
 Subject: [PATCH] net: dsa: implement QCA 8021Q transport and switch VLAN domains
 
 The QCA8K header carries the destination port bitmap on transmit and the
@@ -59,6 +59,7 @@ Signed-off-by: Julius Bairaktaris <julius@bairaktaris.de>
 Signed-off-by: Stanislaw Pal <kuncy7@gmail.com>
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
+---
 --- a/drivers/net/dsa/qca/qca8k-8xxx.c
 +++ b/drivers/net/dsa/qca/qca8k-8xxx.c
 @@ -19,6 +19,7 @@
@@ -460,15 +461,15 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int qca8k_port_lag_join(struct dsa_switch *ds, int port, struct dsa_lag lag,
 --- a/include/net/dsa.h
 +++ b/include/net/dsa.h
-@@ -60,6 +60,7 @@ struct tc_action;
- #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	34
+@@ -63,6 +63,7 @@ struct tc_action;
+ #define DSA_TAG_PROTO_RTL837X_8021AD_VALUE	38
  #define DSA_TAG_PROTO_RTL9303_8021AD_VALUE	35
  #define DSA_TAG_PROTO_QCA_ETYPE_VALUE		36
 +#define DSA_TAG_PROTO_QCA_8021Q_VALUE		37
  
  enum dsa_tag_protocol {
  	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
-@@ -97,6 +98,7 @@ enum dsa_tag_protocol {
+@@ -103,6 +104,7 @@ enum dsa_tag_protocol {
  	DSA_TAG_PROTO_RTL837X_8021AD	= DSA_TAG_PROTO_RTL837X_8021AD_VALUE,
  	DSA_TAG_PROTO_RTL9303_8021AD	= DSA_TAG_PROTO_RTL9303_8021AD_VALUE,
  	DSA_TAG_PROTO_QCA_ETYPE		= DSA_TAG_PROTO_QCA_ETYPE_VALUE,
@@ -573,7 +574,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  module_dsa_tag_drivers(dsa_tag_driver_array);
 --- a/net/dsa/user.c
 +++ b/net/dsa/user.c
-@@ -4118,6 +4118,47 @@ static int dsa_user_switchdev_event(stru
+@@ -4133,6 +4133,47 @@ static int dsa_user_switchdev_event(stru
  	return NOTIFY_OK;
  }
  
@@ -621,7 +622,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int dsa_user_switchdev_blocking_event(struct notifier_block *unused,
  					     unsigned long event, void *ptr)
  {
-@@ -4130,12 +4171,16 @@ static int dsa_user_switchdev_blocking_e
+@@ -4145,12 +4186,16 @@ static int dsa_user_switchdev_blocking_e
  							    dsa_user_dev_check,
  							    dsa_foreign_dev_check,
  							    dsa_user_port_obj_add);

@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
+
+#include "ipq9554-be7000.dts"
+
+/ {
+	model = "Xiaomi BE7000 ES";
+	compatible = "xiaomi,be7000-es", "qcom,ipq9574";
+};
+
+&wifi0 {
+	qcom,calibration-variant = "Xiaomi-BE7000-ES";
+};
+
+&wifi2 {
+	qcom,calibration-variant = "Xiaomi-BE7000-ES";
+};
+
+/* The ES board routes the WAN indicator to PHY LED0. */
+&qca8084_phy1 {
+	leds {
+		/delete-node/ led@2;
+
+		led@0 {
+			reg = <0>;
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN;
+			active-high;
+		};
+	};
+};

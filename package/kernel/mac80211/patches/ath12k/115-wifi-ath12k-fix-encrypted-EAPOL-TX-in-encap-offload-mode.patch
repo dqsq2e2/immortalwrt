@@ -1,6 +1,5 @@
-From 1e33f8acd837420160ea088160d8648a3db54c3b Mon Sep 17 00:00:00 2001
 From: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
-Date: Wed, 29 Jul 2026 22:47:32 +0530
+Date: Wed, 11 Nov 2026 16:11:45 +0800
 Subject: [PATCH] wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
 
 When a vif operates with IEEE80211_OFFLOAD_ENCAP_ENABLED,
@@ -29,17 +28,21 @@ helpers in the TX path to obtain cipher-specific IV and ICV lengths.
 Tested-on: QCN9274 hw2.0 PCI WLAN.WBE.1.6-01270-QCAHKSWPL_SILICONZ-1
 
 Fixes: d29591d5b52e ("wifi: ath12k: Advertise encapsulation/decapsulation offload support to mac80211")
-Signed-off-by: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
 Reviewed-by: Aishwarya R <aishwarya.r@oss.qualcomm.com>
 Reviewed-by: Rameshkumar Sundaram <rameshkumar.sundaram@oss.qualcomm.com>
 Reviewed-by: Baochen Qiang <baochen.qiang@oss.qualcomm.com>
 Link: https://patch.msgid.link/20260729171732.668367-1-reshma.rajkumar@oss.qualcomm.com
+
+Keep the final implementation of this responsibility directly; subsequent
+repairs listed below are integrated without intermediate replacements.
+
+Merged from:
+  115-wifi-ath12k-fix-encrypted-EAPOL-TX-in-encap-offload-mode.patch - wifi: ath12k: fix encrypted EAPOL TX in encap offload mode
+  915-ath12k-encrypt-EAPOL-renewal-on-native-WiFi-vdevs.patch - wifi: ath12k: encrypt EAPOL renewal on native-WiFi vdevs
+
+Signed-off-by: Reshma Immaculate Rajkumar <reshma.rajkumar@oss.qualcomm.com>
 Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
----
- drivers/net/wireless/ath/ath12k/dp_tx.c       | 46 +++++++++++++
- drivers/net/wireless/ath/ath12k/dp_tx.h       |  2 +
- drivers/net/wireless/ath/ath12k/wifi7/dp_tx.c | 64 ++++++++++++++++++-
- 3 files changed, 111 insertions(+), 1 deletion(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/dp_tx.c
 +++ b/drivers/net/wireless/ath/ath12k/dp_tx.c
@@ -167,15 +170,22 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
  
  	if (test_bit(ATH12K_FLAG_CRASH_FLUSH, &ab->dev_flags))
  		return -ESHUTDOWN;
-@@ -211,9 +255,27 @@ tcl_ring_sel:
+@@ -210,13 +254,33 @@ tcl_ring_sel:
+ 	switch (ti.encap_type) {
  	case HAL_TCL_ENCAP_TYPE_NATIVE_WIFI:
  		is_null_frame = ieee80211_is_nullfunc(hdr->frame_control);
- 		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
+-		if (ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) {
 -			if (skb->protocol == cpu_to_be16(ETH_P_PAE) || is_null_frame)
++		if ((ahvif->vif->offload_flags & IEEE80211_OFFLOAD_ENCAP_ENABLED) ||
++		    (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
++		     (skb_cb->flags & ATH12K_SKB_CIPHER_SET))) {
 +			if ((skb->protocol == cpu_to_be16(ETH_P_PAE) &&
 +			     !(skb_cb->flags & ATH12K_SKB_CIPHER_SET)) || is_null_frame)
  				is_diff_encap = true;
  
+-			/* Firmware expects msdu ext descriptor for nwifi/raw packets
+-			 * received in ETH mode. Without this, observed tx fail for
+-			 * Multicast packets in ETH mode.
 +			if (skb->protocol == cpu_to_be16(ETH_P_PAE) &&
 +			    (skb_cb->flags & ATH12K_SKB_CIPHER_SET)) {
 +				if (!eapol_encap_done) {
@@ -193,6 +203,9 @@ Signed-off-by: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
 +						ath12k_dp_tx_get_encrypt_type(skb_cb->cipher);
 +				}
 +			}
- 			/* Firmware expects msdu ext descriptor for nwifi/raw packets
- 			 * received in ETH mode. Without this, observed tx fail for
- 			 * Multicast packets in ETH mode.
++			/* Firmware needs an extension for the per-frame RAW cipher
++			 * override, including EAPOL renewal on native-WiFi vdevs.
++			 * ETH-mode native-WiFi frames also need the extension.
+ 			 */
+ 			msdu_ext_desc = true;
+ 		} else {

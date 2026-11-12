@@ -333,8 +333,7 @@
 };
 
 &wifi {
- 	qcom,ath11k-calibration-variant = "Yuncore-FAP650";
-	qcom,ath11k-fw-memory-mode = <1>;
+	qcom,calibration-variant = "Yuncore-FAP650";
 	status = "okay";
 };
 

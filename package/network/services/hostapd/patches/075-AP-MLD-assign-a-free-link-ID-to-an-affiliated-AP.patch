@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 20 Oct 2026 14:42:20 +0200
+Date: Wed, 11 Nov 2026 12:11:56 +0800
 Subject: [PATCH] AP MLD: Assign a free link ID to an affiliated AP
 
 hostapd_bss_alloc_link_id() gives each affiliated AP the next value of
@@ -14,11 +14,11 @@ the first free one from next_link_id on, wrapping around. Refuse the AP
 if no link ID is free.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -3128,11 +3128,15 @@ static void hostapd_mld_ref_inc(struct h
+@@ -3139,11 +3139,15 @@ static void hostapd_mld_ref_inc(struct h
  }
  
  
@@ -35,7 +35,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (!mld->refcount) {
  		wpa_printf(MSG_ERROR, "AP MLD %s: Ref count underflow",
  			   mld->name);
-@@ -3154,7 +3158,7 @@ void hostapd_interface_free(struct hosta
+@@ -3165,7 +3169,7 @@ void hostapd_interface_free(struct hosta
  			break;
  #ifdef CONFIG_IEEE80211BE
  		if (iface->bss[j])
@@ -44,7 +44,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  		wpa_printf(MSG_DEBUG, "%s: free hapd %p",
  			   __func__, iface->bss[j]);
-@@ -3179,12 +3183,39 @@ struct hostapd_iface * hostapd_alloc_ifa
+@@ -3190,12 +3194,39 @@ struct hostapd_iface * hostapd_alloc_ifa
  
  
  #ifdef CONFIG_IEEE80211BE
@@ -87,7 +87,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  
  
-@@ -3210,14 +3241,12 @@ void hostapd_bss_setup_multi_link(struct
+@@ -3221,14 +3252,12 @@ void hostapd_bss_setup_multi_link(struct
  		if (!mld || os_strcmp(conf->iface, mld->name) != 0)
  			continue;
  
@@ -105,7 +105,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	mld = os_zalloc(sizeof(struct hostapd_mld));
  	if (!mld)
-@@ -3233,12 +3262,12 @@ void hostapd_bss_setup_multi_link(struct
+@@ -3244,12 +3273,12 @@ void hostapd_bss_setup_multi_link(struct
  
  	/* Initialize MLD control interfaces early to allow external monitoring
  	 * of link setup operations. */
@@ -120,7 +120,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	all_mld = os_realloc_array(interfaces->mld, interfaces->mld_count + 1,
  				   sizeof(struct hostapd_mld *));
-@@ -3983,7 +4012,7 @@ int hostapd_add_iface(struct hapd_interf
+@@ -3994,7 +4023,7 @@ int hostapd_add_iface(struct hapd_interf
  				hostapd_config_free_bss(hapd->conf);
  				hapd->conf = NULL;
  #ifdef CONFIG_IEEE80211BE
@@ -129,7 +129,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  				os_free(hapd);
  				return -1;
-@@ -4077,7 +4106,7 @@ fail:
+@@ -4088,7 +4117,7 @@ fail:
  				hostapd_bss_link_deinit(hapd);
  				hostapd_cleanup(hapd);
  #ifdef CONFIG_IEEE80211BE
@@ -138,7 +138,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  				os_free(hapd);
  				hapd_iface->bss[i] = NULL;
-@@ -4112,7 +4141,7 @@ static int hostapd_remove_bss(struct hos
+@@ -4123,7 +4152,7 @@ static int hostapd_remove_bss(struct hos
  		hostapd_config_free_bss(hapd->conf);
  		hapd->conf = NULL;
  #ifdef CONFIG_IEEE80211BE
@@ -149,7 +149,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -552,6 +552,8 @@ struct hostapd_mld {
+@@ -546,6 +546,8 @@ struct hostapd_mld {
  	char name[IFNAMSIZ + 1];
  	u8 mld_addr[ETH_ALEN];
  	u8 next_link_id;

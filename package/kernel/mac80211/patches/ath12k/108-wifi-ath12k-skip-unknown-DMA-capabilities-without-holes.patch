@@ -1,6 +1,5 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Satoshi Ikeuchi <satosan.ikm@gmail.com>
-Date: Sun, 27 Sep 2026 13:00:00 +0900
+Date: Sun, 08 Nov 2026 10:27:29 +0800
 Subject: [PATCH] wifi: ath12k: skip unknown direct buffer capabilities
 
 Firmware can advertise optional direct buffer ring module IDs which the
@@ -22,9 +21,7 @@ cleanup.
 Based-on-patch-by: Nazar Mokrynskyi <nazar@mokrynskyi.com>
 Link: https://github.com/openwrt/openwrt/pull/23001
 Signed-off-by: Satoshi Ikeuchi <satosan.ikm@gmail.com>
----
- drivers/net/wireless/ath/ath12k/wmi.c | 31 ++++++++++++++++---------------
- 1 file changed, 16 insertions(+), 15 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath12k/wmi.c
 +++ b/drivers/net/wireless/ath/ath12k/wmi.c

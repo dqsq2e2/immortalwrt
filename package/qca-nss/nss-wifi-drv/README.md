@@ -1,17 +1,21 @@
 # NSS data-plane control
 
 The service chooses WLAN ring ownership before ath11k probes. Change
-`nss-wifi.general.offload` or firmware parameters and reboot to apply them.
+`nss-wifi.general.offload` or `nss-wifi.general.firmware` and reboot to apply them.
 Keep the service enabled even when selecting the host path with `offload=0`.
 An interrupted bring-up leaves `/etc/nss-wifi.pending`; the following boot
 uses host rings. Remove that file before rebooting to retry NSS.
+
+The early-probe guard checks each PHY's bound driver and blocks only
+ath11k/ath11k_pci. A separately autoloaded ath10k AIoT PHY, such as the
+AX3600's QCA9887, does not prevent the regular ath11k radios from loading.
 
 The core-0 platform device exposes these sysfs attributes independently of
 debugfs (normally `/sys/bus/platform/devices/39000000.nss`):
 
 | Attribute | Access | Contents |
 | --- | --- | --- |
-| `boot` | read/write | Core running flag; write a boolean to boot or stop it. |
+| `boot` | read/write | Core running flag; write a boolean to boot or stop it. Manual stop returns `-EBUSY` while WLAN targets are configured. |
 | `wifi_start` | write | Write `1` to initialize all fully described WLAN instances. Errors are returned to the writer. |
 | `state` | read | Current physical target count, registered/described/started instances, readiness, VDEV/peer counts and per-instance errors. |
 | `flow_stats` | read | IPv4, IPv6, total installed bidirectional rules, total firmware capacity. |
@@ -31,6 +35,27 @@ does not reset shared EDMA while another instance keeps using it.
 Port arming runs in separate work, so its RTNL acquisition cannot delay
 completion of WLAN recovery.
 
+After a WLAN reset, the recovery hook deauthenticates clients on every BSS
+of the recovered PHY so that they establish fresh keys. It leaves the
+current authenticator configuration intact: reloading hostapd's original
+inline configuration can undo dynamic SSID or security changes.
+
+A core fault stops the processor before its buffers can be released. Pending
+buffer interrupts cannot mark a halted core as newly booted. All WLAN
+instances must release the old rings before the core is loaded again;
+mac80211 PHY restarts follow that handover so they do not hold RTNL while
+another instance still needs to stop. A PCIe WLAN instance still in mission
+mode skips waiting for an RDDM dump; actual RDDM faults retain dump collection.
+
+IPQ6018 also asserts its separate GCC processor reset on halt and releases it
+only after the boot address and fetch window have been programmed. The shared
+clamp resets alone do not reliably restart this processor. IPQ8074 retains
+its existing reset bits.
+
+Core boot allows five seconds for the firmware response. If an attempt times
+out, the driver waits for the shared EDMA reset and retries once before
+returning the failure to WiFiLi.
+
 For the selected IPQ6018/IPQ8074 AHB remoteproc, the service changes an
 `inline` crash dump to `enabled` before probing WLAN. The kernel retains
 the dump in `/sys/class/devcoredump/` without waiting up to five minutes
@@ -46,10 +71,84 @@ service derives the read-only `wlan` module parameter from the build marker,
 installed modules and enabled hardware: bit 0 selects AHB, bit 1 PCI, and
 zero selects non-WLAN offload only. Apply a change by rebooting.
 
-With no WLAN targets the automatic payload pool uses 8192 buffers with a
-4096-buffer refill threshold, instead of 16384/4352. Explicit nonzero
-`pool_size` and `pool_low` parameters override these defaults. The shared
-firmware memory requests and descriptor pool are retained for forwarding.
+With no WLAN targets the payload pool permits 16384 buffers with a
+4096-buffer refill threshold, instead of 24576/4352. The service loads
+`wlan=0 pbuf_bytes=8388608`, retaining 8 MiB of packet-descriptor memory
+instead of the 32 MiB WLAN default. Standalone connections still
+need packet descriptors, payload buffers and the firmware connection tables.
+This also applies when a multi-profile build enables NSS WLAN integration
+but the installed image contains no ath11k modules. Disabling APs alone
+does not change the selected WLAN buses; reboot after changing the image.
+
+## Connection tables
+
+NSS12.5 and NSS11.4 use 4096 bidirectional connections for each of
+IPv4 and IPv6, or 8192 combined. Unused capacity in one family is not
+available to the other. The driver negotiates host-backed tables with the
+firmware before enabling flow steering. Capacity is fixed and requires no
+configuration.
+
+With WLAN the firmware packet-descriptor pool defaults to 32 MiB (`pbuf_bytes`).
+It is allocated separately from the payload slabs and connection tables;
+it does not change the WLAN payload share or the fixed connection limits.
+These descriptor pages remain lent until the core stops; changing payload
+watermarks does not release them.
+
+After WLAN recovery, a mesh path update that reports a missing firmware
+entry recreates that entry before retrying the update. Other firmware errors
+are returned without retrying.
+
+Encrypted 802.11s recovery also renews the Mesh session on the recovered PHY.
+The recovery helper rejoins the supplicant's current network ID, retaining
+its live settings while recreating SAE keys and Mesh forwarding paths. It
+does not reload a saved wireless configuration. A short Mesh reconnection is
+expected after firmware recovery, as with renewed AP client sessions.
+
+The connection tables and packet payload pool are separate resources.
+The payload pool starts with a ceiling of 24576 with WLAN and 16384 without
+it. Fresh firmware statistics track buffers held by WLAN and active
+connections. When demand leaves enough refill reserve for 60 seconds, the
+driver lowers retention to 16384 with WLAN or 8192 without it. Returned
+buffers are freed through the existing SKB path. The driver raises the
+watermark when use approaches the reserve or allocation failures are reported.
+Larger WLAN configurations may keep the maximum because they need more buffers.
+
+The host stops replenishing before lowering a watermark and permits growth
+after the firmware acknowledges it. A failed adjustment disables adaptation
+and restores an acknowledged maximum. If that cannot be confirmed, the
+existing coordinated core recovery resets the firmware before releasing
+its buffers. Passive `rx` diagnostics show the target, idle floor, ceiling,
+use, growth/shrink counts and adjustment errors. Connection capacity remains
+8192 throughout; payload watermarks do not resize the connection tables.
+
+The firmware supplies the required connection-entry and match-entry table
+sizes. The driver allocates DMA memory and updates admission limits only
+after both families acknowledge the configuration. The firmware profile
+and available memory constrain which requests can succeed. No PPE SRAM
+tables are enlarged.
+
+The status overview reads the running driver's combined capacity, so its
+NSS count shows an upper limit of 8192 once table configuration succeeds.
+
+While WLAN targets are configured, a manual `boot=0` request returns
+`-EBUSY`: stopping NSS alone would leave automatic WLAN recovery without
+its offload core. Use a full WLAN/NSS module teardown or reboot to change
+the offload setting or firmware line. Coordinated fault recovery and driver
+removal keep their existing paths.
+
+A failed or timed-out table handover stops the core before its DMA memory
+is freed. The persistent bring-up guard described above still applies.
+
+Read `flow_stats` for the installed IPv4, IPv6 and total counts followed by
+the configured combined capacity. Its final value is 8192 after handover;
+each family is still limited to 4096. Passive `flows` diagnostics also
+show per-family limits, resource retries and firmware buffer availability.
+Statistics scan budgets grow with the configured table size so active
+connections are refreshed before the kernel flow timeout. Concurrent
+per-flow statistics work reads the RCU cache while one caller polls NSS.
+At capacity, new connections continue in software and may retry hardware
+offload after entries are released. Firmware buffer-allocation refusals
+use bounded backoff independently of table admission.
 
 Non-WLAN functions include supported IPv4/IPv6 TCP/UDP routing and IPv4 NAT
 through USB Ethernet/raw-IP redirect devices, plus the routed-multicast

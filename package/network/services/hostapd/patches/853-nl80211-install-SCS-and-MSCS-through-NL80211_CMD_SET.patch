@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sat, 24 Oct 2026 13:27:36 +0200
+Date: Wed, 11 Nov 2026 12:18:11 +0800
 Subject: [PATCH] nl80211: install SCS and MSCS through NL80211_CMD_SET_SCS/SET_MSCS
 
 The kernel (mac80211 subsys patches 431 to 450) classifies the streams
@@ -14,10 +14,11 @@ and set_mscs(), which install, change or remove one SCS descriptor or the
 MSCS of a peer and return the status code of the kernel's reply.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -1191,6 +1191,26 @@ int hostapd_drv_set_qos_map(struct hosta
+@@ -1231,6 +1231,26 @@ int hostapd_drv_set_qos_map(struct hosta
  }
  
  
@@ -46,7 +47,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  				      int acs_ch_list_all, bool allow_disabled,
 --- a/src/ap/ap_drv_ops.h
 +++ b/src/ap/ap_drv_ops.h
-@@ -165,6 +165,10 @@ int hostapd_drv_wnm_oper(struct hostapd_
+@@ -167,6 +167,10 @@ int hostapd_drv_wnm_oper(struct hostapd_
  			 enum wnm_oper oper, const u8 *peer,
  			 u8 *buf, u16 *buf_len);
  
@@ -59,7 +60,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -826,6 +826,46 @@ enum wps_mode {
+@@ -838,6 +838,46 @@ enum wps_mode {
  };
  
  /**
@@ -106,18 +107,18 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * struct hostapd_freq_params - Channel parameters
   */
  struct hostapd_freq_params {
-@@ -2597,6 +2637,10 @@ struct wpa_driver_capa {
+@@ -2644,6 +2684,10 @@ struct wpa_driver_capa {
   * in the Beacon frames and reports its expiry with
   * EVENT_AP_REMOVAL_TIMER_EXPIRED */
- #define WPA_DRIVER_FLAGS2_AP_REMOVAL_TIMER_OFFLOAD	0x0000010000000000ULL
+ #define WPA_DRIVER_FLAGS2_AP_REMOVAL_TIMER_OFFLOAD	0x0000040000000000ULL
 +/** Driver installs the SCS descriptors of a peer, see set_scs */
-+#define WPA_DRIVER_FLAGS2_SCS			0x0000020000000000ULL
++#define WPA_DRIVER_FLAGS2_SCS			0x0000080000000000ULL
 +/** Driver installs the MSCS of a peer, see set_mscs */
-+#define WPA_DRIVER_FLAGS2_MSCS			0x0000040000000000ULL
++#define WPA_DRIVER_FLAGS2_MSCS			0x0000100000000000ULL
  	u64 flags2;
- 
- #define FULL_AP_CLIENT_STATE_SUPP(drv_flags) \
-@@ -4844,6 +4888,30 @@ struct wpa_driver_ops {
+ /** Driver supports Security Profile element (IEEE P802.11bn/D2.0, 9.4.2.369
+  * and 37.33) handling */
+@@ -4911,6 +4955,30 @@ struct wpa_driver_ops {
  			   u8 qos_map_set_len);
  
  	/**
@@ -150,7 +151,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	 * @version: IP version of the IP address, 4 or 6
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -12985,6 +12985,144 @@ static int nl80211_set_qos_map(void *pri
+@@ -13110,6 +13110,144 @@ static int nl80211_set_qos_map(void *pri
  }
  
  
@@ -295,7 +296,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  static int get_wowlan_handler(struct nl_msg *msg, void *arg)
  {
  	struct nlattr *tb[NL80211_ATTR_MAX + 1];
-@@ -17037,6 +17175,8 @@ const struct wpa_driver_ops wpa_driver_n
+@@ -17175,6 +17313,8 @@ const struct wpa_driver_ops wpa_driver_n
  #endif /* ANDROID */
  	.vendor_cmd = nl80211_vendor_cmd,
  	.set_qos_map = nl80211_set_qos_map,
@@ -306,7 +307,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	.set_mac_addr = nl80211_set_mac_addr,
 --- a/src/drivers/driver_nl80211_capa.c
 +++ b/src/drivers/driver_nl80211_capa.c
-@@ -615,6 +615,10 @@ static void wiphy_info_ext_feature_flags
+@@ -618,6 +618,10 @@ static void wiphy_info_ext_feature_flags
  	if (ext_feature_isset(ext_features, len,
  			      NL80211_EXT_FEATURE_AP_REMOVAL_TIMER_OFFLOAD))
  		capa->flags2 |= WPA_DRIVER_FLAGS2_AP_REMOVAL_TIMER_OFFLOAD;
@@ -319,7 +320,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		capa->flags |= WPA_DRIVER_FLAGS_SCHED_SCAN_RELATIVE_RSSI;
 --- a/src/drivers/driver_nl80211_event.c
 +++ b/src/drivers/driver_nl80211_event.c
-@@ -205,6 +205,8 @@ static const char * nl80211_command_to_s
+@@ -206,6 +206,8 @@ static const char * nl80211_command_to_s
  	C2S(NL80211_CMD_ADV_TTLM_STARTED)
  	C2S(NL80211_CMD_ADV_TTLM_ESTABLISHED)
  	C2S(NL80211_CMD_ADV_TTLM_ENDED)
@@ -330,7 +331,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #undef C2S
 --- a/src/drivers/nl80211_copy.h
 +++ b/src/drivers/nl80211_copy.h
-@@ -1505,6 +1505,18 @@
+@@ -1516,6 +1516,18 @@
   *	The events of an advertised mapping carry %NL80211_ATTR_WIPHY,
   *	%NL80211_ATTR_IFINDEX, %NL80211_ATTR_WDEV and %NL80211_ATTR_COOKIE.
   *
@@ -349,7 +350,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * @NL80211_CMD_MAX: highest used command number
   * @__NL80211_CMD_AFTER_LAST: internal use
   */
-@@ -1793,6 +1805,9 @@ enum nl80211_commands {
+@@ -1804,6 +1816,9 @@ enum nl80211_commands {
  	NL80211_CMD_ADV_TTLM_ESTABLISHED,
  	NL80211_CMD_ADV_TTLM_ENDED,
  
@@ -359,7 +360,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	/* add new commands above here */
  
  	/* used to define NL80211_CMD_MAX below */
-@@ -3308,6 +3323,12 @@ enum nl80211_commands {
+@@ -3320,6 +3335,12 @@ enum nl80211_commands {
   *	advertised TID-to-link mapping, in ns of %CLOCK_BOOTTIME, see
   *	%NL80211_CMD_ADV_TTLM_STARTED and %NL80211_CMD_ADV_TTLM_ESTABLISHED.
   *
@@ -372,7 +373,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * @NUM_NL80211_ATTR: total number of nl80211_attrs available
   * @NL80211_ATTR_MAX: highest attribute number currently defined
   * @__NL80211_ATTR_AFTER_LAST: internal use
-@@ -3922,6 +3943,9 @@ enum nl80211_attrs {
+@@ -3934,6 +3955,9 @@ enum nl80211_attrs {
  	NL80211_ATTR_MLO_ADV_TTLM_SWITCH_TSF,
  	NL80211_ATTR_MLO_ADV_TTLM_TBTT_BOOTTIME,
  
@@ -382,7 +383,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	/* add attributes here, update the policy in nl80211.c */
  
  	__NL80211_ATTR_AFTER_LAST,
-@@ -6203,6 +6227,87 @@ enum nl80211_tx_power_setting {
+@@ -6226,6 +6250,87 @@ enum nl80211_tx_power_setting {
  };
  
  /**

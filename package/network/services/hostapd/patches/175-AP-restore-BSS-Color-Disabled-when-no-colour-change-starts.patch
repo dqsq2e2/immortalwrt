@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 6 Oct 2026 07:58:59 +0200
+Date: Wed, 11 Nov 2026 12:12:56 +0800
 Subject: [PATCH] AP: Restore BSS Color Disabled when no colour change starts
 
 hostapd_switch_color_timeout_handler() and
@@ -21,12 +21,13 @@ template per BSS.
 
 Fixes: 2d5e6c33e452 ("hostapd: Set BSS Color Disabled=1 during CCA countdown")
 Fixes: 51b5b9512ffb ("Update Probe Response template on BSS color change")
+
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -2571,12 +2571,9 @@ static int hostapd_ctrl_iface_color_chan
+@@ -2721,12 +2721,9 @@ static int hostapd_ctrl_iface_color_chan
  					   const char *pos)
  {
  #ifdef NEED_AP_MLME
@@ -40,7 +41,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	color = strtol(pos, &end, 10);
  	if (pos == end || color < 0 || color > 63) {
-@@ -2623,38 +2620,18 @@ static int hostapd_ctrl_iface_color_chan
+@@ -2773,38 +2770,18 @@ static int hostapd_ctrl_iface_color_chan
  		return -1;
  	}
  
@@ -91,7 +92,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	return -1;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -5100,6 +5100,53 @@ int hostapd_fill_cca_settings(struct hos
+@@ -5124,6 +5124,53 @@ int hostapd_fill_cca_settings(struct hos
  }
  
  
@@ -145,7 +146,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  void hostapd_switch_color_timeout_handler(void *eloop_data, void *user_ctx)
  {
  	struct hostapd_data *hapd = (struct hostapd_data *) eloop_data;
-@@ -5116,14 +5163,6 @@ void hostapd_switch_color_timeout_handle
+@@ -5140,14 +5187,6 @@ void hostapd_switch_color_timeout_handle
  	if (delta_t < DOT11BSS_COLOR_COLLISION_AP_PERIOD)
  		return;
  
@@ -160,7 +161,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	avoided = hostapd_bss_colors_avoided(hapd->iface);
  	r = os_random() % HE_OPERATION_BSS_COLOR_MAX;
  	for (i = 0; i < HE_OPERATION_BSS_COLOR_MAX; i++) {
-@@ -5144,29 +5183,7 @@ void hostapd_switch_color_timeout_handle
+@@ -5168,29 +5207,7 @@ void hostapd_switch_color_timeout_handle
  		return;
  	}
  
@@ -193,7 +194,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -968,6 +968,7 @@ int hostapd_build_beacon_data(struct hos
+@@ -964,6 +964,7 @@ int hostapd_build_beacon_data(struct hos
  void free_beacon_data(struct beacon_data *beacon);
  int hostapd_fill_cca_settings(struct hostapd_data *hapd,
  			      struct cca_settings *settings);

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 27 Oct 2026 13:29:58 +0000
+Date: Wed, 11 Nov 2026 12:18:56 +0800
 Subject: [PATCH] hostapd: add the configuration option robust_av_scs_disabled
 
 Add the BSS option robust_av_scs_disabled, 0 by default. Where it is
@@ -16,21 +16,24 @@ option to MSCS as well and builds it under CONFIG_ROBUST_AV.
 Co-developed-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Howard Hsu <howard-yh.hsu@mediatek.com>
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -5275,6 +5275,8 @@ static int hostapd_config_fill(struct ho
- #ifdef CONFIG_ROBUST_AV
- 	} else if (os_strcmp(buf, "enable_dscp_policy_capa") == 0) {
- 		bss->enable_dscp_policy_capa = atoi(pos);
+@@ -5350,6 +5350,10 @@ static int hostapd_config_fill(struct ho
+ 		os_strlcpy(bss->apup_peer_ifname_prefix,
+ 		           pos, sizeof(bss->apup_peer_ifname_prefix));
+ #endif // def CONFIG_APUP
++#ifdef CONFIG_ROBUST_AV
 +	} else if (os_strcmp(buf, "robust_av_scs_disabled") == 0) {
 +		bss->robust_av_scs_disabled = !!atoi(pos);
- #endif /* CONFIG_ROBUST_AV */
++#endif /* CONFIG_ROBUST_AV */
  	} else {
  		wpa_printf(MSG_ERROR,
+ 			   "Line %d: unknown configuration item '%s'",
 --- a/hostapd/hostapd.conf
 +++ b/hostapd/hostapd.conf
-@@ -3568,6 +3568,13 @@ own_ip_addr=127.0.0.1
+@@ -3681,6 +3681,13 @@ own_ip_addr=127.0.0.1
  # 1 = enabled
  #enable_dscp_policy_capa=0
  #
@@ -46,14 +49,16 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1056,6 +1056,7 @@ struct hostapd_bss_config {
+@@ -1077,6 +1077,9 @@ struct hostapd_bss_config {
+ 	 */
+ 	char apup_peer_ifname_prefix[IFNAMSIZ + 1];
  #endif /* CONFIG_APUP */
- #ifdef CONFIG_ROBUST_AV
- 	bool enable_dscp_policy_capa;
++#ifdef CONFIG_ROBUST_AV
 +	bool robust_av_scs_disabled;
- #endif /* CONFIG_ROBUST_AV */
++#endif /* CONFIG_ROBUST_AV */
  };
  
+ /**
 --- a/src/ap/ieee802_11_eht.c
 +++ b/src/ap/ieee802_11_eht.c
 @@ -17,6 +17,7 @@
@@ -85,10 +90,10 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #include "ieee802_11.h"
  
  
-@@ -535,6 +536,13 @@ u8 * hostapd_eid_ext_capab(struct hostap
- 			*pos &= ~0x08;
- 		if (i == 2 && !hapd->iconf->mbssid)
- 			*pos &= ~0x40;
+@@ -566,6 +567,13 @@ u8 * hostapd_eid_ext_capab(struct hostap
+ 		 * disabled through hostapd configuration
+ 		 */
+ 		hostapd_clear_ext_capab_byte(hapd, pos, i);
 +#ifdef CONFIG_ROBUST_AV
 +		/* Bit 54 - SCS, bit 85 - Mirrored SCS */
 +		if (i == 6 && hostapd_is_robust_av_scs_disabled(hapd))

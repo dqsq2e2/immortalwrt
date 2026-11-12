@@ -1,6 +1,5 @@
-From a18addfc7f1855a5798b9a438ee94efd85947e0c Mon Sep 17 00:00:00 2001
 From: Felix Fietkau <nbd@nbd.name>
-Date: Tue, 29 Sep 2026 09:48:03 +0200
+Date: Wed, 11 Nov 2026 12:14:33 +0800
 Subject: [PATCH] AP MLD: remove an affiliated AP at the expiry of its timer
 
 Depends on 602-ap-mld-announce-the-removal-of-an-affiliated-ap.patch,
@@ -100,17 +99,11 @@ The limits of this timing:
   they had until the switch ends.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
- src/ap/beacon.c     |    9 ++
- src/ap/hostapd.c    |  272 ++++++++++++++++++++++++++++++++++++++++++++++++++-
- src/ap/hostapd.h    |    6 +
- src/ap/ieee802_11.c |    6 +
- src/ap/sta_info.h   |    1 
- 5 files changed, 288 insertions(+), 6 deletions(-)
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/src/ap/beacon.c
 +++ b/src/ap/beacon.c
-@@ -2800,6 +2800,15 @@ static int __ieee802_11_set_beacon(struc
+@@ -2875,6 +2875,15 @@ static int __ieee802_11_set_beacon(struc
  		return -1;
  	}
  
@@ -446,7 +439,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	os_free(hapd->probereq_cb);
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -553,6 +553,8 @@ struct hostapd_data {
+@@ -542,6 +542,8 @@ struct hostapd_data {
  	u16 eht_mld_link_removal_start;
  	u16 eht_mld_link_removal_count;
  	struct os_reltime eht_mld_link_removal_due;
@@ -455,7 +448,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #endif /* CONFIG_IEEE80211BE */
  
  #ifdef CONFIG_NAN_USD
-@@ -998,6 +1000,10 @@ struct hostapd_data * hostapd_mld_get_li
+@@ -994,6 +996,10 @@ struct hostapd_data * hostapd_mld_get_li
  					       u8 link_id);
  int hostapd_link_remove(struct hostapd_data *hapd, u32 count);
  bool hostapd_link_remove_critical_update(struct hostapd_data *hapd);
@@ -468,7 +461,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  u8 hostapd_get_mld_id(struct hostapd_data *hapd);
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -9206,10 +9206,16 @@ void ieee802_11_mgmt_cb(struct hostapd_d
+@@ -10823,10 +10823,16 @@ void ieee802_11_mgmt_cb(struct hostapd_d
  	case WLAN_FC_STYPE_DEAUTH:
  		wpa_printf(MSG_DEBUG, "mgmt::deauth cb");
  		handle_deauth_cb(hapd, mgmt, len, ok);
@@ -487,7 +480,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		wpa_printf(MSG_DEBUG, "mgmt::action cb ok=%d", ok);
 --- a/src/ap/sta_info.h
 +++ b/src/ap/sta_info.h
-@@ -347,6 +347,7 @@ struct sta_info {
+@@ -355,6 +355,7 @@ struct sta_info {
  	struct mld_info mld_info;
  	u8 mld_assoc_link_id;
  	struct link_reconf_req_list *reconf_req;

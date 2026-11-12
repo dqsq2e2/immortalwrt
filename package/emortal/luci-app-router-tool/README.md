@@ -19,6 +19,15 @@ is capitalized. The suffix follows the radio's capabilities (`2.4G`, `5.2G`,
 characters. A custom key must contain 8 to 63 printable ASCII characters,
 supporting both WPA2 and WPA3-SAE.
 
+The 5 GHz and 6 GHz radios use automatic channel selection. The 2.4 GHz
+default remains channel 1. On a wiphy with multiple radios, each radio's
+own band information determines its suffix. The 2.4 GHz default uses the
+lowest supported width (20 MHz); 5 GHz and 6 GHz use the highest advertised
+width that fits the selected radio's frequency range. EHT320 is selected
+only on a 6 GHz radio advertising that mode; AX and narrower radios keep
+their supported maximum. A restricted 5.8 GHz radio keeps its `5.8G` suffix
+without imposing an unrelated fixed width.
+
 These settings are initialization defaults. Only unmarked, untouched APs with
 `OWRT` / `12345678` / `psk2+ccmp` are initialized. Existing custom credentials,
 STA/mesh/WDS/MLO profiles, and radios with `defaults_done=1` are preserved.
@@ -30,3 +39,15 @@ OpenWRT-CI passes `WRT_SSID` and `WRT_WORD` through this section. It must leave
 the wifi-scripts generator's untouched-AP values intact, so custom build
 credentials do not suppress channel, bandwidth, country, and security defaults.
 Keep this configuration private when using a private Wi-Fi password.
+
+## Configuration migration
+
+`/etc/uci-defaults/90-router-tool-migrate` owns historical settings and snapshot
+normalization and the initial generated ULA cleanup. It removes only the unchanged, owned `wan6`/`local` prefix
+filter, including its saved routed value when AP mode is active. Custom filters
+remain intact. It also normalizes older routed snapshots before regular service
+reloads and LuCI saves can use them.
+
+Regular runtime paths do not repair old snapshot formats. They still record new
+sections, restore AP settings, preserve manual edits, and resume interrupted
+configuration transactions. These operations are part of normal mode switching.

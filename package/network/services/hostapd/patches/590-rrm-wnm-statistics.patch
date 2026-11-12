@@ -1,5 +1,5 @@
 From: David Bauer <mail@david-bauer.net>
-Date: Sat, 27 Nov 2021 22:08:28 +0100
+Date: Wed, 11 Nov 2026 12:14:24 +0800
 Subject: [PATCH] hostapd: add OpenWrt specific statistic counters
 
 This adds a new struct for storing statistics not (yet) tracked by
@@ -8,9 +8,11 @@ hostapd regarding RRM and WNM activity.
 These statistics can be read using the get_status hostapd interface ubus
 method.
 
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -190,6 +190,21 @@ struct mld_link_info {
+@@ -177,6 +177,21 @@ struct hostapd_sae_commit_queue {
  };
  
  /**
@@ -32,7 +34,7 @@ method.
   * struct hostapd_data - hostapd per-BSS data structure
   */
  struct hostapd_data {
-@@ -204,6 +219,9 @@ struct hostapd_data {
+@@ -191,6 +206,9 @@ struct hostapd_data {
  
  	u8 own_addr[ETH_ALEN];
  
@@ -44,7 +46,7 @@ method.
  #define STA_HASH_SIZE 256
 --- a/src/ap/rrm.c
 +++ b/src/ap/rrm.c
-@@ -269,6 +269,8 @@ static void hostapd_send_nei_report_resp
+@@ -277,6 +277,8 @@ static void hostapd_send_nei_report_resp
  		}
  	}
  

@@ -19,7 +19,7 @@
 	};
 
 	chosen {
-		bootargs-append = " root=/dev/ubiblock0_1";
+		bootargs-append = " root=/dev/ubiblock0_1 cma=320M";
 	};
 
 	regulator_fixed_3p3: regulator-3p3 {
@@ -110,39 +110,29 @@
 		};
 	};
 
-	reserved-memory {
-		/delete-node/ tzapp@4d600000;
+	leds_rgb: leds-rgb {
+		compatible = "pwm-leds";
 
-		/* RC01's TrustZone application precedes the bootloader region. */
-		tzapp_rc01: tzapp@49b00000 {
-			reg = <0x0 0x49b00000 0x0 0x00600000>;
-			no-map;
+		bar-red {
+			label = "red:ambient";
+			pwms = <&pwm 3 51000 0>;
+			max-brightness = <255>;
+			default-state = "off";
 		};
 
-		/* Firmware-private host DDR remains separate for each radio. */
-		wifi_2g_mem: wifi@50000000 {
-			reg = <0x0 0x50000000 0x0 0x04000000>;
-			no-map;
+		bar-green {
+			label = "green:ambient";
+			pwms = <&pwm 2 51000 0>;
+			max-brightness = <255>;
+			default-state = "off";
 		};
 
-		wifi_5gh_mem: wifi@54000000 {
-			reg = <0x0 0x54000000 0x0 0x04000000>;
-			no-map;
+		bar-blue {
+			label = "blue:ambient";
+			pwms = <&pwm 1 51000 0>;
+			max-brightness = <255>;
+			default-state = "off";
 		};
-
-		wifi_5gl_mem: wifi@58000000 {
-			reg = <0x0 0x58000000 0x0 0x04000000>;
-			no-map;
-		};
-
-		/* All three devices in the WSI group share global MLO memory. */
-		mlo_mem: mlo-global@5c000000 {
-			reg = <0x0 0x5c000000 0x0 0x01200000>;
-			no-map;
-		};
-
-
-
 	};
 
 	sfp: sfp {
@@ -173,6 +163,20 @@
 	pinctrl-names = "default";
 	clock-frequency = <100000>;
 	status = "okay";
+
+	fan_controller: fan-controller@2f {
+		compatible = "microchip,emc2301", "microchip,emc2305";
+		reg = <0x2f>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#pwm-cells = <3>;
+
+		fan@0 {
+			reg = <0>;
+			pwms = <&fan_controller 26000 0 1>;
+			#cooling-cells = <2>;
+		};
+	};
 };
 
 &blsp1_i2c4 {
@@ -192,14 +196,15 @@
 	aqr113c: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c45";
 		reg = <0>;
+		reset-gpios = <&tlmm 61 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <100000>;
 		nvmem-cells = <&aqr_fw>;
 		nvmem-cell-names = "firmware";
 	};
 };
 
 &pcie1 {
-	pinctrl-0 = <&pcie1_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
@@ -209,8 +214,6 @@
 };
 
 &pcie2 {
-	pinctrl-0 = <&pcie2_default>;
-	pinctrl-names = "default";
 	perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
@@ -241,25 +244,25 @@
 
 &ppe_port1 {
 	label = "lan1";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port2 {
 	label = "lan2";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port3 {
 	label = "lan3";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
 &ppe_port4 {
 	label = "lan4";
-	nvmem-cells = <&macaddr_art_0 1>;
+	nvmem-cells = <&macaddr_art_6 0>;
 	nvmem-cell-names = "mac-address";
 };
 
@@ -291,7 +294,7 @@
 			pcs-handle = <&pcs2_ch0>;
 			managed = "in-band-status";
 			sfp = <&sfp>;
-			nvmem-cells = <&macaddr_art_0 1>;
+			nvmem-cells = <&macaddr_art_6 0>;
 			nvmem-cell-names = "mac-address";
 			clocks = <&nsscc NSS_CC_PORT6_MAC_CLK>,
 				 <&nsscc NSS_CC_PORT6_RX_CLK>,
@@ -379,8 +382,8 @@
 		reg = <0>;
 		nand-ecc-strength = <8>;
 		nand-ecc-step-size = <512>;
-		nand-ecc-engine = <&qpic_nand>;
 		nand-bus-width = <8>;
+		nand-ecc-engine = <&qpic_nand>;
 
 		partitions {
 			compatible = "qcom,smem-part";
@@ -403,18 +406,6 @@
 					macaddr_art_6: macaddr@6 {
 						compatible = "mac-base";
 						reg = <0x6 0x6>;
-						#nvmem-cell-cells = <1>;
-					};
-
-					macaddr_art_c: macaddr@c {
-						compatible = "mac-base";
-						reg = <0xc 0x6>;
-						#nvmem-cell-cells = <1>;
-					};
-
-					macaddr_art_12: macaddr@12 {
-						compatible = "mac-base";
-						reg = <0x12 0x6>;
 						#nvmem-cell-cells = <1>;
 					};
 
@@ -443,7 +434,20 @@
 	};
 };
 
+&pwm {
+	pinctrl-0 = <&pwm_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &tlmm {
+	pwm_pins: pwm-state {
+		pins = "gpio31", "gpio32", "gpio33";
+		function = "pwm";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
 	gpio_keys_default: gpio-keys-state {
 		pins = "gpio44", "gpio45";
 		function = "gpio";
@@ -518,33 +522,27 @@
 
 &wifi1 {
 	qcom,board-id = <1>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_6 0>;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
+	nvmem-cells = <&macaddr_art_6 2>;
 	nvmem-cell-names = "mac-address";
-	memory-region = <&wifi_2g_mem>, <&mlo_mem>;
-	memory-region-names = "host-ddr-mem", "mlo-global-mem";
 };
 
 &wifi2 {
 	qcom,board-id = <4>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_12 0>;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
+	nvmem-cells = <&macaddr_art_6 3>;
 	nvmem-cell-names = "mac-address";
-	memory-region = <&wifi_5gh_mem>, <&mlo_mem>;
-	memory-region-names = "host-ddr-mem", "mlo-global-mem";
 };
 
 &wifi3 {
 	qcom,board-id = <2>;
-	qcom,calibration-variant = "Xiaomi-BE10000";
-	qcom,num-radios = <1>;
 	qcom,force-unique-qrtr-id;
-	nvmem-cells = <&macaddr_art_c 0>;
+	qcom,calibration-variant = "Xiaomi-BE10000";
+
+	nvmem-cells = <&macaddr_art_6 4>;
 	nvmem-cell-names = "mac-address";
-	memory-region = <&wifi_5gl_mem>, <&mlo_mem>;
-	memory-region-names = "host-ddr-mem", "mlo-global-mem";
 };

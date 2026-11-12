@@ -17,6 +17,7 @@
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/seq_file.h>
+#include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
 
@@ -314,6 +315,7 @@ struct nss_msg {
 };
 
 struct nss_core;
+void nss_pool_notify(struct nss_core *core, const struct nss_cmn_msg *cm, u32 len);
 
 struct nss_irq_ctx {
 	struct nss_core *core;
@@ -393,6 +395,9 @@ struct nss_core {
 	unsigned long core_rate;
 	u32 id;
 	bool loaded;
+	/* Only the first SOS from a released image can finish its boot. */
+	spinlock_t state_lock;
+	bool booting;
 	bool running;
 	bool wifili_probed;
 	bool wifili_started;
@@ -415,6 +420,18 @@ struct nss_core {
 	 * whatever it holds above its mark.
 	 */
 	u32 pool_size;
+	u32 pool_floor;
+	u32 pool_used;
+	u32 pool_failed;
+	u32 pool_failed_seen;
+	u32 pool_grows;
+	u32 pool_shrinks;
+	u32 pool_errors;
+	unsigned long pool_sample_at;
+	unsigned long pool_idle_at;
+	bool pool_adaptive;
+	bool pool_disabled;
+	struct delayed_work pool_work;
 	void **pbuf_page;
 	dma_addr_t *pbuf_dma;
 	u32 pbuf_pages;
@@ -495,6 +512,8 @@ void nss_doorbell(struct nss_core *core, u32 intr);
 int nss_msg_init(struct nss_core *core);
 int nss_msg_send(struct nss_core *core, void *msg, size_t len);
 int nss_msg_send_quiet(struct nss_core *core, void *msg, size_t len);
+int nss_msg_send_tracked(struct nss_core *core, void *msg, size_t len,
+			 bool *pending);
 int nss_msg_transact(struct nss_core *core, void *msg, size_t len, size_t room);
 bool nss_msg_complete(struct nss_core *core, const struct n2h_descriptor *desc);
 int nss_msg_probe(struct nss_core *core, struct seq_file *s);
@@ -519,6 +538,8 @@ void nss_wifili_bind(struct nss_core *core);
 bool nss_wifili_owns(const struct net_device *dev);
 bool nss_wifili_is_soc(u32 if_num);
 void nss_wifili_me_snoop(u32 if_num, struct sk_buff *skb);
+bool nss_wifili_special_recv(struct nss_core *core, struct napi_struct *napi,
+			     const struct n2h_descriptor *desc, struct sk_buff *skb);
 bool nss_wifili_rx_80211(u32 if_num, struct net_device *dev,
 			 struct sk_buff *skb, struct napi_struct *napi);
 void nss_wifili_me_print(struct seq_file *s);
@@ -577,6 +598,7 @@ void nss_bridge_start(struct nss_core *core);
 void nss_bridge_stop(void);
 void nss_bridge_print(struct seq_file *s);
 void nss_flow_flush(void);
+int nss_flow_configure(struct nss_core *core);
 void nss_flow_withdraw_dev(const struct net_device *dev);
 int nss_flow_dyn_alloc(struct nss_core *core, u32 type);
 void nss_flow_dyn_free(struct nss_core *core, u32 type, int if_num);
