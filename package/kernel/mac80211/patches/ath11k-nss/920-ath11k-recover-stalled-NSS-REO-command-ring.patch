@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:52 +0800
 Subject: [PATCH] ath11k: recover an NSS REO command ring that stops progressing
 
 The host still owns the REO command ring while NSS owns the data rings.
@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2724,6 +2724,16 @@ static void ath11k_core_restart(struct w
+@@ -2713,6 +2713,16 @@ static void ath11k_core_restart(struct w
  	complete(&ab->restart_completed);
  }
  

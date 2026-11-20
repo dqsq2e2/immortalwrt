@@ -1,5 +1,5 @@
 From: Manikanta Mylavarapu <manikanta.mylavarapu@oss.qualcomm.com>
-Date: Fri, 06 Nov 2026 09:04:24 +0800
+Date: Sun, 15 Nov 2026 09:43:38 +0800
 Subject: [PATCH] arm64: dts: qcom: describe IPQ9574 radios and memory defaults
 
 Enable nodes required for q6 remoteproc bring up.
@@ -268,7 +268,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	};
  
  	soc: soc@0 {
-@@ -934,6 +963,147 @@
+@@ -936,6 +965,147 @@
  			};
  		};
  

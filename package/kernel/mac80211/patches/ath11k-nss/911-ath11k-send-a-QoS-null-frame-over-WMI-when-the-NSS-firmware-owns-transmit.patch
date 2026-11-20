@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:51 +0800
 Subject: [PATCH] ath11k: send a QoS null frame over WMI when the NSS firmware owns transmit
 
 The NSS firmware returns no transmit status, so the QoS null frame of
@@ -116,7 +116,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  int ath11k_wmi_vdev_create(struct ath11k *ar, u8 *macaddr,
  			   struct vdev_create_params *param)
  {
-@@ -6081,7 +6124,7 @@ static int wmi_process_mgmt_tx_comp(stru
+@@ -6082,7 +6125,7 @@ static int wmi_process_mgmt_tx_comp(stru
  }
  
  static int ath11k_pull_mgmt_tx_compl_param_tlv(struct ath11k_base *ab,
@@ -125,7 +125,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					       struct wmi_mgmt_tx_compl_event *param)
  {
  	const void **tb;
-@@ -6095,7 +6138,7 @@ static int ath11k_pull_mgmt_tx_compl_par
+@@ -6096,7 +6139,7 @@ static int ath11k_pull_mgmt_tx_compl_par
  		return ret;
  	}
  
@@ -134,7 +134,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (!ev) {
  		ath11k_warn(ab, "failed to fetch mgmt tx compl ev");
  		kfree(tb);
-@@ -7748,12 +7791,13 @@ exit:
+@@ -7749,12 +7792,13 @@ exit:
  	rcu_read_unlock();
  }
  
@@ -150,7 +150,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_warn(ab, "failed to extract mgmt tx compl event");
  		return;
  	}
-@@ -8983,7 +9027,10 @@ static void ath11k_wmi_tlv_op_rx(struct
+@@ -8984,7 +9028,10 @@ static void ath11k_wmi_tlv_op_rx(struct
  		/* mgmt_rx_event() owns the skb now! */
  		return;
  	case WMI_MGMT_TX_COMPLETION_EVENTID:

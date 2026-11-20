@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Sun, 26 Jun 2022 11:43:25 +0200
+Date: Thu, 19 Nov 2026 00:22:57 +0800
 Subject: [PATCH] mac80211: increase quantum for airtime scheduler
 
 Given the typical AQL budget and queue length, a quantum of 256 with the
@@ -8,11 +8,12 @@ until one of them becomes eligible.
 Improve performance by using 8 times station weight as scheduler quantum
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
----
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/net/mac80211/ieee80211_i.h
 +++ b/net/mac80211/ieee80211_i.h
-@@ -112,6 +112,8 @@ ieee80211_sta_keep_active(struct sta_inf
+@@ -123,6 +123,8 @@ ieee80211_sta_keep_active(struct sta_inf
  	return time_before_eq(jiffies, sta->airtime[ac].last_active + HZ / 10);
  }
  

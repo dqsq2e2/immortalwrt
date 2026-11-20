@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] ath11k: describe the data-path rings to the NSS firmware
 
 The NSS cores can reap the WLAN hardware's rings themselves, which takes
@@ -42,7 +42,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -959,6 +959,7 @@ static int ath11k_ahb_setup_resources(st
+@@ -990,6 +990,7 @@ static int ath11k_ahb_setup_resources(st
  
  	ab->mem = mem;
  	ab->mem_len = resource_size(mem_res);
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2993,6 +2993,7 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -2979,6 +2979,7 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;

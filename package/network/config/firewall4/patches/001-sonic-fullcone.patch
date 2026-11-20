@@ -1,17 +1,36 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 13:50:00 +0800
-Subject: [PATCH] firewall4: add SONiC fullcone with zone controls and all supported protocols
+Date: Tue, 17 Nov 2026 11:56:00 +0800
+Subject: [PATCH] firewall4: add zone-scoped fullcone and honor router input policy
 
 Gate fullcone with the global and zone settings, and probe kernel support.
 Use fullcone only for TCP, UDP, UDP-Lite and SCTP; other traffic retains
 ordinary masquerading. Apply the zone masquerade source/destination
 restrictions to mapping creation, and keep explicit DNAT rules first.
 
+Fullcone mappings, including locally originated mappings, do not authorize
+router input. In fullcone zones, accept only explicit redirects matching
+the original destination and their configured restrictions. Other local
+input must pass the zone traffic rules or input policy. Forwarded fullcone
+traffic and explicit local redirects retain their existing behavior.
+
 Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/root/usr/share/firewall4/templates/ruleset.uc
 +++ b/root/usr/share/firewall4/templates/ruleset.uc
-@@ -333,6 +333,12 @@
+@@ -227,7 +227,11 @@ table inet fw4 {
+ {%  for (let rule in fw4.rules(`input_${zone.name}`)): %}
+ 		{%+ include("rule.uc", { fw4, zone, rule }) %}
+ {%  endfor %}
+-{%  if (zone.dflags.dnat): %}
++{%  if (zone.fullcone): %}
++{%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
++		{%+ include("redirect.uc", { fw4, zone, redirect: { ...redirect, target: "accept", match_original: true, log: null, log_limit: null } }) %}
++{%   endfor %}
++{%  elif (zone.dflags.dnat): %}
+ 		ct status dnat accept comment "!fw4: Accept port redirections"
+ {%  endif %}
+ {%  fw4.includes('chain-append', `input_${zone.name}`) %}
+@@ -333,6 +337,12 @@ table inet fw4 {
  {%   for (let redirect in fw4.redirects(`dstnat_${zone.name}`)): %}
  		{%+ include("redirect.uc", { fw4, zone, redirect }) %}
  {%   endfor %}
@@ -24,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {%   fw4.includes('chain-append', `dstnat_${zone.name}`) %}
  	}
  
-@@ -346,6 +352,9 @@
+@@ -346,6 +356,9 @@ table inet fw4 {
  {%   if (zone.masq): %}
  {%    for (let saddrs in zone.masq4_src_subnets): %}
  {%     for (let daddrs in zone.masq4_dest_subnets): %}
@@ -34,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		{%+ include("zone-masq.uc", { fw4, zone, family: 4, saddrs, daddrs }) %}
  {%     endfor %}
  {%    endfor %}
-@@ -353,6 +362,9 @@
+@@ -353,6 +366,9 @@ table inet fw4 {
  {%   if (zone.masq6): %}
  {%    for (let saddrs in zone.masq6_src_subnets): %}
  {%     for (let daddrs in zone.masq6_dest_subnets): %}
@@ -66,9 +85,52 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +{%+ for (let a in (dst_addrs ? dst_addrs[2] : [])): -%}
 +	{{ fw4.ipproto(family) }} daddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
 +meta l4proto { tcp, udp, udplite, sctp } fullcone{{ direction == "srcnat" ? ' to :1024-65535' : '' }} comment "!fw4: {{ zone.name }} {{ fw4.nfproto(family, true) }} fullcone NAT {{ direction }}"
+--- a/root/usr/share/firewall4/templates/redirect.uc
++++ b/root/usr/share/firewall4/templates/redirect.uc
+@@ -1,11 +1,13 @@
++{%+ if (redirect.match_original): -%}
++ct status dnat {%+ endif -%}
+ {%+ if (redirect.family && !redirect.has_addrs): -%}
+ 	meta nfproto {{ fw4.nfproto(redirect.family) }} {%+ endif -%}
+-{%+ if (!redirect.proto.any && !redirect.has_ports): -%}
++{%+ if (!redirect.proto.any && (!redirect.has_ports || redirect.match_original)): -%}
+ 	meta l4proto {{
+ 		(redirect.proto.name == 'icmp' && redirect.family == 6) ? 'ipv6-icmp' : redirect.proto.name
+ 	}} {%+ endif -%}
+ {%+ if (redirect.device): -%}
+-	{{ (redirect.target == "dnat") ? "iifname" : "oifname" }} {{ fw4.quote(redirect.device, true) }} {%+ endif -%}
++	{{ (redirect.match_original || redirect.target == "dnat") ? "iifname" : "oifname" }} {{ fw4.quote(redirect.device, true) }} {%+ endif -%}
+ {%+ if (redirect.saddrs_pos): -%}
+ 	{{ fw4.ipproto(redirect.family) }} saddr {{ fw4.set(redirect.saddrs_pos) }} {%+ endif -%}
+ {%+ if (redirect.saddrs_neg): -%}
+@@ -13,19 +15,19 @@
+ {%+ for (let a in redirect.saddrs_masked): -%}
+ 	{{ fw4.ipproto(redirect.family) }} saddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
+ {%+ if (redirect.daddrs_pos): -%}
+-	{{ fw4.ipproto(redirect.family) }} daddr {{ fw4.set(redirect.daddrs_pos) }} {%+ endif -%}
++	{%+ if (redirect.match_original): -%}ct original {%+ endif -%}{{ fw4.ipproto(redirect.family) }} daddr {{ fw4.set(redirect.daddrs_pos) }} {%+ endif -%}
+ {%+ if (redirect.daddrs_neg): -%}
+-	{{ fw4.ipproto(redirect.family) }} daddr != {{ fw4.set(redirect.daddrs_neg) }} {%+ endif -%}
++	{%+ if (redirect.match_original): -%}ct original {%+ endif -%}{{ fw4.ipproto(redirect.family) }} daddr != {{ fw4.set(redirect.daddrs_neg) }} {%+ endif -%}
+ {%+ for (let a in redirect.daddrs_masked): -%}
+-	{{ fw4.ipproto(redirect.family) }} daddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
++	{%+ if (redirect.match_original): -%}ct original {%+ endif -%}{{ fw4.ipproto(redirect.family) }} daddr & {{ a.mask }} {{ a.invert ? '!=' : '==' }} {{ a.addr }} {%+ endfor -%}
+ {%+ if (redirect.sports_pos): -%}
+ 	{{ redirect.proto.name }} sport {{ fw4.set(redirect.sports_pos) }} {%+ endif -%}
+ {%+ if (redirect.sports_neg): -%}
+ 	{{ redirect.proto.name }} sport != {{ fw4.set(redirect.sports_neg) }} {%+ endif -%}
+ {%+ if (redirect.dports_pos): -%}
+-	{{ redirect.proto.name }} dport {{ fw4.set(redirect.dports_pos) }} {%+ endif -%}
++	{{ redirect.match_original ? "ct original proto-dst" : `${redirect.proto.name} dport` }} {{ fw4.set(redirect.dports_pos) }} {%+ endif -%}
+ {%+ if (redirect.dports_neg): -%}
+-	{{ redirect.proto.name }} dport != {{ fw4.set(redirect.dports_neg) }} {%+ endif -%}
++	{{ redirect.match_original ? "ct original proto-dst" : `${redirect.proto.name} dport` }} != {{ fw4.set(redirect.dports_neg) }} {%+ endif -%}
+ {%+ if (redirect.smacs_pos): -%}
+ 	ether saddr {{ fw4.set(redirect.smacs_pos) }} {%+ endif -%}
+ {%+ if (redirect.smacs_neg): -%}
 --- a/root/usr/share/ucode/fw4.uc
 +++ b/root/usr/share/ucode/fw4.uc
-@@ -542,6 +542,29 @@
+@@ -542,6 +542,29 @@ function nft_try_hw_offload(devices) {
  	return (rc == 0);
  }
  
@@ -98,7 +160,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  return {
  	read_kernel_version: function() {
-@@ -1668,6 +1691,7 @@
+@@ -1668,6 +1691,7 @@ return {
  			"dnat",
  			"snat",
  			"masquerade",
@@ -106,7 +168,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			"npt",
  			"accept",
  			"reject",
-@@ -2158,6 +2182,7 @@
+@@ -2158,6 +2182,7 @@ return {
  		}
  
  		let defs = this.parse_options(data, {
@@ -114,7 +176,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			input: [ "policy", "drop" ],
  			output: [ "policy", "drop" ],
  			forward: [ "policy", "drop" ],
-@@ -2192,6 +2217,13 @@
+@@ -2192,6 +2217,13 @@ return {
  
  		delete defs.syn_flood;
  
@@ -128,7 +190,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		this.state.defaults = defs;
  	},
  
-@@ -2221,6 +2253,8 @@
+@@ -2221,6 +2253,8 @@ return {
  
  			masq6: [ "bool" ],
  
@@ -137,7 +199,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			extra: [ "string", null, UNSUPPORTED ],
  			extra_src: [ "string", null, UNSUPPORTED ],
  			extra_dest: [ "string", null, UNSUPPORTED ],
-@@ -2268,6 +2302,8 @@
+@@ -2268,6 +2302,8 @@ return {
  			}
  		}
  
@@ -146,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		if (zone.mtu_fix && this.kernel < 0x040a0000) {
  			this.warn_section(data, "option 'mtu_fix' requires kernel 4.10 or later");
  			return;
-@@ -2442,8 +2478,11 @@
+@@ -2442,8 +2478,11 @@ return {
  		zone.related_physdevs = related_physdevs;
  		zone.related_l3devs = related_l3devs;
  

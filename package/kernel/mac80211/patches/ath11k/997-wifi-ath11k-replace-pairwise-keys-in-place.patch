@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Sun, 08 Nov 2026 10:25:20 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: wifi: ath11k: replace a pairwise key in place
 
 mac80211 replaces an in-use PTK by calling set_key() with DISABLE_KEY
@@ -198,7 +198,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		}
  	}
  
-@@ -10112,6 +10183,9 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10113,6 +10184,9 @@ static int ath11k_mac_op_sta_state(struc
  			peer->is_authorized = false;
  
  		spin_unlock_bh(&ar->ab->base_lock);
@@ -208,7 +208,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	} else if (old_state == IEEE80211_STA_ASSOC &&
  		   new_state == IEEE80211_STA_AUTH &&
  		   (vif->type == NL80211_IFTYPE_AP ||
-@@ -10807,6 +10881,10 @@ static int __ath11k_mac_register(struct
+@@ -10808,6 +10882,10 @@ static int __ath11k_mac_register(struct
  	wiphy_ext_feature_set(ar->hw->wiphy,
  			      NL80211_EXT_FEATURE_AIRTIME_FAIRNESS);
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_STA_TX_PWR);

@@ -1,5 +1,5 @@
 From: Robert Marko <robimarko@gmail.com>
-Date: Thu, 29 Oct 2026 09:42:28 +0800
+Date: Mon, 16 Nov 2026 17:50:00 +0800
 Subject: [PATCH] clk: qcom: gcc-ipq8074: Align CMN PLL inputs with binding
 
 The GCC binding names the CMN PLL inputs bias_pll_cc and

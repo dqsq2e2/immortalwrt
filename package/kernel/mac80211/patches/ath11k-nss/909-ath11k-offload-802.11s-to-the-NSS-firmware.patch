@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:51 +0800
 Subject: [PATCH] ath11k: offload 802.11s to the NSS firmware
 
 On a firmware line that forwards a mesh itself, a mesh interface is
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ar->ab->nss_offload && !ath11k_nss_host_tx) {
  		struct sk_buff *orig = skb;
  
-@@ -7088,6 +7116,50 @@ static u8 ath11k_nss_vdev_mode(struct at
+@@ -7089,6 +7117,50 @@ static u8 ath11k_nss_vdev_mode(struct at
  	return ATH11K_HW_TXRX_NATIVE_WIFI;
  }
  
@@ -156,7 +156,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
   */
-@@ -7102,13 +7174,22 @@ static int ath11k_nss_vdev_register(stru
+@@ -7103,13 +7175,22 @@ static int ath11k_nss_vdev_register(stru
  	if (!wdev || !wdev->netdev)
  		return 0;
  
@@ -186,7 +186,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret < 0) {
  		ath11k_warn(ar->ab, "failed to give vdev %d to the NSS firmware: %d\n",
  			    arvif->vdev_id, ret);
-@@ -10589,6 +10670,44 @@ static int ath11k_mac_op_net_setup_tc(st
+@@ -10590,6 +10671,44 @@ static int ath11k_mac_op_net_setup_tc(st
   * The subsystem only asks once it has resolved the destination to a
   * station it holds.
   */
@@ -231,7 +231,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_mac_op_net_fill_forward_path(struct ieee80211_hw *hw,
  					       struct ieee80211_vif *vif,
  					       struct ieee80211_sta *sta,
-@@ -10645,6 +10764,7 @@ static const struct ieee80211_ops ath11k
+@@ -10646,6 +10765,7 @@ static const struct ieee80211_ops ath11k
  	.flush_sta			= ath11k_mac_op_flush_sta,
  	.sta_statistics			= ath11k_mac_op_sta_statistics,
  	.net_setup_tc			= ath11k_mac_op_net_setup_tc,

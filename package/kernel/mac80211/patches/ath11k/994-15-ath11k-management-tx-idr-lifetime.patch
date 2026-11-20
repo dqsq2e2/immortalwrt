@@ -1,5 +1,5 @@
 From: Jiale Yao <yaojiale02@163.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: retain management TX IDR ownership during cleanup
 
 Use fresh IDR lookup while removing management TX buffers during recovery, full radio teardown and per-interface cleanup. Preserve locking and completion ownership.
@@ -20,7 +20,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2611,8 +2611,7 @@ void ath11k_core_pre_reconfigure_recover
+@@ -2600,8 +2600,7 @@ void ath11k_core_pre_reconfigure_recover
  		complete(&ar->thermal.wmi_sync);
  
  		wake_up(&ar->dp.tx_empty_waitq);
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static int ath11k_mac_mgmt_tx_wmi(struct ath11k *ar, struct ath11k_vif *arvif,
-@@ -7437,8 +7439,7 @@ err_vdev_del:
+@@ -7438,8 +7440,7 @@ err_vdev_del:
  
  	ath11k_peer_cleanup(ar, arvif->vdev_id);
  
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
  		spin_lock_bh(&ab->dp.tx_ring[i].tx_idr_lock);
-@@ -10606,7 +10607,7 @@ static void __ath11k_mac_unregister(stru
+@@ -10607,7 +10608,7 @@ static void __ath11k_mac_unregister(stru
  
  	ieee80211_unregister_hw(ar->hw);
  

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 11 Nov 2026 12:19:17 +0800
+Date: Thu, 19 Nov 2026 00:29:39 +0800
 Subject: [PATCH] AP: free a non-AP MLD on all its links at a group addressed
  drop
 
@@ -44,7 +44,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	return 0;
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1963,10 +1963,7 @@ static int hostapd_flush_old_stations(st
+@@ -2009,10 +2009,7 @@ static int hostapd_flush_old_stations(st
  
  static void hostapd_bss_stas_leave(struct hostapd_data *hapd)
  {

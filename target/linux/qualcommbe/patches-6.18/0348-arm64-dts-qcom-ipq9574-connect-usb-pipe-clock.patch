@@ -1,0 +1,25 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 14 Nov 2026 19:48:39 +0800
+Subject: [PATCH] arm64: dts: qcom: ipq9574: connect USB PIPE clock to GCC
+
+The GCC binding and driver describe the USB3 PHY PIPE clock as the eighth
+input, but the SoC DTS leaves it disconnected. The driver only looks up
+this parent by its DT index, so usb0_pipe_clk_src remains an orphan even
+when the QMP PHY has registered usb0_pipe_clk.
+
+Connect the QMP PHY clock provider in the common SoC description, as is
+already done for the PCIe PIPE inputs.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/arch/arm64/boot/dts/qcom/ipq9574.dtsi
++++ b/arch/arm64/boot/dts/qcom/ipq9574.dtsi
+@@ -452,7 +452,7 @@
+ 				 <&pcie1_phy>,
+ 				 <&pcie2_phy>,
+ 				 <&pcie3_phy>,
+-				 <0>;
++				 <&usb_0_qmpphy>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 			#interconnect-cells = <1>;

@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:29:57 +0800
+Date: Thu, 19 Nov 2026 00:28:12 +0800
 Subject: [PATCH] wifi: ath12k: describe the native Direct Switch ABI
 
 Define the firmware ring, peer and buffer metadata used by the native
@@ -29,9 +29,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 --- a/drivers/net/wireless/ath/ath12k/Kconfig
 +++ b/drivers/net/wireless/ath/ath12k/Kconfig
 @@ -67,3 +67,11 @@ config ATH12K_THERMAL
-         depends on THERMAL
-         help
-           Enable ath12k thermal sensor support.
+ 	depends on THERMAL
+ 	help
+ 	  Enable ath12k thermal sensors and throttling support.
 +
 +config ATH12K_PPE_DS_SUPPORT
 +	bool "Native Qualcomm PPE Direct Switch transport"

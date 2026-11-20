@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 11 Nov 2026 12:16:22 +0800
+Date: Thu, 19 Nov 2026 00:29:38 +0800
 Subject: [PATCH] AP MLD: refuse a link whose removal runs
 
 Depends on 602, 603 and 822.
@@ -34,9 +34,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		hapd->eht_mld_link_removal_offload ||
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -1038,6 +1038,7 @@ void hostapd_link_remove_tx_status(struc
+@@ -1041,6 +1041,7 @@ void hostapd_link_remove_tx_status(struc
  void hostapd_link_remove_expired(struct hostapd_data *hapd, u16 links);
- bool hostapd_link_remove_beacon_held(struct hostapd_data *hapd);
+ bool hostapd_link_remove_beacon_held(struct hostapd_data *hapd, bool was_set);
  void hostapd_link_remove_beacon_set(struct hostapd_data *hapd);
 +bool hostapd_link_remove_pending(struct hostapd_data *hapd);
  bool hostapd_is_ml_partner(struct hostapd_data *hapd1,

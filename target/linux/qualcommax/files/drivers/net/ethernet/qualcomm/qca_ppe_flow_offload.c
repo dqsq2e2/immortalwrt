@@ -35,6 +35,7 @@
 #include <linux/ipv6.h>
 #include <linux/socket.h>
 #include <net/ip.h>
+#include <net/ipv6.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/netfilter.h>
@@ -50,6 +51,7 @@
 #include <net/cfg80211.h>
 #include <net/flow_offload.h>
 #include <net/dsfield.h>
+#include <net/dst_metadata.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_flow_table.h>
 #include <net/pkt_cls.h>
@@ -97,6 +99,21 @@ enum ppe_flow_state {
 	PPE_FLOW_PENDING_DELETE,
 };
 
+/* Packet readers never borrow the mutable command/retirement object. */
+struct ppe_flow_binding {
+	struct rcu_head rcu;
+	unsigned long ct;
+	u64 xdev;
+	u16 vid;
+	u8 xport, dscp, proto;
+	bool v6;
+	union {
+		__be32 v4[2];
+		struct in6_addr v6[2];
+	} addr;
+	__be16 port[2];
+};
+
 struct ppe_flow_entry {
 	enum ppe_flow_state state;
 	struct rhash_head node;
@@ -131,11 +148,10 @@ struct ppe_flow_entry {
 	int icasc;
 	int ocasc;
 	int session;
-	int xdev;
-	unsigned long ct;
+	u64 xdev;
+	struct ppe_flow_binding *binding;
 	u16 vid;
 	u8 xport;
-	u8 dscp;
 	u8 iport;
 	u8 oport;
 	bool xdev_bound;
@@ -150,6 +166,11 @@ struct ppe_flow_entry {
 	u64 unread_bytes;
 	unsigned long last_used;
 };
+
+static void ppe_flow_binding_put(struct qca_ppe_priv *priv,
+				 struct ppe_flow_entry *entry);
+static void ppe_flow_slot_clear(struct qca_ppe_priv *priv,
+				struct ppe_flow_entry *entry, u32 index);
 
 /* One bound flowtable block. Entries remember which block installed them,
  * because a dying flowtable unbinds from every port before the core flushes
@@ -1380,9 +1401,14 @@ static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 static void ppe_flow_retire(struct qca_ppe_priv *priv,
 			    struct ppe_flow_entry *entry)
 {
-	int ret = ppe_flow_entry_destroy(priv, entry);
+	int ret;
+
+	if (entry->xdev_bound)
+		ppe_flow_slot_clear(priv, entry, entry->index);
+	ret = ppe_flow_entry_destroy(priv, entry);
 
 	if (!ret) {
+		ppe_flow_binding_put(priv, entry);
 		kfree(entry);
 		return;
 	}
@@ -1633,8 +1659,7 @@ static void ppe_flow_shaper_track(struct qca_ppe_priv *priv,
 		if (now == dev->ifindex &&
 		    (event == NETDEV_UNREGISTER || strcmp(dev->name, name)))
 			now = 0;
-		else if (event != NETDEV_UNREGISTER && !strcmp(dev->name, name) &&
-			 dev->ifindex <= PPE_XDEV_IFINDEX)
+		else if (event != NETDEV_UNREGISTER && !strcmp(dev->name, name))
 			now = dev->ifindex;
 
 		if (now == *shaper) {
@@ -1732,6 +1757,8 @@ static int ppe_flow_netdev_event(struct notifier_block *nb, unsigned long event,
 	else
 		dp = dsa_port_from_netdev(dev);
 	if (!IS_ERR(dp) && dp->ds == &priv->ds) {
+		if (event == NETDEV_CHANGEMTU)
+			ppe_port_queue_mtu_changed(priv, dp->index);
 		if (event == NETDEV_CHANGEADDR) {
 			ppe_flow_drop_port(priv, dp->index);
 		} else {
@@ -1874,6 +1901,25 @@ static bool ppe_cpu_xmit_ok(const struct ppe_flow_data *data)
 	       !data->vlan_valid && !data->pppoe_valid;
 }
 
+/* A flowtable flow ends at the first device of its path with a qdisc or a tc
+ * hook, which on a shaped uplink is the WAN's L3 device: the shaper's
+ * redirect sits there, in a clsact that ends both directions of the flow.
+ * The PPE shapes that uplink's flows itself, through the shaper devices, so
+ * such a flow is still built whole in hardware, from the port, VLAN, session
+ * and addresses the driver keeps for the uplink; a direction without a
+ * shaper is forwarded at line rate (ppe_flow_shape()). Without a shaper of
+ * this driver the qdisc on that device is someone else's, and the flow stays
+ * in software to pass it. The device is the one ppe_flow_shaper_path()
+ * resolves the uplink from.
+ */
+static bool ppe_flow_uplink_dev(struct qca_ppe_priv *priv, int ifindex)
+{
+	lockdep_assert_held(&priv->flow_lock);
+
+	return ifindex && ifindex == (priv->uplink_dev ?: priv->ul_shaper) &&
+	       priv->ul_port >= 0 && (priv->ul_shaper || priv->dl_shaper);
+}
+
 /* Whether a flow's side of the switch is the shaped uplink: the port, VLAN
  * and, upstream, the PPPoE session the upload shaper's device sits on. A
  * second routed port, a DMZ or another VLAN on the WAN port is not, and its
@@ -1938,15 +1984,18 @@ static int ppe_flow_shape(struct qca_ppe_priv *priv, struct ppe_flow_data *data,
  * conntrack is freed by RCU and reused only as one, so taking a reference
  * that is not zero is safe here.
  */
-static void ppe_flow_ct_attach(struct qca_ppe_priv *priv, struct sk_buff *skb,
-			       u32 flow)
+static void ppe_flow_ct_attach(const struct ppe_flow_binding *binding,
+			       struct sk_buff *skb)
 {
-	unsigned long v = READ_ONCE(priv->flow_ct[flow]);
+	unsigned long v = binding->ct;
 	struct nf_conn *ct = (struct nf_conn *)(v & ~1UL);
 
-	if (ct && refcount_inc_not_zero(&ct->ct_general.use))
+	/* The RCU binding pins the exact conntrack until this reader exits. */
+	if (ct) {
+		nf_conntrack_get(&ct->ct_general);
 		nf_ct_set(skb, ct, v & 1 ? IP_CT_ESTABLISHED_REPLY :
 				   IP_CT_ESTABLISHED);
+	}
 }
 
 /* The flowtable's cookie is the tuple of the offloaded direction. */
@@ -1994,24 +2043,71 @@ static void ppe_flow_dscp_apply(struct sk_buff *skb, u8 dscp)
 		ipv6_change_dsfield(ipv6_hdr(skb), INET_ECN_MASK, dscp << 2);
 }
 
+static int ppe_flow_binding_prepare(struct qca_ppe_priv *priv,
+				    struct ppe_flow_entry *entry,
+				    const struct ppe_flow_data *data)
+{
+	struct ppe_flow_binding *b;
+
+	if (!entry->xdev)
+		return 0;
+	b = kzalloc(sizeof(*b), GFP_KERNEL);
+	if (!b)
+		return -ENOMEM;
+	b->xdev = entry->xdev;
+	b->vid = entry->vid;
+	b->xport = entry->xport;
+	b->proto = data->l4proto;
+	b->v6 = data->addr_type == FLOW_DISSECTOR_KEY_IPV6_ADDRS;
+	if (b->v6) {
+		b->addr.v6[0] = data->v6_src;
+		b->addr.v6[1] = data->v6_dst;
+	} else {
+		b->addr.v4[0] = data->v4_src_new;
+		b->addr.v4[1] = data->v4_dst_new;
+	}
+	b->port[0] = data->sport_new;
+	b->port[1] = data->dport_new;
+	if (entry->xdev & PPE_XDEV_UL)
+		b->ct = ppe_flow_ct_get(entry->cookie);
+	if (priv->ct_dscp)
+		b->dscp = ppe_flow_ct_dscp(entry->cookie);
+	entry->binding = b;
+	return 0;
+}
+
 static void ppe_flow_slot_set(struct qca_ppe_priv *priv,
 			      struct ppe_flow_entry *entry, u32 index)
 {
-	WRITE_ONCE(priv->flow_dscp[index], entry->dscp);
-	WRITE_ONCE(priv->flow_vid[index], entry->vid);
-	WRITE_ONCE(priv->flow_port[index], entry->xport);
-	WRITE_ONCE(priv->flow_ct[index], entry->ct);
-	WRITE_ONCE(priv->flow_xdev[index], entry->xdev);
+	rcu_assign_pointer(priv->flow_slot[index], entry->binding);
 	entry->xdev_bound = true;
 }
 
-static void ppe_flow_slot_clear(struct qca_ppe_priv *priv, u32 index)
+static void ppe_flow_slot_clear(struct qca_ppe_priv *priv,
+				struct ppe_flow_entry *entry, u32 index)
 {
-	WRITE_ONCE(priv->flow_xdev[index], 0);
-	WRITE_ONCE(priv->flow_ct[index], 0);
-	WRITE_ONCE(priv->flow_dscp[index], 0);
-	WRITE_ONCE(priv->flow_vid[index], 0);
-	WRITE_ONCE(priv->flow_port[index], 0);
+	if (rcu_access_pointer(priv->flow_slot[index]) == entry->binding)
+		RCU_INIT_POINTER(priv->flow_slot[index], NULL);
+	entry->xdev_bound = false;
+}
+
+static void ppe_flow_binding_free_rcu(struct rcu_head *head)
+{
+	struct ppe_flow_binding *b = container_of(head, struct ppe_flow_binding, rcu);
+
+	if (b->ct)
+		nf_conntrack_put(&((struct nf_conn *)(b->ct & ~1UL))->ct_general);
+	kfree(b);
+}
+
+static void ppe_flow_binding_put(struct qca_ppe_priv *priv,
+				 struct ppe_flow_entry *entry)
+{
+	if (entry->xdev_bound)
+		ppe_flow_slot_clear(priv, entry, entry->index);
+	if (entry->binding)
+		call_rcu(&entry->binding->rcu, ppe_flow_binding_free_rcu);
+	entry->binding = NULL;
 }
 
 /* The shaper device. It stands where an ifb would, in front of the devices
@@ -2140,20 +2236,45 @@ static int ppe_shaper_ul_frame(struct qca_ppe_priv *priv, struct sk_buff *skb,
 	return port;
 }
 
-/* A frame ppe_flow_xmit() built for a switch port is not marked redirected
- * and carries one more than that port in skb_iif; everything else names the
- * device to hand it on to there, as for an ifb.
+static void ppe_shaper_port_set(struct qca_ppe_priv *priv, struct sk_buff *skb,
+				unsigned int port)
+{
+	skb_dst_drop(skb);
+	skb_dst_set(skb, dst_clone(&priv->shaper_md[port]->dst));
+}
+
+static int ppe_shaper_port_get(struct qca_ppe_priv *priv,
+			       const struct sk_buff *skb)
+{
+	struct metadata_dst *md = skb_metadata_dst(skb);
+	u32 port;
+
+	if (!md || md->type != METADATA_HW_PORT_MUX)
+		return -1;
+
+	port = md->u.port_info.port_id;
+	if (port >= PPE_NUM_PORTS || md != priv->shaper_md[port])
+		return -1;
+
+	return port;
+}
+
+/* A frame ppe_flow_xmit() built for a switch port carries this driver's dst
+ * for that port; anything else came by a redirect and names the device to
+ * hand it on to in skb_iif, as for an ifb, which drops the rest.
  */
 static netdev_tx_t ppe_shaper_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct ppe_shaper *sh = netdev_priv(dev);
-	struct net_device *to;
+	struct net_device *to = NULL;
 	int port;
 
-	if (!skb->redirected)
-		return ppe_shaper_conduit_xmit(skb, dev, skb->skb_iif - 1);
+	port = ppe_shaper_port_get(sh->priv, skb);
+	if (port >= 0)
+		return ppe_shaper_conduit_xmit(skb, dev, port);
 
-	to = dev_get_by_index_rcu(dev_net(dev), skb->skb_iif);
+	if (skb->redirected)
+		to = dev_get_by_index_rcu(dev_net(dev), skb->skb_iif);
 	if (unlikely(!to)) {
 		dev_core_stats_tx_dropped_inc(dev);
 		kfree_skb(skb);
@@ -2292,18 +2413,98 @@ static bool ppe_flow_push_parse(struct sk_buff *skb, u16 vid)
  * device outside the switch, or behind a software shaper. It arrives
  * finished, so it goes straight out.
  */
+/* The hardware index can be reused while a previously routed frame is
+ * still in RX. Verify the complete translated tuple before using its egress.
+ * In particular, IPv6 extension headers never authorize an address-only hit.
+ */
+static bool ppe_flow_frame_is(const struct ppe_flow_binding *b,
+			      const struct sk_buff *skb)
+{
+	unsigned int len = skb_headlen(skb), off = ETH_HLEN;
+	const u8 *d = skb->data;
+	const __be16 *ports;
+	__be16 type;
+	int i;
+
+	if (len < ETH_HLEN)
+		return false;
+	type = ((const struct ethhdr *)d)->h_proto;
+	for (i = 0; i < 2 && eth_type_vlan(type); i++) {
+		if (len < off + VLAN_HLEN)
+			return false;
+		type = ((const struct vlan_hdr *)(d + off))->h_vlan_encapsulated_proto;
+		off += VLAN_HLEN;
+	}
+	if (type == htons(ETH_P_PPP_SES)) {
+		__be16 ppp;
+
+		if (len < off + PPPOE_SES_HLEN)
+			return false;
+		ppp = get_unaligned((const __be16 *)(d + off + sizeof(struct pppoe_hdr)));
+		type = ppp == htons(PPP_IP) ? htons(ETH_P_IP) :
+		       ppp == htons(PPP_IPV6) ? htons(ETH_P_IPV6) : 0;
+		off += PPPOE_SES_HLEN;
+	}
+	if (type == htons(ETH_P_IP) && !b->v6) {
+		const struct iphdr *iph = (const void *)(d + off);
+
+		if (len < off + sizeof(*iph) || iph->version != 4 || iph->ihl < 5 ||
+		    ip_is_fragment(iph) || iph->protocol != b->proto ||
+		    iph->saddr != b->addr.v4[0] || iph->daddr != b->addr.v4[1])
+			return false;
+		off += iph->ihl * 4;
+	} else if (type == htons(ETH_P_IPV6) && b->v6) {
+		const struct ipv6hdr *ip6h = (const void *)(d + off);
+
+		if (len < off + sizeof(*ip6h) || ip6h->version != 6 ||
+		    !ipv6_addr_equal(&ip6h->saddr, &b->addr.v6[0]) ||
+		    !ipv6_addr_equal(&ip6h->daddr, &b->addr.v6[1]))
+			return false;
+		if (ip6h->nexthdr != b->proto) {
+			unsigned short fragoff = 0;
+			int flags = 0;
+
+			if (!IS_REACHABLE(CONFIG_IPV6))
+				return false;
+			if (ipv6_find_hdr(skb, &off, b->proto, &fragoff, &flags) != b->proto ||
+			    fragoff || (flags & IP6_FH_F_FRAG))
+				return false;
+		} else {
+			off += sizeof(*ip6h);
+		}
+	} else {
+		return false;
+	}
+	if (len < off)
+		return false;
+	if (b->proto == IPPROTO_GRE)
+		return true;
+	if (len < off + sizeof(b->port))
+		return false;
+	ports = (const __be16 *)(d + off);
+	return ports[0] == b->port[0] && ports[1] == b->port[1];
+}
+
 bool ppe_flow_xmit(struct dsa_switch *ds, struct sk_buff *skb, u32 flow)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 	struct net_device *dev, *shaper, *uplink;
-	int xdev, up;
-	u8 dscp, xport;
+	const struct ppe_flow_binding *b;
+	u64 xdev;
+	int up;
+	u8 xport;
+	guard(rcu)();
 
 	if (flow >= priv->data->num_flow_entries)
 		return false;
-	xdev = READ_ONCE(priv->flow_xdev[flow]);
-	if (!xdev)
+	b = rcu_dereference(priv->flow_slot[flow]);
+	if (!b)
 		return false;
+	if (unlikely(!ppe_flow_frame_is(b, skb))) {
+		atomic_inc(&priv->flow_xmit_stale);
+		goto drop;
+	}
+	xdev = b->xdev;
 
 	dev = dev_get_by_index_rcu(dev_net(skb->dev), xdev & PPE_XDEV_IFINDEX);
 	if (unlikely(!dev || !netif_running(dev)))
@@ -2345,11 +2546,10 @@ bool ppe_flow_xmit(struct dsa_switch *ds, struct sk_buff *skb, u32 flow)
 		skb_reset_mac_header(skb);
 	}
 
-	dscp = READ_ONCE(priv->flow_dscp[flow]);
-	if (dscp)
-		ppe_flow_dscp_apply(skb, dscp & 0x3f);
+	if (b->dscp)
+		ppe_flow_dscp_apply(skb, b->dscp & 0x3f);
 
-	xport = READ_ONCE(priv->flow_port[flow]);
+	xport = b->xport;
 
 	/* Into the download shaper the way act_mirred sends an egress frame
 	 * to an ifb: the ifb sends it on to skb_iif once its qdisc lets it go.
@@ -2361,14 +2561,14 @@ bool ppe_flow_xmit(struct dsa_switch *ds, struct sk_buff *skb, u32 flow)
 		shaper = dev_get_by_index_rcu(dev_net(dev),
 					      READ_ONCE(priv->dl_shaper));
 		if (likely(shaper && netif_running(shaper))) {
-			u16 vid = READ_ONCE(priv->flow_vid[flow]);
+			u16 vid = b->vid;
 
 			if (vid)
 				__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q),
 						       vid);
 			skb->dev = shaper;
 			if (xport && ppe_shaper_is(shaper)) {
-				skb->skb_iif = xport;
+				ppe_shaper_port_set(priv, skb, xport - 1);
 			} else {
 				skb->skb_iif = dev->ifindex;
 				skb_set_redirected(skb, false);
@@ -2377,11 +2577,11 @@ bool ppe_flow_xmit(struct dsa_switch *ds, struct sk_buff *skb, u32 flow)
 			atomic_inc(&priv->flow_shaper_miss);
 		}
 	} else if (xdev & PPE_XDEV_UL) {
-		ppe_flow_ct_attach(priv, skb, flow);
+		ppe_flow_ct_attach(b, skb);
 		if (xdev & PPE_XDEV_PUSH) {
 			if (unlikely(!xport))
 				goto drop;
-			skb->skb_iif = xport;
+			ppe_shaper_port_set(priv, skb, xport - 1);
 		} else if (uplink != dev) {
 			skb->skb_iif = uplink->ifindex;
 			skb_set_redirected(skb, false);
@@ -2439,7 +2639,7 @@ int ppe_flow_uplink_set(struct qca_ppe_priv *priv, const char *name)
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
 
-	priv->uplink_dev = ifindex;
+	WRITE_ONCE(priv->uplink_dev, ifindex);
 	strscpy(priv->uplink_name, name, IFNAMSIZ);
 	ppe_flow_shaper_path(priv);
 	ppe_flow_shaper_drop(priv, false);
@@ -2480,11 +2680,6 @@ int ppe_flow_shaper_set(struct qca_ppe_priv *priv, bool upload,
 		}
 		ifindex = dev->ifindex;
 		dev_put(dev);
-		if (ifindex > PPE_XDEV_IFINDEX) {
-			if (own)
-				unregister_netdev(own);
-			return -ERANGE;
-		}
 	}
 
 	scoped_guard(mutex, &priv->flow_lock) {
@@ -2494,7 +2689,7 @@ int ppe_flow_shaper_set(struct qca_ppe_priv *priv, bool upload,
 		if (old && old->ifindex == ifindex)
 			old = NULL;
 		else
-			priv->shaper_dev[upload] = own;
+			WRITE_ONCE(priv->shaper_dev[upload], own);
 
 		if (upload) {
 			WRITE_ONCE(priv->ul_shaper, ifindex);
@@ -2904,7 +3099,7 @@ static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 	lockdep_assert_held(&priv->vlan_lock);
 	if (priv->flow_stopping) {
 		if (entry->xdev_bound)
-			ppe_flow_slot_clear(priv, entry->index);
+			ppe_flow_slot_clear(priv, entry, entry->index);
 		goto free;
 	}
 	if (entry->state == PPE_FLOW_PENDING_ADD) {
@@ -2935,7 +3130,7 @@ static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 	if (age < 0)
 		return age;
 	if (entry->xdev_bound) {
-		ppe_flow_slot_clear(priv, entry->index);
+		ppe_flow_slot_clear(priv, entry, entry->index);
 		entry->xdev_bound = false;
 	}
 	if (entry->state == PPE_FLOW_LIVE &&
@@ -2954,8 +3149,6 @@ static int ppe_flow_entry_destroy(struct qca_ppe_priv *priv,
 			return age < 0 ? age : ret;
 	}
 free:
-	if (entry->ct)
-		nf_conntrack_put(&((struct nf_conn *)(entry->ct & ~1UL))->ct_general);
 	if (entry->previous_host < priv->data->num_host_entries)
 		ppe_host_ref_put(priv, entry->previous_host);
 	if (entry->host_index < priv->data->num_host_entries)
@@ -3278,6 +3471,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	struct ppe_flow_data data = {};
 	struct flow_action_entry *act;
 	bool snat, dnat, v6, steer, bridge_edit = false;
+	bool uplink_in = false;
 	bool bridge_rtnl __free(ppe_bridge_rtnl) = false;
 	int i, ret, nfw, nhw, iport, ingress_ifindex, bridge_ifindex = 0;
 	int redirects = 0;
@@ -3367,6 +3561,14 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 						 &data.ingress_svid, data.ingress_mac,
 						 false);
 		}
+		if (iport < 0 && !data.bridge &&
+		    ppe_flow_uplink_dev(priv, ingress_ifindex)) {
+			if (flow_vid && flow_vid != priv->ul_vid)
+				return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_VLAN);
+			iport = priv->ul_port;
+			data.ivid = priv->ul_vid;
+			uplink_in = true;
+		}
 		if (iport < 0)
 			return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_PORT);
 		data.ingress_svid_valid = !!data.ingress_svid;
@@ -3384,7 +3586,7 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	    (data.ingress_svid_valid &&
 	     flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)))
 		return ppe_flow_reject(priv, rule, PPE_REJECT_INGRESS_VLAN);
-	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
+	if (!uplink_in && flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
 		struct flow_match_vlan match;
 
 		flow_rule_match_vlan(rule, &match);
@@ -3477,6 +3679,32 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 			break;
 		default:
 			return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
+		}
+	}
+
+	/* Only a device that is not a switch port: a plain port uplink keeps
+	 * its VLAN devices, such as IPTV's, on the port's own path.
+	 */
+	if (!data.bridge && data.odev &&
+	    net_eq(dev_net(data.odev), &init_net) &&
+	    IS_ERR(dsa_port_from_netdev(data.odev)) &&
+	    ppe_flow_uplink_dev(priv, data.odev->ifindex)) {
+		struct dsa_port *dp = dsa_to_port(&priv->ds, priv->ul_port);
+
+		if (data.vlan_valid || data.pppoe_valid || !dp->user)
+			return ppe_flow_reject(priv, rule, PPE_REJECT_ACTION);
+
+		data.odev = dp->user;
+		data.vlan_id = priv->ul_vid;
+		data.vlan_valid = !!priv->ul_vid;
+		data.pppoe_sid = priv->ul_sid;
+		data.pppoe_valid = !!priv->ul_sid;
+		/* The L3 device of a PPPoE uplink has no link addresses: the
+		 * frame goes to the session's peer from the port's own.
+		 */
+		if (data.pppoe_valid) {
+			u64_to_ether_addr(priv->ul_h_dest, data.eth.h_dest);
+			u64_to_ether_addr(priv->ul_h_source, data.eth.h_source);
 		}
 	}
 
@@ -3667,6 +3895,9 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 		ppe_flow_reject(priv, rule, PPE_REJECT_KEY);
 		goto err_egress;
 	}
+	ret = ppe_flow_binding_prepare(priv, entry, &data);
+	if (ret)
+		goto err_egress;
 	ret = ppe_flow_op(priv, PPE_TBL_OP_ADD, fw, nfw, hw, nhw, &entry->index,
 			  &entry->host_index);
 	if (ret) {
@@ -3692,10 +3923,6 @@ static int ppe_flow_offload_replace(struct ppe_flow_block *fb,
 	if (ret)
 		goto err_hw;
 
-	if (entry->xdev & PPE_XDEV_UL)
-		entry->ct = ppe_flow_ct_get(f->cookie);
-	if (entry->xdev && priv->ct_dscp)
-		entry->dscp = ppe_flow_ct_dscp(f->cookie);
 	if (entry->xdev)
 		ppe_flow_slot_set(priv, entry, entry->index);
 	list_add_tail(&entry->list, &priv->flow_list);
@@ -3713,6 +3940,7 @@ err_egress:
 err_ingress:
 	ppe_flow_free_ingress(priv, entry);
 err_free:
+	ppe_flow_binding_put(priv, entry);
 	kfree(entry);
 
 	return ret;
@@ -3989,7 +4217,7 @@ static int ppe_flow_profile_set(struct qca_ppe_priv *priv,
 		      profile);
 
 	if (entry->xdev_bound) {
-		ppe_flow_slot_clear(priv, entry->index);
+		ppe_flow_slot_clear(priv, entry, entry->index);
 		entry->xdev_bound = false;
 	}
 	ret = ppe_flow_entry_delete(priv, entry->index);
@@ -4110,6 +4338,7 @@ static void ppe_sparse_work(struct work_struct *work)
 		}
 		list_del(&entry->list);
 		priv->flow_retire_pending--;
+		ppe_flow_binding_put(priv, entry);
 		kfree(entry);
 	}
 	list_for_each_entry_safe(entry, tmp, &priv->flow_list, list) {
@@ -4174,6 +4403,37 @@ static void ppe_sparse_work(struct work_struct *work)
 			      msecs_to_jiffies(PPE_SPARSE_PERIOD_MS));
 }
 
+static void ppe_shaper_md_free(struct qca_ppe_priv *priv)
+{
+	int i;
+
+	/* A frame still queued holds its own reference. */
+	for (i = 0; i < PPE_NUM_PORTS; i++) {
+		if (priv->shaper_md[i])
+			dst_release(&priv->shaper_md[i]->dst);
+		priv->shaper_md[i] = NULL;
+	}
+}
+
+static int ppe_shaper_md_alloc(struct qca_ppe_priv *priv)
+{
+	int i;
+
+	for (i = 0; i < PPE_NUM_PORTS; i++) {
+		struct metadata_dst *md;
+
+		md = metadata_dst_alloc(0, METADATA_HW_PORT_MUX, GFP_KERNEL);
+		if (!md) {
+			ppe_shaper_md_free(priv);
+			return -ENOMEM;
+		}
+		md->u.port_info.port_id = i;
+		priv->shaper_md[i] = md;
+	}
+
+	return 0;
+}
+
 int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 {
 	struct device *dev = priv->ds.dev;
@@ -4191,34 +4451,31 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 				    sizeof(*priv->my_mac), GFP_KERNEL);
 	priv->host_retired = devm_bitmap_zalloc(dev, priv->data->num_host_entries,
 					      GFP_KERNEL);
-	priv->flow_xdev = devm_kcalloc(dev, priv->data->num_flow_entries,
-				       sizeof(*priv->flow_xdev), GFP_KERNEL);
+	priv->flow_slot = devm_kcalloc(dev, priv->data->num_flow_entries,
+				      sizeof(*priv->flow_slot), GFP_KERNEL);
 	priv->ul_port = -1;
-	priv->flow_ct = devm_kcalloc(dev, priv->data->num_flow_entries,
-				     sizeof(*priv->flow_ct), GFP_KERNEL);
-	priv->flow_dscp = devm_kcalloc(dev, priv->data->num_flow_entries,
-				       sizeof(*priv->flow_dscp), GFP_KERNEL);
-	priv->flow_vid = devm_kcalloc(dev, priv->data->num_flow_entries,
-				      sizeof(*priv->flow_vid), GFP_KERNEL);
-	priv->flow_port = devm_kcalloc(dev, priv->data->num_flow_entries,
-				       sizeof(*priv->flow_port), GFP_KERNEL);
 	if (!priv->host_retired || !priv->eg_l3_if || !priv->pub_ip || !priv->nexthop ||
-	    !priv->host_ref || !priv->my_mac || !priv->flow_xdev ||
-	    !priv->flow_ct || !priv->flow_dscp || !priv->flow_vid ||
-	    !priv->flow_port)
+	    !priv->host_ref || !priv->my_mac || !priv->flow_slot)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&priv->flow_list);
 	INIT_LIST_HEAD(&priv->flow_retire_list);
 
-	ret = rhashtable_init(&priv->flow_table, &ppe_flow_ht_params);
+	ret = ppe_shaper_md_alloc(priv);
 	if (ret)
 		return ret;
+
+	ret = rhashtable_init(&priv->flow_table, &ppe_flow_ht_params);
+	if (ret) {
+		ppe_shaper_md_free(priv);
+		return ret;
+	}
 
 	priv->netdev_nb.notifier_call = ppe_flow_netdev_event;
 	ret = register_netdevice_notifier(&priv->netdev_nb);
 	if (ret) {
 		rhashtable_destroy(&priv->flow_table);
+		ppe_shaper_md_free(priv);
 		return ret;
 	}
 	priv->flow_switchdev_nb.notifier_call = ppe_flow_switchdev_event;
@@ -4226,6 +4483,7 @@ int ppe_flow_offload_init(struct qca_ppe_priv *priv)
 	if (ret) {
 		unregister_netdevice_notifier(&priv->netdev_nb);
 		rhashtable_destroy(&priv->flow_table);
+		ppe_shaper_md_free(priv);
 		return ret;
 	}
 
@@ -4252,18 +4510,23 @@ void ppe_flow_offload_exit(struct qca_ppe_priv *priv)
 				       ppe_flow_ht_params);
 		list_del(&entry->list);
 		ppe_flow_entry_destroy(priv, entry);
+		ppe_flow_binding_put(priv, entry);
 		kfree(entry);
 	}
 	list_for_each_entry_safe(entry, tmp, &priv->flow_retire_list, list) {
 		list_del(&entry->list);
+		ppe_flow_binding_put(priv, entry);
 		kfree(entry);
 	}
 	mutex_unlock(&priv->vlan_lock);
 	mutex_unlock(&priv->flow_lock);
+	rcu_barrier();
 
 	rhashtable_destroy(&priv->flow_table);
 
 	for (i = 0; i < ARRAY_SIZE(priv->shaper_dev); i++)
 		if (priv->shaper_dev[i])
 			unregister_netdev(priv->shaper_dev[i]);
+
+	ppe_shaper_md_free(priv);
 }

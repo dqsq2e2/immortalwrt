@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:52 +0800
 Subject: [PATCH] wifi: ath11k: offload NSS WDS and recover its sessions
 
 Adapt the R50 WDS/ext-vdev and MCBC contracts to the local NSS driver.
@@ -53,7 +53,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    pcic.o \
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -3017,6 +3017,7 @@ EXPORT_SYMBOL(ath11k_core_deinit);
+@@ -3003,6 +3003,7 @@ EXPORT_SYMBOL(ath11k_core_deinit);
  
  void ath11k_core_free(struct ath11k_base *ab)
  {
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	destroy_workqueue(ab->workqueue_aux);
  	destroy_workqueue(ab->workqueue);
  
-@@ -3070,6 +3071,7 @@ struct ath11k_base *ath11k_core_alloc(st
+@@ -3056,6 +3057,7 @@ struct ath11k_base *ath11k_core_alloc(st
  	init_completion(&ab->restart_completed);
  
  	ab->dev = dev;
@@ -332,7 +332,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		/* The firmware returns a frame without saying whether it was
  		 * acknowledged, and the control block holding the status
  		 * request is overwritten on the way down. A frame that asks
-@@ -7493,6 +7520,25 @@ static int ath11k_mac_op_add_interface(s
+@@ -7494,6 +7521,25 @@ static int ath11k_mac_op_add_interface(s
  
  	mutex_lock(&ar->conf_mutex);
  
@@ -358,7 +358,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (vif->type == NL80211_IFTYPE_AP &&
  	    ar->num_peers > (ar->max_num_peers - 1)) {
  		ath11k_warn(ab, "failed to create vdev due to insufficient peer entry resource in firmware\n");
-@@ -7513,6 +7559,9 @@ static int ath11k_mac_op_add_interface(s
+@@ -7514,6 +7560,9 @@ static int ath11k_mac_op_add_interface(s
  	arvif->vif = vif;
  	arvif->nss_ifnum = -1;
  
@@ -368,7 +368,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	INIT_LIST_HEAD(&arvif->list);
  	INIT_WORK(&arvif->bcn_tx_work, ath11k_mac_bcn_tx_work);
  	INIT_DELAYED_WORK(&arvif->connection_loss_work,
-@@ -7769,6 +7818,16 @@ static void ath11k_mac_op_remove_interfa
+@@ -7770,6 +7819,16 @@ static void ath11k_mac_op_remove_interfa
  	int ret;
  	int i;
  
@@ -385,7 +385,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	cancel_delayed_work_sync(&arvif->connection_loss_work);
  	cancel_work_sync(&arvif->bcn_tx_work);
  
-@@ -9676,6 +9735,26 @@ ath11k_mac_op_set_bitrate_mask(struct ie
+@@ -9677,6 +9736,26 @@ ath11k_mac_op_set_bitrate_mask(struct ie
  	return ret;
  }
  
@@ -412,7 +412,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void
  ath11k_mac_op_reconfig_complete(struct ieee80211_hw *hw,
  				enum ieee80211_reconfig_type reconfig_type)
-@@ -9715,12 +9794,16 @@ ath11k_mac_op_reconfig_complete(struct i
+@@ -9716,12 +9795,16 @@ ath11k_mac_op_reconfig_complete(struct i
  				ath11k_dbg(ab, ATH11K_DBG_BOOT, "reset success\n");
  			}
  		}
@@ -430,7 +430,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
  
  	mutex_unlock(&ar->conf_mutex);
-@@ -10358,6 +10441,8 @@ static int ath11k_mac_station_remove(str
+@@ -10359,6 +10442,8 @@ static int ath11k_mac_station_remove(str
  
  	if (ab->hw_params.vdev_start_delay &&
  	    arvif->is_started &&
@@ -439,7 +439,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	    arvif->vdev_type != WMI_VDEV_TYPE_AP) {
  		ret = ath11k_mac_stop_vdev_early(ar->hw, vif);
  		if (ret) {
-@@ -10369,6 +10454,12 @@ static int ath11k_mac_station_remove(str
+@@ -10370,6 +10455,12 @@ static int ath11k_mac_station_remove(str
  	ath11k_dp_peer_cleanup(ar, arvif->vdev_id, sta->addr);
  
  	ret = ath11k_peer_delete(ar, arvif->vdev_id, sta->addr);
@@ -452,7 +452,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (ret)
  		ath11k_warn(ab, "Failed to delete peer: %pM for VDEV: %d\n",
  			    sta->addr, arvif->vdev_id);
-@@ -11309,6 +11400,9 @@ static int __ath11k_mac_register(struct
+@@ -11310,6 +11401,9 @@ static int __ath11k_mac_register(struct
  		ieee80211_hw_set(ar->hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
  	}
  
@@ -462,7 +462,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ieee80211_hw_set(ar->hw, SIGNAL_DBM);
  	ieee80211_hw_set(ar->hw, SUPPORTS_PS);
  	ieee80211_hw_set(ar->hw, SUPPORTS_DYNAMIC_PS);
-@@ -11633,7 +11727,8 @@ int ath11k_mac_allocate(struct ath11k_ba
+@@ -11634,7 +11728,8 @@ int ath11k_mac_allocate(struct ath11k_ba
  		for (j = 0; j < IEEE80211_NUM_ACS; j++)
  			spin_lock_init(&ar->txq_lock[j]);
  		INIT_WORK(&ar->txq_work, ath11k_mac_txq_work);

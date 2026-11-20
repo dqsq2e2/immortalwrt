@@ -1,5 +1,5 @@
 From: Michael-CY Lee <michael-cy.lee@mediatek.com>
-Date: Wed, 11 Nov 2026 12:19:10 +0800
+Date: Thu, 19 Nov 2026 00:29:38 +0800
 Subject: [PATCH] nl80211: set the TID-to-link mapping of a non-AP MLD
 
 An AP MLD that negotiates a TID-to-link mapping with an associated
@@ -220,7 +220,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
   * @NL80211_CMD_ASSOC_MLO_RECONF: For a non-AP MLD station, request to
   *      add/remove links to/from the association. To indicate link
 @@ -7439,6 +7444,11 @@ enum nl80211_feature_flags {
-  *	that stay again after the event. The expiry comes before the TBTT at
+  *	after the event. The expiry comes before the TBTT at
   *	which the timer reaches 0, and the removed links keep running until
   *	user space stops them.
 + * @NL80211_EXT_FEATURE_AP_NEG_TTLM: The driver applies the TID-to-link

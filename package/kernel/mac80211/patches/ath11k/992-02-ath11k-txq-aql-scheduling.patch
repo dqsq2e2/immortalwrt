@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 15 Nov 2026 09:38:47 +0800
 Subject: [PATCH] wifi: ath11k: implement airtime-aware TXQ scheduling and completion budgets
 
 Under heavy traffic, ath11k experiences frequent -ENOMEM errors ("failed to
@@ -108,7 +108,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2500,6 +2500,7 @@ static int ath11k_core_reconfigure_on_cr
+@@ -2489,6 +2489,7 @@ static int ath11k_core_reconfigure_on_cr
  	ath11k_dp_pdev_reo_cleanup(ab);
  	mutex_unlock(&ab->core_lock);
  
@@ -294,7 +294,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_mac_drain_tx(struct ath11k *ar)
-@@ -10088,9 +10098,118 @@ static int ath11k_mac_op_sta_state(struc
+@@ -10089,9 +10099,118 @@ static int ath11k_mac_op_sta_state(struc
  	return ret;
  }
  
@@ -414,7 +414,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	.start                          = ath11k_mac_op_start,
  	.stop                           = ath11k_mac_op_stop,
  	.reconfig_complete              = ath11k_mac_op_reconfig_complete,
-@@ -10616,6 +10735,9 @@ static int __ath11k_mac_register(struct
+@@ -10617,6 +10736,9 @@ static int __ath11k_mac_register(struct
  	ar->hw->sta_data_size = sizeof(struct ath11k_sta);
  
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_CQM_RSSI_LIST);
@@ -424,7 +424,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	wiphy_ext_feature_set(ar->hw->wiphy, NL80211_EXT_FEATURE_STA_TX_PWR);
  	if (test_bit(WMI_TLV_SERVICE_BSS_COLOR_OFFLOAD,
  		     ar->ab->wmi_ab.svc_map)) {
-@@ -10778,7 +10900,7 @@ int ath11k_mac_allocate(struct ath11k_ba
+@@ -10779,7 +10901,7 @@ int ath11k_mac_allocate(struct ath11k_ba
  	struct ath11k *ar;
  	struct ath11k_pdev *pdev;
  	int ret;
@@ -433,7 +433,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	if (test_bit(ATH11K_FLAG_REGISTERED, &ab->dev_flags))
  		return 0;
-@@ -10812,6 +10934,9 @@ int ath11k_mac_allocate(struct ath11k_ba
+@@ -10813,6 +10935,9 @@ int ath11k_mac_allocate(struct ath11k_ba
  
  		pdev->ar = ar;
  		spin_lock_init(&ar->data_lock);

@@ -2,13 +2,13 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/version.mk
 
 PKG_NAME:=ipq-wifi
-PKG_RELEASE:=7
+PKG_RELEASE:=8
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/firmware/qca-wireless.git
-PKG_SOURCE_DATE:=2026-10-31
-PKG_SOURCE_VERSION:=5363395811fb3c72da0e62304a26d995c0f9c675
-PKG_MIRROR_HASH:=54f209c59520281d9f0a0b0c48afce4ec9af188e02f1ffc827bb5f74b8aadb91
+PKG_SOURCE_DATE:=2026-11-16
+PKG_SOURCE_VERSION:=c832ed2cfbd42350bc2f683175952d341f737ec0
+PKG_MIRROR_HASH:=46756b986f0182a4b317eca478c3fa3733dc585f6a56c4f99704944436360509
 PKG_FLAGS:=nonshared
 
 include $(INCLUDE_DIR)/package.mk
@@ -32,6 +32,15 @@ ALLWIFIBOARDS:= \
 	alfa-network_ap120c-ax \
 	aliyun_ap8220 \
 	arcadyan_aw1000 \
+	arista_c-200 \
+	arista_c-230 \
+	arista_c-260 \
+	arista_c-360 \
+	arista_c-460 \
+	aruba_ap-303 \
+	aruba_ap-303h \
+	aruba_ap-325 \
+	aruba_ap-365 \
 	askey_sbe1v1k \
 	asus_rt-ax89x \
 	avm_fritzbox-4050 \
@@ -113,6 +122,7 @@ ALLWIFIBOARDS:= \
 	tplink_re700x \
 	tplink_tl-wa1201-v2 \
 	ubnt_u7-pro-xgs \
+	ubnt_unifi-6-pro \
 	ubnt_utr \
 	wallys_dr40x9 \
 	wallys_dr5018s \
@@ -140,8 +150,6 @@ ALLWIFIBOARDS:= \
 	zyxel_nwa210ax \
 	zyxel_scr50axe \
 	anysafe_e1 \
-	arista_c260 \
-	arista_c360 \
 	cmiot_ax18 \
 	dptech_ap3000-2c \
 	glinet_gl-be6500 \
@@ -276,6 +284,15 @@ $(eval $(call generate-ipq-wifi-package,8devices_mango,8devices Mango))
 $(eval $(call generate-ipq-wifi-package,alfa-network_ap120c-ax,ALFA Network AP120C-AX))
 $(eval $(call generate-ipq-wifi-package,aliyun_ap8220,Aliyun AP8220))
 $(eval $(call generate-ipq-wifi-package,arcadyan_aw1000,Arcadyan AW1000))
+$(eval $(call generate-ipq-wifi-package,arista_c-200,Arista C-200))
+$(eval $(call generate-ipq-wifi-package,arista_c-230,Arista C-230))
+$(eval $(call generate-ipq-wifi-package,arista_c-260,Arista C-260))
+$(eval $(call generate-ipq-wifi-package,arista_c-360,Arista C-360))
+$(eval $(call generate-ipq-wifi-package,arista_c-460,Arista C-460))
+$(eval $(call generate-ipq-wifi-package,aruba_ap-303,Aruba AP-303))
+$(eval $(call generate-ipq-wifi-package,aruba_ap-303h,Aruba AP-303H))
+$(eval $(call generate-ipq-wifi-package,aruba_ap-325,Aruba AP-325))
+$(eval $(call generate-ipq-wifi-package,aruba_ap-365,Aruba AP-365))
 $(eval $(call generate-ipq-wifi-package,askey_sbe1v1k,Askey SBE1V1K))
 $(eval $(call generate-ipq-wifi-package,asus_rt-ax89x,Asus RT-AX89X))
 $(eval $(call generate-ipq-wifi-package,avm_fritzbox-4050,AVM FRITZ!Box 4050))
@@ -357,6 +374,7 @@ $(eval $(call generate-ipq-wifi-package,tplink_eap660-hd-v1,TP-Link EAP660 HD v1
 $(eval $(call generate-ipq-wifi-package,tplink_re700x,TP-Link RE700X))
 $(eval $(call generate-ipq-wifi-package,tplink_tl-wa1201-v2,TP-Link TL-WA1201 V2))
 $(eval $(call generate-ipq-wifi-package,ubnt_u7-pro-xgs,Ubiquiti UniFi 7 Pro XGS))
+$(eval $(call generate-ipq-wifi-package,ubnt_unifi-6-pro,Ubiquiti UniFi 6 Pro))
 $(eval $(call generate-ipq-wifi-package,ubnt_utr,Ubiquiti UniFi Travel Router))
 $(eval $(call generate-ipq-wifi-package,wallys_dr40x9,Wallys DR40X9))
 $(eval $(call generate-ipq-wifi-package,wallys_dr5018s,Wallys DR5018S))
@@ -384,8 +402,6 @@ $(eval $(call generate-ipq-wifi-package,zyxel_nwa110ax,Zyxel NWA110AX))
 $(eval $(call generate-ipq-wifi-package,zyxel_nwa210ax,Zyxel NWA210AX))
 $(eval $(call generate-ipq-wifi-package,zyxel_scr50axe,Zyxel SCR50AXE))
 $(eval $(call generate-ipq-wifi-package,anysafe_e1,AnySafe E1))
-$(eval $(call generate-ipq-wifi-package,arista_c260,Arista AP-C260))
-$(eval $(call generate-ipq-wifi-package,arista_c360,Arista AP-C360))
 $(eval $(call generate-ipq-wifi-package,cmiot_ax18,CMIOT AX18))
 $(eval $(call generate-ipq-wifi-package,dptech_ap3000-2c,DPtech AP3000-2C))
 $(eval $(call generate-ipq-wifi-package,glinet_gl-be6500,GL.iNet GL-BE6500))

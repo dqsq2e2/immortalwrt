@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 11 Nov 2026 12:14:33 +0800
+Date: Thu, 19 Nov 2026 00:42:28 +0800
 Subject: [PATCH] Add ucode support, use ucode for the main ubus object
 
 This implements vastly improved dynamic configuration reload support.
@@ -1284,7 +1284,16 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	return global;
  }
-@@ -9920,6 +9926,8 @@ void wpa_supplicant_deinit(struct wpa_gl
+@@ -9912,6 +9918,8 @@ void wpa_supplicant_deinit(struct wpa_gl
+ 	wifi_display_deinit(global);
+ #endif /* CONFIG_WIFI_DISPLAY */
+ 
++	wpas_ucode_terminate();
++
+ 	while (global->ifaces)
+ 		wpa_supplicant_remove_iface(global, global->ifaces, 1);
+ 
+@@ -9920,6 +9928,8 @@ void wpa_supplicant_deinit(struct wpa_gl
  
  	wpas_notify_supplicant_deinitialized(global);
  

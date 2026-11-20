@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 15 Nov 2026 09:38:47 +0800
 Subject: [PATCH] wifi: ath11k: batch TX completions and TCL submissions
 
 The TX completion handler takes base_lock and searches the peer list for
@@ -55,7 +55,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  void ath11k_mac_drain_tx(struct ath11k *ar)
-@@ -10124,7 +10124,7 @@ static int ath11k_mac_tx_push_txq(struct
+@@ -10125,7 +10125,7 @@ static int ath11k_mac_tx_push_txq(struct
  	struct hal_srng *tcl_ring;
  	struct sk_buff *skb;
  	u32 ring_selector;
@@ -64,7 +64,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	int ret;
  	u8 ring_id;
  
-@@ -10137,38 +10137,55 @@ static int ath11k_mac_tx_push_txq(struct
+@@ -10138,38 +10138,55 @@ static int ath11k_mac_tx_push_txq(struct
  	 * selection ends where that limit binds or the queue empties. A full
  	 * TCL ring ends the whole round, and so does a frame the hardware
  	 * refuses, as long as a frame in flight will restart it.

@@ -1,5 +1,5 @@
 From: Felix Fietkau <nbd@nbd.name>
-Date: Wed, 11 Nov 2026 12:15:55 +0800
+Date: Thu, 19 Nov 2026 00:26:06 +0800
 Subject: [PATCH] ap: mld: keep the nl80211 BSS of a restarted first link
 
 The ucode bss stop of an AP MLD BSS that is the first BSS of its
@@ -43,7 +43,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -2281,6 +2281,12 @@ int hostapd_setup_bss(struct hostapd_dat
+@@ -2284,6 +2284,12 @@ int hostapd_setup_bss(struct hostapd_dat
  					   hapd->mld_link_id, hapd->conf->iface);
  				goto setup_mld;
  			}
@@ -56,7 +56,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			use_existing = true;
  		}
  #endif /* CONFIG_IEEE80211BE */
-@@ -2297,6 +2303,9 @@ int hostapd_setup_bss(struct hostapd_dat
+@@ -2300,6 +2306,9 @@ int hostapd_setup_bss(struct hostapd_dat
  			return -1;
  		}
  

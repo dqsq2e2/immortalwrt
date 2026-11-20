@@ -62,7 +62,6 @@
 		regulator-max-microvolt = <5000000>;
 		gpios = <&tlmm 32 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
-		regulator-boot-on;
 	};
 };
 
@@ -769,8 +768,6 @@
 
 
 /* use the second I2C bus for the second temperature sensor */
-/delete-node/ &blsp1_spi4;
-
 &soc {
 	i2c@78b8000 {
 		compatible = "qcom,i2c-qup-v2.2.1";
@@ -817,7 +814,6 @@
 };
 
 &qusb_phy_1 {
-	vdd-supply = <&usb_vbus>;
 	status = "okay";
 };
 
@@ -828,6 +824,7 @@
 };
 
 &usb_1 {
+	vbus-supply = <&usb_vbus>;
 	dr_mode = "host";
 
 	status = "okay";

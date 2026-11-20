@@ -1,6 +1,6 @@
 From abdd0985a36189ef2cc0e393b027276e86137ace Mon Sep 17 00:00:00 2001
 From: Aditya Kumar Singh <quic_adisi@quicinc.com>
-Date: Tue, 11 Apr 2023 20:08:49 +0200
+Date: Sun, 15 Nov 2026 09:38:47 +0800
 Subject: [PATCH] ath11k: remove intersection support for regulatory rules
 
 Currently, regulatory rules from new country settings is intersected with
@@ -20,6 +20,8 @@ Signed-off-by: Aditya Kumar Singh <quic_adisi@quicinc.com>
  drivers/net/wireless/ath/ath11k/reg.h |   2 +-
  drivers/net/wireless/ath/ath11k/wmi.c |  24 +---
  3 files changed, 16 insertions(+), 178 deletions(-)
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/reg.c
 +++ b/drivers/net/wireless/ath/ath11k/reg.c

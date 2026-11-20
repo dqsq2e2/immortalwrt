@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:52 +0800
 Subject: [PATCH] ath11k: keep NSS vdevs on ethernet with a monitor interface
 
 mac80211 withdraws the encapsulation and decapsulation offloads while a
@@ -61,7 +61,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  					   NL80211_IFTYPE_STATION)) {
  			ieee80211_free_txskb(ar->hw, skb);
  			return 0;
-@@ -7151,15 +7154,19 @@ static int ath11k_mac_setup_vdev_create_
+@@ -7152,15 +7155,19 @@ static int ath11k_mac_setup_vdev_create_
   * what the hardware encapsulation and decapsulation this driver has already
   * been told to use produce.
   */
@@ -86,7 +86,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		return ATH11K_HW_TXRX_ETHERNET;
  	if (test_bit(ATH11K_FLAG_RAW_MODE, &ab->dev_flags))
  		return ATH11K_HW_TXRX_RAW;
-@@ -7210,6 +7217,18 @@ static const struct nss_wifi_mesh_ops at
+@@ -7211,6 +7218,18 @@ static const struct nss_wifi_mesh_ops at
  	.rx = ath11k_nss_mesh_rx,
  };
  
@@ -105,7 +105,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  /* The firmware owns the radio's rings, so an interface it does not take
   * cannot carry data at all and is refused.
   */
-@@ -7272,13 +7291,8 @@ static void ath11k_mac_op_update_vif_off
+@@ -7273,13 +7292,8 @@ static void ath11k_mac_op_update_vif_off
  		vif->offload_flags &= ~(IEEE80211_OFFLOAD_ENCAP_ENABLED |
  					IEEE80211_OFFLOAD_DECAP_ENABLED);
  
@@ -121,7 +121,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7288,13 +7302,8 @@ static void ath11k_mac_op_update_vif_off
+@@ -7289,13 +7303,8 @@ static void ath11k_mac_op_update_vif_off
  	}
  
  	param_id = WMI_VDEV_PARAM_RX_DECAP_TYPE;
@@ -137,7 +137,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_wmi_vdev_set_param_cmd(ar, arvif->vdev_id,
  					    param_id, param_value);
  	if (ret) {
-@@ -7712,6 +7721,7 @@ static int ath11k_mac_op_add_interface(s
+@@ -7713,6 +7722,7 @@ static int ath11k_mac_op_add_interface(s
  	return 0;
  
  err_peer_del:
@@ -145,7 +145,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (arvif->vdev_type == WMI_VDEV_TYPE_AP) {
  		fbret = ath11k_peer_delete(ar, arvif->vdev_id, vif->addr);
  		if (fbret) {
-@@ -7722,6 +7732,7 @@ err_peer_del:
+@@ -7723,6 +7733,7 @@ err_peer_del:
  	}
  
  err_vdev_del:
@@ -153,7 +153,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ath11k_mac_vdev_delete(ar, arvif);
  	spin_lock_bh(&ar->data_lock);
  	list_del(&arvif->list);
-@@ -7784,13 +7795,7 @@ static void ath11k_mac_op_remove_interfa
+@@ -7785,13 +7796,7 @@ static void ath11k_mac_op_remove_interfa
  	/* Before the vdev goes, so the firmware stops naming an interface
  	 * whose peers are already gone.
  	 */

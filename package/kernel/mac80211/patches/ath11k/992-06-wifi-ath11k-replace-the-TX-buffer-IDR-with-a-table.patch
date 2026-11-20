@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 28 Oct 2026 13:34:14 +0800
+Date: Sun, 15 Nov 2026 09:40:07 +0800
 Subject: [PATCH] wifi: ath11k: replace the TX buffer IDR with a table
 
 Normalize the series position without changing the implementation.
@@ -76,7 +76,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	}
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -7346,15 +7346,20 @@ err:
+@@ -7347,15 +7347,20 @@ err:
  	return ret;
  }
  
@@ -104,7 +104,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  }
  
  static void ath11k_mac_op_remove_interface(struct ieee80211_hw *hw,
-@@ -7420,8 +7425,7 @@ err_vdev_del:
+@@ -7421,8 +7426,7 @@ err_vdev_del:
  
  	for (i = 0; i < ab->hw_params.hal_params->num_tx_rings; i++) {
  		spin_lock_bh(&ab->dp.tx_ring[i].tx_idr_lock);

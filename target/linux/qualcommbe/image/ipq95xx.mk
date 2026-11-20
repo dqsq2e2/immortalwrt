@@ -14,6 +14,20 @@ define Device/8devices_kiwi-dvk
 endef
 TARGET_DEVICES += 8devices_kiwi-dvk
 
+define Device/arista_c-460
+	$(call Device/FitImage)
+	$(call Device/EmmcImage)
+	DEVICE_VENDOR := Arista
+	DEVICE_MODEL := C-460
+	DEVICE_DTS := ipq9574-arista-c-460
+	SOC := ipq9574
+	DEVICE_PACKAGES := arista-gnss arista-platform f2fsck ipq-wifi-arista_c-460 \
+		kmod-ath11k-pci kmod-ath12k kmod-gpio-pca953x kmod-phy-realtek kmod-rtc-pcf85363 \
+		kmod-tpm-tis-spi kmod-usb-storage mkf2fs rtl826x-firmware bluetooth-uart \
+		ath11k-firmware-qcn9074-ddwrt ath12k-firmware-qcn9274-ddwrt arista-led
+endef
+TARGET_DEVICES += arista_c-460
+
 define Device/askey_sbe1v1k
 	$(call Device/FitImage)
 	$(call Device/EmmcImage)
@@ -90,7 +104,8 @@ define Device/xiaomi_be7000
 	$(call Device/xiaomi_be7000-common)
 	DEVICE_MODEL := BE7000
 	SOC := ipq9554
-	DEVICE_PACKAGES += ipq-wifi-xiaomi_be7000
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be7000 \
+		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
 	SUPPORTED_DEVICES += xiaomi,be7000
 endef
 TARGET_DEVICES += xiaomi_be7000
@@ -112,15 +127,15 @@ define Device/xiaomi_be10000-common
 	BLOCKSIZE := 128k
 	PAGESIZE := 2048
 	DEVICE_PACKAGES := ath12k-firmware-qcn9274-ddwrt \
-		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools \
-		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
+		kmod-phy-aquantia kmod-sfp kmod-usb-storage uboot-envtools
 endef
 
 define Device/xiaomi_be10000
 	$(call Device/xiaomi_be10000-common)
 	DEVICE_MODEL := BE10000
 	SOC := ipq9570
-	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000
+	DEVICE_PACKAGES += ipq-wifi-xiaomi_be10000 \
+		luci-app-xiaomi-control luci-i18n-xiaomi-control-zh-cn
 endef
 TARGET_DEVICES += xiaomi_be10000
 

@@ -1,5 +1,5 @@
 From: Jeff Johnson <jeff.johnson@oss.qualcomm.com>
-Date: Sun, 08 Nov 2026 10:23:51 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: fix overreads in
  ath11k_wmi_process_csa_switch_count_event()
 
@@ -52,7 +52,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static int ath11k_wmi_cmd_send_nowait(struct ath11k_pdev_wmi *wmi, struct sk_buff *skb,
  				      u32 cmd_id)
  {
-@@ -8367,15 +8376,23 @@ ath11k_wmi_process_csa_switch_count_even
+@@ -8368,15 +8377,23 @@ ath11k_wmi_process_csa_switch_count_even
  					  const struct wmi_pdev_csa_switch_ev *ev,
  					  const u32 *vdev_ids)
  {

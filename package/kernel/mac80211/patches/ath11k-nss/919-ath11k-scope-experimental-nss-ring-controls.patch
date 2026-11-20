@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:52 +0800
 Subject: [PATCH] wifi: ath11k: restrict experimental NSS ring controls
 
 Decide external-radio BAR reachability before replacing host ring masks and expose experimental ownership switches only in explicit debug builds. VDEV unwind and peer authorization live in their corresponding earlier integration units.
@@ -37,7 +37,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  MODULE_PARM_DESC(nss_prefill, "Fill the receive-DMA ring from here as well");
  
  static const struct ath11k_hw_params ath11k_hw_params[] = {
-@@ -2831,6 +2837,14 @@ static int ath11k_init_hw_params(struct
+@@ -2817,6 +2823,14 @@ static int ath11k_init_hw_params(struct
  			  (ab->hw_rev == ATH11K_HW_IPQ8074_HW20 ||
  			   ab->hw_rev == ATH11K_HW_IPQ6018_HW10 ||
  			   ab->hw_rev == ATH11K_HW_QCN9074_HW10);

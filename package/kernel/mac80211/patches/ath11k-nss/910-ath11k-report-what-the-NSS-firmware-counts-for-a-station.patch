@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:51 +0800
 Subject: [PATCH] ath11k: report what the NSS firmware counts for a station
 
 Offloaded frames never pass mac80211, so a station's inactive time grows
@@ -103,7 +103,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  		ath11k_nss_wifi_ring(&soc->tcl[i], ab,
 --- a/drivers/net/wireless/ath/ath11k/mac.c
 +++ b/drivers/net/wireless/ath/ath11k/mac.c
-@@ -9818,6 +9818,21 @@ static void ath11k_mac_op_sta_statistics
+@@ -9819,6 +9819,21 @@ static void ath11k_mac_op_sta_statistics
  		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
  	}
  

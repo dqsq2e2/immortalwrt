@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:23:51 +0800
+Date: Sun, 15 Nov 2026 09:40:08 +0800
 Subject: [PATCH] wifi: ath11k: drain QMI before recovery on device removal
 
 A QMI event that passed the unregister check can queue restart_work
@@ -18,7 +18,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/ahb.c
 +++ b/drivers/net/wireless/ath/ath11k/ahb.c
-@@ -1319,9 +1319,7 @@ static void ath11k_ahb_remove_prepare(st
+@@ -1350,9 +1350,7 @@ static void ath11k_ahb_remove_prepare(st
  			ath11k_warn(ab, "failed to receive recovery response completion\n");
  	}
  
@@ -31,7 +31,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static void ath11k_ahb_free_resources(struct ath11k_base *ab)
 --- a/drivers/net/wireless/ath/ath11k/core.c
 +++ b/drivers/net/wireless/ath/ath11k/core.c
-@@ -2676,6 +2676,9 @@ static void ath11k_core_restart(struct w
+@@ -2665,6 +2665,9 @@ static void ath11k_core_restart(struct w
  	struct ath11k_base *ab = container_of(work, struct ath11k_base, restart_work);
  	int ret;
  
@@ -41,7 +41,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	ret = ath11k_core_reconfigure_on_crash(ab);
  	if (ret) {
  		ath11k_err(ab, "failed to reconfigure driver on crash recovery\n");
-@@ -2905,6 +2908,20 @@ err_unregister_pm_notifier:
+@@ -2891,6 +2894,20 @@ err_unregister_pm_notifier:
  }
  EXPORT_SYMBOL(ath11k_core_init);
  

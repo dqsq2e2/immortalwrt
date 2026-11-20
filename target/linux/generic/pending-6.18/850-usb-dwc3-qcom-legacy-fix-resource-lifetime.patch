@@ -1,0 +1,170 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Sat, 14 Nov 2026 20:44:32 +0800
+Subject: [PATCH] usb: dwc3: qcom: keep resources active around core lifetime
+
+The DWC3 child probes and accesses its registers synchronously during
+of_platform_populate(). Establish interconnect requests first so that
+clock-backed providers, such as the IPQ5332 GCC, enable the USB bus before
+those accesses. Otherwise rebinding the controller after the previous
+requests have been released can hang the bus and reset the system.
+
+Read maximum-speed from the child node before creating the device, keeping
+the existing High-Speed and SuperSpeed bandwidth choices. Release the
+requests only after the child is removed on probe errors as well.
+
+Keep runtime PM active and disable its callbacks before removing children
+or releasing clocks and interconnects. This also prevents a late suspend
+callback from accessing the released QSCRATCH region and balances the
+explicit runtime reference after cleanup.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/drivers/usb/dwc3/dwc3-qcom-legacy.c
++++ b/drivers/usb/dwc3/dwc3-qcom-legacy.c
+@@ -241,9 +241,10 @@ static int dwc3_qcom_interconnect_disabl
+  * @qcom:			Pointer to the concerned usb core.
+  *
+  */
+-static int dwc3_qcom_interconnect_init(struct dwc3_qcom *qcom)
++static int dwc3_qcom_interconnect_init(struct dwc3_qcom *qcom,
++				       struct device_node *dwc3_np)
+ {
+-	enum usb_device_speed max_speed;
++	const char *maximum_speed;
+ 	struct device *dev = qcom->dev;
+ 	int ret;
+ 
+@@ -260,13 +261,15 @@ static int dwc3_qcom_interconnect_init(s
+ 		goto put_path_ddr;
+ 	}
+ 
+-	max_speed = usb_get_maximum_speed(&qcom->dwc3->dev);
+-	if (max_speed >= USB_SPEED_SUPER || max_speed == USB_SPEED_UNKNOWN) {
++	if (!of_property_read_string(dwc3_np, "maximum-speed", &maximum_speed) &&
++	    (!strcmp(maximum_speed, "low-speed") ||
++	     !strcmp(maximum_speed, "full-speed") ||
++	     !strcmp(maximum_speed, "high-speed"))) {
+ 		ret = icc_set_bw(qcom->icc_path_ddr,
+-				USB_MEMORY_AVG_SS_BW, USB_MEMORY_PEAK_SS_BW);
++				 USB_MEMORY_AVG_HS_BW, USB_MEMORY_PEAK_HS_BW);
+ 	} else {
+ 		ret = icc_set_bw(qcom->icc_path_ddr,
+-				USB_MEMORY_AVG_HS_BW, USB_MEMORY_PEAK_HS_BW);
++				 USB_MEMORY_AVG_SS_BW, USB_MEMORY_PEAK_SS_BW);
+ 	}
+ 	if (ret) {
+ 		dev_err(dev, "failed to set bandwidth for usb-ddr path: %d\n", ret);
+@@ -700,23 +703,18 @@ static int dwc3_qcom_clk_init(struct dwc
+ 	return 0;
+ }
+ 
+-static int dwc3_qcom_of_register_core(struct platform_device *pdev)
++static int dwc3_qcom_of_register_core(struct platform_device *pdev,
++				      struct device_node *dwc3_np)
+ {
+ 	struct dwc3_qcom	*qcom = platform_get_drvdata(pdev);
+ 	struct device_node	*np = pdev->dev.of_node;
+ 	struct device		*dev = &pdev->dev;
+ 	int			ret;
+ 
+-	struct device_node *dwc3_np __free(device_node) = of_get_compatible_child(np,
+-										  "snps,dwc3");
+-	if (!dwc3_np) {
+-		dev_err(dev, "failed to find dwc3 core child\n");
+-		return -ENODEV;
+-	}
+-
+ 	ret = of_platform_populate(np, NULL, NULL, dev);
+ 	if (ret) {
+ 		dev_err(dev, "failed to register dwc3 core - %d\n", ret);
++		of_platform_depopulate(dev);
+ 		return ret;
+ 	}
+ 
+@@ -738,6 +736,11 @@ static int dwc3_qcom_probe(struct platfo
+ 	int			ret, i;
+ 	bool			ignore_pipe_clk;
+ 	bool			wakeup_source;
++	struct device_node *dwc3_np __free(device_node) =
++		of_get_compatible_child(np, "snps,dwc3");
++
++	if (!dwc3_np)
++		return dev_err_probe(dev, -ENODEV, "failed to find dwc3 core child\n");
+ 
+ 	qcom = devm_kzalloc(&pdev->dev, sizeof(*qcom), GFP_KERNEL);
+ 	if (!qcom)
+@@ -793,16 +796,17 @@ static int dwc3_qcom_probe(struct platfo
+ 	if (ignore_pipe_clk)
+ 		dwc3_qcom_select_utmi_clk(qcom);
+ 
+-	ret = dwc3_qcom_of_register_core(pdev);
++	/* The child can access its registers as soon as it is registered. */
++	ret = dwc3_qcom_interconnect_init(qcom, dwc3_np);
++	if (ret)
++		goto clk_disable;
++
++	ret = dwc3_qcom_of_register_core(pdev, dwc3_np);
+ 	if (ret) {
+ 		dev_err(dev, "failed to register DWC3 Core, err=%d\n", ret);
+-		goto clk_disable;
++		goto interconnect_exit;
+ 	}
+ 
+-	ret = dwc3_qcom_interconnect_init(qcom);
+-	if (ret)
+-		goto depopulate;
+-
+ 	qcom->mode = usb_get_dr_mode(&qcom->dwc3->dev);
+ 
+ 	/* enable vbus override for device mode */
+@@ -812,7 +816,7 @@ static int dwc3_qcom_probe(struct platfo
+ 	/* register extcon to override sw_vbus on Vbus change later */
+ 	ret = dwc3_qcom_register_extcon(qcom);
+ 	if (ret)
+-		goto interconnect_exit;
++		goto depopulate;
+ 
+ 	wakeup_source = of_property_read_bool(dev->of_node, "wakeup-source");
+ 	device_init_wakeup(&pdev->dev, wakeup_source);
+@@ -825,11 +829,11 @@ static int dwc3_qcom_probe(struct platfo
+ 
+ 	return 0;
+ 
+-interconnect_exit:
+-	dwc3_qcom_interconnect_exit(qcom);
+ depopulate:
+ 	of_platform_depopulate(&pdev->dev);
+ 	platform_device_put(qcom->dwc3);
++interconnect_exit:
++	dwc3_qcom_interconnect_exit(qcom);
+ clk_disable:
+ 	for (i = qcom->num_clocks - 1; i >= 0; i--) {
+ 		clk_disable_unprepare(qcom->clks[i]);
+@@ -847,11 +851,16 @@ static void dwc3_qcom_remove(struct plat
+ 	struct device *dev = &pdev->dev;
+ 	int i;
+ 
++	pm_runtime_get_sync(dev);
++	pm_runtime_allow(dev);
++	pm_runtime_disable(dev);
++
+ 	of_platform_depopulate(&pdev->dev);
+ 	platform_device_put(qcom->dwc3);
+ 
+ 	for (i = qcom->num_clocks - 1; i >= 0; i--) {
+-		clk_disable_unprepare(qcom->clks[i]);
++		if (!qcom->is_suspended)
++			clk_disable_unprepare(qcom->clks[i]);
+ 		clk_put(qcom->clks[i]);
+ 	}
+ 	qcom->num_clocks = 0;
+@@ -859,8 +868,7 @@ static void dwc3_qcom_remove(struct plat
+ 	dwc3_qcom_interconnect_exit(qcom);
+ 	reset_control_assert(qcom->resets);
+ 
+-	pm_runtime_allow(dev);
+-	pm_runtime_disable(dev);
++	pm_runtime_put_noidle(dev);
+ }
+ 
+ static int __maybe_unused dwc3_qcom_pm_suspend(struct device *dev)

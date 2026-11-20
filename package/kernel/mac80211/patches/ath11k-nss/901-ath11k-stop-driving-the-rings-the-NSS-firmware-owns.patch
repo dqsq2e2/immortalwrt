@@ -1,5 +1,5 @@
 From: Julius Bairaktaris <julius@bairaktaris.de>
-Date: Wed, 11 Nov 2026 16:11:45 +0800
+Date: Sun, 15 Nov 2026 09:40:51 +0800
 Subject: [PATCH] ath11k: stop driving the rings the NSS firmware owns
 
 The NSS firmware reaps and fills the data-path rings once its Wi-Fi data
@@ -73,7 +73,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  static const struct ath11k_hw_params ath11k_hw_params[] = {
  	{
  		.hw_rev = ATH11K_HW_IPQ9574_HW10,
-@@ -2626,7 +2642,8 @@ void ath11k_core_pre_reconfigure_recover
+@@ -2615,7 +2631,8 @@ void ath11k_core_pre_reconfigure_recover
  	reinit_completion(&ab->driver_recovery);
  }
  
@@ -83,7 +83,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  {
  	struct ath11k *ar;
  	struct ath11k_pdev *pdev;
-@@ -2644,7 +2661,8 @@ static void ath11k_core_post_reconfigure
+@@ -2633,7 +2650,8 @@ static void ath11k_core_post_reconfigure
  		case ATH11K_STATE_ON:
  			ar->state = ATH11K_STATE_RESTARTING;
  			ath11k_core_halt(ar);
@@ -93,7 +93,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		case ATH11K_STATE_OFF:
  			ath11k_warn(ab,
-@@ -2652,6 +2670,8 @@ static void ath11k_core_post_reconfigure
+@@ -2641,6 +2659,8 @@ static void ath11k_core_post_reconfigure
  				    i);
  			break;
  		case ATH11K_STATE_RESTARTING:
@@ -102,7 +102,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  			break;
  		case ATH11K_STATE_RESTARTED:
  			ar->state = ATH11K_STATE_WEDGED;
-@@ -2688,8 +2708,8 @@ static void ath11k_core_restart(struct w
+@@ -2677,8 +2697,8 @@ static void ath11k_core_restart(struct w
  	if (ab->is_reset)
  		complete_all(&ab->reconfigure_complete);
  
@@ -113,7 +113,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  
  	complete(&ab->restart_completed);
  }
-@@ -2752,12 +2772,18 @@ static void ath11k_core_reset(struct wor
+@@ -2741,12 +2761,18 @@ static void ath11k_core_reset(struct wor
  	ath11k_core_pre_reconfigure_recovery(ab);
  
  	reinit_completion(&ab->reconfigure_complete);
@@ -134,9 +134,9 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
 +					ATH11K_RECOVER_START_TIMEOUT_HZ);
 +	}
  
- 	ath11k_hif_irq_disable(ab);
- 	ath11k_hif_ce_irq_disable(ab);
-@@ -2788,6 +2814,29 @@ static int ath11k_init_hw_params(struct
+ 	ath11k_hif_power_down(ab, false);
+ 	ath11k_hif_power_up(ab);
+@@ -2774,6 +2800,29 @@ static int ath11k_init_hw_params(struct
  
  	ab->hw_params = *hw_params;
  
@@ -320,7 +320,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (control->sta)
  		arsta = ath11k_sta_to_arsta(control->sta);
  
-@@ -7453,7 +7459,7 @@ static void ath11k_mac_vif_unref(struct
+@@ -7454,7 +7460,7 @@ static void ath11k_mac_vif_unref(struct
  	struct ath11k_skb_cb *skb_cb;
  	u32 id;
  

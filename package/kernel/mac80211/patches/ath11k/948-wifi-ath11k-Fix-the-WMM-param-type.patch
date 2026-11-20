@@ -1,6 +1,6 @@
 From c420c1f66235b5ab4fc8d94da72bd5ae6397117f Mon Sep 17 00:00:00 2001
 From: Gautham Kumar Senthilkumaran <gauthamk@qti.qualcomm.com>
-Date: Mon, 19 Jan 2026 11:55:51 +0100
+Date: Sun, 15 Nov 2026 09:38:47 +0800
 Subject: [PATCH] wifi: ath11k: Fix the WMM param type
 
 Since FW does not support the 11ax EDCA parameter in WMI TLV command.
@@ -10,6 +10,8 @@ WMM parameter type as default zero before sending to FW.
 Fixes: b78c02f7c710 ("wifi: ath11k: add support for MU EDCA")
 Signed-off-by: Gautham Kumar Senthilkumaran <gauthamk@qti.qualcomm.com>
 Signed-off-by: Paweł Owoc <frut3k7@gmail.com>
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
 
 --- a/drivers/net/wireless/ath/ath11k/wmi.c
 +++ b/drivers/net/wireless/ath/ath11k/wmi.c

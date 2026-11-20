@@ -1,5 +1,5 @@
 From: ViKing <viking.yfy@qq.com>
-Date: Sun, 08 Nov 2026 10:34:02 +0800
+Date: Thu, 19 Nov 2026 00:24:27 +0800
 Subject: [PATCH v2] mac80211: notify the driver of AP isolation
 
 AP isolation is kept in an interface flag, so a driver whose device
@@ -49,7 +49,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	struct ieee80211_bss_conf __rcu *tx_bss_conf;
 --- a/net/mac80211/cfg.c
 +++ b/net/mac80211/cfg.c
-@@ -3428,6 +3428,8 @@ static int ieee80211_change_bss(struct w
+@@ -3534,6 +3534,8 @@ static int ieee80211_change_bss(struct w
  		else
  			sdata->flags &= ~IEEE80211_SDATA_DONT_BRIDGE_PACKETS;
  		ieee80211_check_fast_rx_iface(sdata);
@@ -60,7 +60,7 @@ Signed-off-by: ViKing <viking.yfy@qq.com>
  	if (params->ht_opmode >= 0) {
 --- a/net/mac80211/util.c
 +++ b/net/mac80211/util.c
-@@ -2189,6 +2189,9 @@ int ieee80211_reconfig(struct ieee80211_
+@@ -2190,6 +2190,9 @@ int ieee80211_reconfig(struct ieee80211_
  			if (sdata->vif.type == NL80211_IFTYPE_AP) {
  				changed |= BSS_CHANGED_AP_PROBE_RESP;
  

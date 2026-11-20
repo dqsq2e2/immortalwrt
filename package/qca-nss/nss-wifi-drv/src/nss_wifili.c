@@ -44,9 +44,9 @@
 /* Transmit descriptors per pool. The firmware holds one for every frame in
  * flight and refuses the frame when it cannot get one, silently as far as the
  * host is concerned - only the firmware's own desc_alloc_fail counter shows
- * it, and at 512 it still dropped frames on a busy radio; at 8192 the counter
- * stayed at zero. The probe below hands over a single page and keeps a pool
- * that fits it.
+ * it, and at 512 it still dropped frames on a busy radio. Use 4096 on small
+ * memory boards for moderate bursts and 8192 on larger boards. The probe
+ * below hands over a single page and keeps a pool that fits it.
  */
 #define NSS_WIFILI_TX_DESC		8192
 #define NSS_WIFILI_PROBE_TX_DESC	512
@@ -1442,7 +1442,7 @@ int nss_wifi_vdev_security(int if_num, u32 cipher)
 	if (!ret && v->cm.error)
 		ret = -EIO;
 
-	dev_info(core->dev, "interface %d protects frames with %u\n", if_num,
+	dev_dbg(core->dev, "interface %d protects frames with %u\n", if_num,
 		 v->msg.vdev_cmd.value);
 
 	kfree(v);
@@ -1637,7 +1637,7 @@ int nss_wifi_peer_create(int id, u32 vdev_id, const u8 *mac, u16 peer_id,
 	 * or hash of zero is what an unmapped peer looks like, and a frame
 	 * built on one is dropped after the ring rather than at it.
 	 */
-	dev_info(core->dev, "peer %pM: id %u ast_idx %u ast_hash %#x vdev %u\n",
+	dev_dbg(core->dev, "peer %pM: id %u ast_idx %u ast_hash %#x vdev %u\n",
 		 mac, peer_id, hw_ast_idx, tx_ast_hash, vdev_id);
 
 	nss_wifili_peer_tbl[i].soc = soc;
@@ -1686,7 +1686,7 @@ static void nss_wifili_peer_release(struct nss_core *core, int i)
 		return;
 	}
 
-	dev_info(core->dev, "peer %pM: id %u released from vdev %u\n",
+	dev_dbg(core->dev, "peer %pM: id %u released from vdev %u\n",
 		 nss_wifili_peer_tbl[i].mac, nss_wifili_peer_tbl[i].peer_id,
 		 nss_wifili_peer_tbl[i].vdev_id);
 
@@ -1938,7 +1938,7 @@ int nss_wifi_wds_vdev_register(struct net_device *dev, struct net_device *parent
 	rcu_assign_pointer(core->iface[if_num], dev);
 	set_bit(if_num, nss_wifili_vdev_on);
 	set_bit(if_num, nss_wifili_vdev_live);
-	dev_info(core->dev, "WDS %s: interface %d parent %d peer %u\n",
+	dev_dbg(core->dev, "WDS %s: interface %d parent %d peer %u\n",
 		 dev->name, if_num, p->if_num, peer_id);
 	return if_num;
 }
@@ -2729,14 +2729,13 @@ int nss_wifili_tx(struct seq_file *s)
  * hardware, and the start that puts the firmware's workers on the rings -
  * needs rings that exist, and these are them.
  */
-/* The Wi-Fi share of the payload pool, and the transmit budget a radio is
- * given for each of the four peer-count ranges. Both are what the working
- * configuration puts on the wire on this board.
+/* The Wi-Fi share of the payload pool and each radio's transmit budget.
+ * Zero selects the physical-memory profile before the first WLAN starts.
  */
-static unsigned int nss_wifili_payloads = 8192;
+static unsigned int nss_wifili_payloads;
 module_param_named(payloads, nss_wifili_payloads, uint, 0644);
 
-static unsigned int nss_wifili_radio_bufs = 8192;
+static unsigned int nss_wifili_radio_bufs;
 module_param_named(radio_bufs, nss_wifili_radio_bufs, uint, 0644);
 
 static unsigned int nss_wifili_mem_profile;
@@ -2890,6 +2889,7 @@ static int nss_wifili_soc_start(struct nss_core *core,
 {
 	const struct nss_wifi_soc *desc = &soc->desc;
 	u32 ifnum = nss_wifili_soc_ifnum(soc);
+	u32 tx_desc = nss_low_mem() ? 4096 : NSS_WIFILI_TX_DESC;
 	struct nss_wifili_msg *m;
 	bool first = !core->wifili_probed;
 	bool inited = false;
@@ -2898,13 +2898,17 @@ static int nss_wifili_soc_start(struct nss_core *core,
 	m = kzalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
 		return -ENOMEM;
+	if (!nss_wifili_payloads)
+		nss_wifili_payloads = nss_low_mem() ? 4096 : 8192;
+	if (!nss_wifili_radio_bufs)
+		nss_wifili_radio_bufs = nss_low_mem() ? 4096 : 8192;
 
 	/* The transmit descriptors are the firmware's to carve up and the
 	 * host's to provide, so they are not part of what the WLAN driver
 	 * describes.
 	 */
 	ret = nss_wifili_txdesc_get(core, soc,
-				    NSS_WIFILI_TX_DESC_MEM(NSS_WIFILI_TX_DESC,
+				    NSS_WIFILI_TX_DESC_MEM(tx_desc,
 							   soc->pdevs,
 							   NSS_WIFILI_TX_DESC_STRIDE));
 	if (ret)
@@ -2912,7 +2916,7 @@ static int nss_wifili_soc_start(struct nss_core *core,
 
 	soc->txext = soc->txpages;
 	ret = nss_wifili_txdesc_get(core, soc,
-				    NSS_WIFILI_TX_DESC_MEM(NSS_WIFILI_TX_DESC,
+				    NSS_WIFILI_TX_DESC_MEM(tx_desc,
 							   soc->pdevs,
 							   NSS_WIFILI_TX_DESC_EXT_STRIDE));
 	if (ret)
@@ -2959,15 +2963,15 @@ static int nss_wifili_soc_start(struct nss_core *core,
 	 * sized.
 	 */
 	m->msg.init.wtdim.num_pool = soc->pdevs;
-	m->msg.init.wtdim.num_tx_desc = NSS_WIFILI_TX_DESC;
-	m->msg.init.wtdim.num_tx_desc_ext = NSS_WIFILI_TX_DESC;
+	m->msg.init.wtdim.num_tx_desc = tx_desc;
+	m->msg.init.wtdim.num_tx_desc_ext = tx_desc;
 	if (soc->pdevs > 1) {
-		m->msg.init.wtdim.num_tx_desc_2 = NSS_WIFILI_TX_DESC;
-		m->msg.init.wtdim.num_tx_desc_ext_2 = NSS_WIFILI_TX_DESC;
+		m->msg.init.wtdim.num_tx_desc_2 = tx_desc;
+		m->msg.init.wtdim.num_tx_desc_ext_2 = tx_desc;
 	}
 	if (soc->pdevs > 2) {
-		m->msg.init.wtdim.num_tx_desc_3 = NSS_WIFILI_TX_DESC;
-		m->msg.init.wtdim.num_tx_desc_ext_3 = NSS_WIFILI_TX_DESC;
+		m->msg.init.wtdim.num_tx_desc_3 = tx_desc;
+		m->msg.init.wtdim.num_tx_desc_ext_3 = tx_desc;
 	}
 
 	m->msg.init.wtdim.num_memaddr = soc->txpages;
@@ -2976,8 +2980,7 @@ static int nss_wifili_soc_start(struct nss_core *core,
 		m->msg.init.wtdim.memory_size[i] = soc->txdesc[i].size;
 	}
 	m->msg.init.wtdim.ext_desc_page_num = soc->txext;
-	m->msg.init.wtdim.num_tx_device_limit = NSS_WIFILI_TX_DESC *
-						soc->pdevs;
+	m->msg.init.wtdim.num_tx_device_limit = tx_desc * soc->pdevs;
 
 	/* Left at zero, the core takes a range trap seconds after it starts. */
 	m->msg.init.tx_sw_internode_queue_size = NSS_WIFILI_TX_PROCESSQ;
