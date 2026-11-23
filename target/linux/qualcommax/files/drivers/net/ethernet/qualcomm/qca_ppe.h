@@ -1301,6 +1301,7 @@
 #define PPE_FDB_OP_ENTRY_IDX		GENMASK(21, 11)
 
 #define PPE_FDB_RSLT_CMD_ID		GENMASK(3, 0)
+#define PPE_FDB_RSLT_FAILED		BIT(4)
 
 #define PPE_FDB_DATA1_VALID		BIT(16)
 #define PPE_FDB_DATA1_LKP_VALID		BIT(17)
@@ -2013,6 +2014,8 @@ int ppe_routed_xlt_idx_alloc(struct qca_ppe_priv *priv);
 void ppe_xlt_idx_free(struct qca_ppe_priv *priv, int *idx);
 struct qca_ppe_vlan_entry *ppe_vlan_find(struct qca_ppe_priv *priv,
 					 struct net_device *br_dev, u16 vid);
+int ppe_fdb_replay_vlan(struct qca_ppe_priv *priv, struct dsa_port *cpu_dp,
+			const struct qca_ppe_vlan_entry *vlan);
 
 int qca_ppe_vlan_setup(struct dsa_switch *ds);
 int ppe_dsa_core_port_set_base(struct qca_ppe_priv *priv, int port, bool core);

@@ -1,5 +1,6 @@
 let libubus = require("ubus");
 import * as uloop from "uloop";
+import * as nl80211 from "nl80211";
 import { open, readfile, access } from "fs";
 import { wdev_remove, is_equal, vlist_new, phy_is_fullmac, phy_open, wdev_set_radio_mask, wdev_set_up, macaddr_keep, macaddr_sync, macaddr_sync_defer, macaddr_sync_entry, macaddr_release_defer, mld_prev_match } from "common";
 
@@ -374,6 +375,7 @@ function __iface_pending_next(pending, state, ret, data)
 			});
 			if (err) {
 				hostapd.printf(`Failed to create ${bss.ifname} on phy ${phy}: ${err}`);
+				hostapd.data.setup_errors[phy] = 'AP_INTERFACE_CREATE_FAILED';
 				iface_supplicant_start(phydev);
 				return null;
 			}
@@ -407,8 +409,10 @@ function __iface_pending_next(pending, state, ret, data)
 		if (iface_pending_phy_wait(pending))
 			return "wpas_stopped";
 
-		if (!iface_add(phy, config))
+		if (!iface_add(phy, config)) {
 			hostapd.printf(`hostapd.add_iface failed for phy ${phy} ifname=${bss.ifname}`);
+			hostapd.data.setup_errors[phy] = 'AP_INTERFACE_START_FAILED';
+		}
 		pending.call("wpa_supplicant", "phy_set_state", {
 			phy: phydev.phy,
 			radio: phydev.radio ?? -1,
@@ -436,6 +440,7 @@ function iface_pending_next(ret, data)
 			}
 		} catch(e) {
 			hostapd.printf(`Exception: ${e}\n${e.stacktrace[0].context}`);
+			hostapd.data.setup_errors[cfg.phy] = 'AP_SETUP_FAILED';
 			iface_supplicant_start(cfg.phydev);
 			__iface_pending_next(cfg, "done");
 			return;
@@ -518,6 +523,8 @@ function iface_link_reload_cancel(name)
 function iface_restart(phydev, config, old_config)
 {
 	let phy = phydev.name;
+	hostapd.data.setup_errors ??= {};
+	delete hostapd.data.setup_errors[phy];
 	let pending = hostapd.data.pending_config[phy];
 
 	csa_timer_cancel(phy);
@@ -542,7 +549,7 @@ function iface_restart(phydev, config, old_config)
 		hostapd.printf(`No bss for phy ${phy}`);
 		if (pending)
 			iface_supplicant_start(phydev);
-		return;
+		return false;
 	}
 
 	iface_macaddr_prune(phydev.name, config);
@@ -559,11 +566,12 @@ function iface_restart(phydev, config, old_config)
 				delete cur.bssid;
 		if (pending)
 			iface_supplicant_start(phydev);
-		return;
+		return false;
 	}
 	iface_macaddr_sync(phydev, config);
 
 	iface_pending_init(phydev, config);
+	return true;
 }
 
 function array_to_obj(arr, key, start)
@@ -1906,6 +1914,25 @@ function config_add_bss(config, name)
 	return bss;
 }
 
+function iface_acs_radio_ranges(phy, radio)
+{
+	if (radio == null)
+		return;
+
+	let phydev = phy_open(phy, radio);
+	if (!phydev)
+		return;
+
+	let wiphy = nl80211.request(nl80211.const.NL80211_CMD_GET_WIPHY,
+				   nl80211.const.NLM_F_DUMP,
+				   { wiphy: phydev.idx, split_wiphy_dump: true });
+	for (let r in wiphy?.radios) {
+		if (r.index == phydev.radio)
+			return join(",", map(r.freq_ranges ?? [],
+					     range => `${range.start}-${range.end}`));
+	}
+}
+
 function iface_load_config(phy, radio, filename)
 {
 	if (radio < 0)
@@ -2005,6 +2032,12 @@ function iface_load_config(phy, radio, filename)
 		push(bss.data, line);
 	}
 	f.close();
+
+	if (config.radio.channel in [ "0", "acs_survey" ]) {
+		let ranges = iface_acs_radio_ranges(phy, radio);
+		if (ranges)
+			push(config.radio.data, "acs_radio_ranges=" + ranges);
+	}
 
 	for (let bss in config.bss)
 		if (!bss.bssid)
@@ -2562,13 +2595,32 @@ let main_obj = {
 			let config = iface_load_config(phy, radio, file);
 
 			hostapd.printf(`Set new config for phy ${name}: ${file}`);
-			iface_set_config(name, config);
+			hostapd.data.setup_errors ??= {};
+			delete hostapd.data.setup_errors[name];
+			let accepted = (!file || config) && iface_set_config(name, config) !== false;
+			if (!accepted)
+				hostapd.data.setup_errors[name] = 'AP_CONFIG_REJECTED';
 
 			if (hostapd.data.auth_obj)
 				hostapd.data.auth_obj.notify("reload", { phy, radio });
 
 			return {
-				pid: hostapd.getpid()
+				pid: hostapd.getpid(), accepted: !!accepted
+			};
+		}
+	},
+	config_status: {
+		args: { phy: "", radio: 0 },
+		call: function(req) {
+			if (!req.args.phy)
+				return libubus.STATUS_INVALID_ARGUMENT;
+			let name = phy_name(req.args.phy, req.args.radio);
+			let iface = hostapd.interfaces[name];
+			return {
+				status: hostapd.data.apsta_stopped[name] ? "WAITING_STA" :
+					(hostapd.data.pending_config[name] || hostapd.data.link_reload[name]) ? "STARTING" :
+					iface?.state(),
+				error: hostapd.data.setup_errors?.[name],
 			};
 		}
 	},

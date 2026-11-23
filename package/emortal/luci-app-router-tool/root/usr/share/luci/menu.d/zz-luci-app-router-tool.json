@@ -1,4 +1,10 @@
 {
+	"admin/status/overview": {
+		"action": {
+			"type": "template",
+			"path": "admin_status/overview-router-tool"
+		}
+	},
 	"admin/network/network": {
 		"action": {
 			"type": "view",
@@ -6,6 +12,22 @@
 		},
 		"depends": {
 			"acl": [ "luci-mod-network-config", "luci-app-router-tool" ]
+		}
+	},
+	"admin/network/wireless": {
+		"action": {
+			"type": "view",
+			"path": "network/wireless-router-tool"
+		}
+	},
+	"admin/network/router_tool_wireless_status": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_wireless_status"
+		},
+		"depends": {
+			"acl": [ "luci-mod-network-config" ]
 		}
 	},
 	"admin/uci/router_tool_prepare": {
@@ -20,6 +42,17 @@
 		},
 		"auth": {
 			"methods": [ "cookie:sysauth_https", "cookie:sysauth_http" ]
+		}
+	},
+	"admin/uci/router_tool_plan": {
+		"action": {
+			"type": "function",
+			"module": "luci.controller.admin.router_tool",
+			"function": "action_routed_plan",
+			"post": true
+		},
+		"depends": {
+			"acl": [ "luci-mod-network-config", "luci-app-router-tool" ]
 		}
 	},
 	"admin/uci/apply_rollback": {

@@ -142,13 +142,13 @@ ppe_vlan_alloc(struct qca_ppe_priv *priv, struct net_device *br_dev,
 	struct qca_ppe_vlan_entry *entry;
 	int vsi, i;
 
-	vsi = ppe_vsi_alloc(priv);
-	if (vsi < 0)
-		return NULL;
-
 	for (i = 0; i < PPE_VSI_MAX; i++) {
 		if (priv->vlans[i].br_dev)
 			continue;
+
+		vsi = ppe_vsi_alloc(priv);
+		if (vsi < 0)
+			return ERR_PTR(vsi);
 
 		entry = &priv->vlans[i];
 		entry->br_dev = br_dev;
@@ -160,8 +160,7 @@ ppe_vlan_alloc(struct qca_ppe_priv *priv, struct net_device *br_dev,
 		return entry;
 	}
 
-	ppe_vsi_free(priv, vsi);
-	return NULL;
+	return ERR_PTR(-ENOSPC);
 }
 
 static void ppe_vlan_free(struct qca_ppe_priv *priv,
@@ -315,39 +314,52 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 	struct net_device *br_dev = priv->port_br_dev[port];
+	struct dsa_port *cpu_dp = dsa_to_port(ds, QCA_PPE_CPU_PORT);
 	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
 	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
 	struct qca_ppe_vlan_entry *entry;
 	u16 vid = vlan->vid;
-	int idx;
+	int idx, ret;
 
 	if (!br_dev)
 		return 0;
 
+	/* DSA's CPU FDB callbacks also take the address list lock before
+	 * vlan_lock. Keep replay and VSI publication in the same critical section.
+	 */
+	guard(mutex)(&cpu_dp->addr_lists_lock);
 	guard(mutex)(&priv->flow_lock);
 	guard(mutex)(&priv->vlan_lock);
 
 	entry = ppe_vlan_find(priv, br_dev, vid);
 	if (!entry) {
 		entry = ppe_vlan_alloc(priv, br_dev, vid);
-		if (!entry)
-			return -ENOSPC;
+		if (IS_ERR(entry)) {
+			if (PTR_ERR(entry) == -ENOSPC)
+				NL_SET_ERR_MSG_MOD(extack, "No free PPE VLAN VSI");
+			return PTR_ERR(entry);
+		}
 	}
 
 	if (entry->xlt_idx < 0) {
 		idx = ppe_xlt_idx_alloc(priv);
 		if (idx < 0)
-			goto err_free_entry;
+			goto err_xlt;
 		entry->xlt_idx = idx;
 	}
 
 	if (pvid && entry->xlt_pvid_idx < 0) {
 		idx = ppe_xlt_idx_alloc(priv);
 		if (idx < 0)
-			goto err_free_entry;
+			goto err_xlt;
 		entry->xlt_pvid_idx = idx;
 	}
 
+	if (!entry->ports) {
+		ret = ppe_fdb_replay_vlan(priv, cpu_dp, entry);
+		if (ret)
+			goto err_free_entry;
+	}
 	entry->ports |= BIT(port);
 
 	/* The action names the VSI the rule classifies into, so it is programmed
@@ -398,10 +410,13 @@ int qca_ppe_port_vlan_add(struct dsa_switch *ds, int port,
 
 	return 0;
 
+err_xlt:
+	NL_SET_ERR_MSG_MOD(extack, "No free PPE bridge VLAN translation entry");
+	ret = -ENOSPC;
 err_free_entry:
 	if (!entry->ports)
 		ppe_vlan_free(priv, entry);
-	return -ENOSPC;
+	return ret;
 }
 
 int qca_ppe_port_vlan_del(struct dsa_switch *ds, int port,
