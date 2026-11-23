@@ -22,6 +22,17 @@ def digest(path):
         return hashlib.file_digest(src, "sha256").hexdigest()
 
 
+def check_ext4(image):
+    # make_ext4fs leaves unused inode bitmap bits clear. Normalize them before packaging.
+    env = os.environ.copy()
+    if epoch := env.get("SOURCE_DATE_EPOCH"):
+        env["E2FSPROGS_FAKE_TIME"] = epoch
+    repair = subprocess.run(["e2fsck", "-f", "-p", image], env=env)
+    if repair.returncode not in (0, 1):
+        repair.check_returncode()
+    subprocess.run(["e2fsck", "-f", "-n", image], check=True, env=env)
+
+
 def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
     if boot_mib <= 0 or root_mib <= 0:
         raise ValueError("Invalid partition size")
@@ -42,13 +53,16 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
     if not 0 < rootfs.stat().st_size <= root_mib * MIB:
         raise ValueError("Root filesystem does not fit its partition")
 
-    # RKdev renumbers these partitions when it installs into the system area,
-    # while preserving their GPT UUIDs. Use the UUID in both boot layouts.
-    disk_guid = uuid.uuid5(NAMESPACE, ":".join(digest(p) for p in (kernel, dtb, rootfs)))
-    boot_guid, root_guid = (uuid.uuid5(disk_guid, name) for name in ("boot", "rootfs"))
-
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".bq3588c-") as tmp:
         base = Path(tmp)
+        root_image = base / "rootfs.ext4"
+        subprocess.run(["cp", "--reflink=auto", "--sparse=always", rootfs, root_image], check=True)
+        check_ext4(root_image)
+
+        # RKdev renumbers partitions while preserving their GPT UUIDs.
+        disk_guid = uuid.uuid5(NAMESPACE, ":".join(digest(p) for p in (kernel, dtb, root_image)))
+        boot_guid, root_guid = (uuid.uuid5(disk_guid, name) for name in ("boot", "rootfs"))
+
         boot = base / "boot"
         (boot / "extlinux").mkdir(parents=True)
         shutil.copyfile(kernel, boot / "Image")
@@ -70,6 +84,7 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
         if epoch := os.environ.get("SOURCE_DATE_EPOCH"):
             args.extend(("-T", epoch))
         subprocess.run(args + [boot_image, boot], check=True)
+        check_ext4(boot_image)
 
         root_start = BOOT_START + boot_mib
         end = root_start + root_mib
@@ -100,7 +115,7 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
             for offset in offsets:
                 disk.seek(offset)
                 disk.write(env_image.read_bytes())
-        for path, start in [(boot_image, BOOT_START), (rootfs, root_start)]:
+        for path, start in [(boot_image, BOOT_START), (root_image, root_start)]:
             subprocess.run(["dd", f"if={path}", f"of={image}", "bs=1M", f"seek={start}",
                             "conv=sparse,notrunc", "status=none"], check=True)
         image.replace(output)
