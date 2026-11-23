@@ -1,0 +1,22 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+[ "$ACTION" = add ] && [ -n "$INTERFACE" ] && [ "$INTERFACE" != fm650 ] || exit 0
+
+. /lib/functions.sh
+[ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
+
+iface="$(readlink -f "/sys/class/net/$INTERFACE/device")"
+case "$iface" in
+	*/fcd00000.usb/*/*-1/*-1:1.*) ;;
+	*) exit 0 ;;
+esac
+
+usb="${iface%/*}"
+[ "$(cat "$usb/idVendor" 2>/dev/null)" = 2cb7 ] || exit 0
+[ "$(cat "$usb/idProduct" 2>/dev/null)" = 0a05 ] || exit 0
+[ "$(basename "$(readlink "$iface/driver")")" = cdc_ncm ] || exit 0
+
+ip link set dev "$INTERFACE" name fm650 || exit 1
+[ -c /dev/fm650-at ] && [ "$(uci -q get network.wan.device)" = /dev/fm650-at ] && ifup wan
+exit 0

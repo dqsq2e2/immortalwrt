@@ -7,6 +7,11 @@ rockchip_setup_interfaces()
 	local board="$1"
 
 	case "$board" in
+	bearkey,bq3588c)
+		ucidef_set_network_device_path 'lan0' 'platform/fe1c0000.ethernet'
+		ucidef_set_interface_lan 'lan0'
+		ucidef_set_interface_wan 'fm650' 'ncm'
+		;;
 	9tripod,x3568-v4|\
 	ariaboard,photonicat|\
 	ariaboard,photonicat2|\

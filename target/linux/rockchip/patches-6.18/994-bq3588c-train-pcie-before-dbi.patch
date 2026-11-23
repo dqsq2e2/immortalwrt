@@ -1,0 +1,35 @@
+--- a/drivers/pci/controller/dwc/pcie-dw-rockchip.c
++++ b/drivers/pci/controller/dwc/pcie-dw-rockchip.c
+@@ -13,6 +13,7 @@
+ #include <linux/gpio/consumer.h>
+ #include <linux/hw_bitfield.h>
++#include <linux/iopoll.h>
+ #include <linux/irqchip/chained_irq.h>
+ #include <linux/irqdomain.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/module.h>
+@@ -309,9 +310,24 @@ static int rockchip_pcie_host_init(struct dw_pcie_rp *pp)
+ 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
+ 	struct rockchip_pcie *rockchip = to_rockchip_pcie(pci);
+ 	struct device *dev = rockchip->pci.dev;
++	u32 link;
+ 	int irq, ret;
+ 
++	if (of_machine_is_compatible("bearkey,bq3588c")) {
++		/* On this carrier an idle Gen3 port can stall DBI accesses. */
++		rockchip_pcie_configure_l1ss(pci);
++		rockchip_pcie_start_link(pci);
++		ret = readl_poll_timeout(rockchip->apb_base + PCIE_CLIENT_LTSSM_STATUS,
++					 link, FIELD_GET(PCIE_LINKUP_MASK, link) == PCIE_LINKUP,
++					 10000, 1000000);
++		if (ret) {
++			rockchip_pcie_stop_link(pci);
++			dev_info(dev, "No link before DBI setup (LTSSM %#x)\n", link);
++			return -ENODEV;
++		}
++	}
++
+ 	irq = of_irq_get_byname(dev->of_node, "legacy");
+ 	if (irq < 0)
+ 		return irq;
+ 

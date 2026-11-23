@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions.sh
+[ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
+[ "$(uci -q get network.wan.proto)" = ncm ] || exit 0
+[ "$(uci -q get network.wan.device)" = fm650 ] || exit 0
+
+uci set network.wan.device=/dev/fm650-at
+uci set network.wan.ifname=fm650
+uci set network.wan.delay=30
+uci commit network

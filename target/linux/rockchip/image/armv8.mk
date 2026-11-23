@@ -125,6 +125,21 @@ define Device/armsom_sige7
 endef
 TARGET_DEVICES += armsom_sige7
 
+define Device/bearkey_bq3588c
+  $(Device/rk3588)
+  DEVICE_VENDOR := Bearkey
+  DEVICE_MODEL := BQ3588C
+  DEVICE_DTS := rk3588-bearkey-bq3588c
+  KERNEL := kernel-bin
+  UBOOT_DEVICE_NAME :=
+  IMAGES := combined.img.gz
+  IMAGE/combined.img.gz = bq3588c-gpt | gzip
+  DEVICE_PACKAGES += kmod-brcmfmac brcmfmac-firmware-43752-sdio brcmfmac-nvram-43752-sdio \
+	wpad-openssl comgt-ncm luci-proto-ncm kmod-usb-net-cdc-ncm kmod-usb-serial-option \
+	kmod-ata-ahci-dwc kmod-nvme
+endef
+TARGET_DEVICES += bearkey_bq3588c
+
 define Device/cyber_cyber3588-aib
   $(Device/rk3588)
   DEVICE_VENDOR := Cyber

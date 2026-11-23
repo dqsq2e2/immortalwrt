@@ -1,0 +1,24 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+case "$DEVNAME" in ttyUSB[0-9]*) ;; *) exit 0 ;; esac
+case "$DEVPATH" in */fcd00000.usb/*/*-1/*-1:1.3/*) ;; *) exit 0 ;; esac
+
+. /lib/functions.sh
+[ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
+
+if [ "$ACTION" = remove ]; then
+	[ "$(readlink /dev/fm650-at)" != "$DEVNAME" ] || rm -f /dev/fm650-at
+	exit 0
+fi
+
+[ "$ACTION" = add ] || exit 0
+iface="$(readlink -f "/sys/class/tty/$DEVNAME/device/..")"
+[ "$(cat "$iface/bInterfaceNumber" 2>/dev/null)" = 03 ] || exit 0
+usb="${iface%/*}"
+[ "$(cat "$usb/idVendor" 2>/dev/null)" = 2cb7 ] || exit 0
+[ "$(cat "$usb/idProduct" 2>/dev/null)" = 0a05 ] || exit 0
+ln -sf "$DEVNAME" /dev/fm650-at
+
+[ -d /sys/class/net/fm650 ] && [ "$(uci -q get network.wan.device)" = /dev/fm650-at ] && ifup wan
+exit 0

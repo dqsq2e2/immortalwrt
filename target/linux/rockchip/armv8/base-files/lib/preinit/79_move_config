@@ -1,6 +1,9 @@
 move_config() {
 	local partdev
 
+	. /lib/functions.sh
+	[ "$(board_name)" != 'bearkey,bq3588c' ] || return 0
+
 	. /lib/upgrade/common.sh
 
 	if export_bootdevice && export_partdevice partdev 1; then
