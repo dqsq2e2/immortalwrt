@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -12,8 +13,6 @@ import uuid
 
 MIB = 1024 * 1024
 SECTOR = 512
-LOADER_OFFSET = 32 * 1024
-ENV_OFFSET = 16 * MIB
 BOOT_START = 32  # MiB; clear of the loader and both redundant environment slots
 NAMESPACE = uuid.UUID("57ec6628-22b4-413e-981a-4a274c56cc94")
 
@@ -23,11 +22,20 @@ def digest(path):
         return hashlib.file_digest(src, "sha256").hexdigest()
 
 
-def build(output, kernel, dtb, rootfs, loader, boot_mib, root_mib):
+def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
     if boot_mib <= 0 or root_mib <= 0:
         raise ValueError("Invalid partition size")
-    if not 0 < loader.stat().st_size <= ENV_OFFSET - LOADER_OFFSET:
-        raise ValueError("RKdev U-Boot overlaps the eMMC environment")
+    layout = json.loads((boot_files / "layout.json").read_text())
+    loader = boot_files / "u-boot-rockchip.bin"
+    offsets = layout["environment"]["offsets"]
+    env_size = layout["environment"]["size"]
+    loader_offset = layout["loader"]["offset"]
+    if (layout["board_id"], layout["profile"]) != ("bq3588c", "emmc"):
+        raise ValueError("Expected the BQ3588C eMMC layout")
+    if not 34 * SECTOR <= loader_offset < loader_offset + loader.stat().st_size <= offsets[0]:
+        raise ValueError("RKdev U-Boot overlaps GPT or the eMMC environment")
+    if len(offsets) != 2 or offsets[0] + env_size > offsets[1] or offsets[1] + env_size > BOOT_START * MIB:
+        raise ValueError("Incorrect redundant environment geometry")
     with kernel.open("rb") as src:
         if src.read(64)[56:60] != b"ARM\x64":
             raise ValueError("Expected a raw ARM64 Linux Image")
@@ -79,9 +87,19 @@ def build(output, kernel, dtb, rootfs, loader, boot_mib, root_mib):
              image],
             check=True,
         )
+        env_text = base / "u-boot.env"
+        rows = dict(row.split("=", 1) for row in (boot_files / "u-boot-initial-env").read_text().splitlines() if row)
+        rows.update(bootcmd="rkdevboot", stdin="serial", rkdev_layout=layout["layout_id"],
+                    rkdev_targets=" ".join(layout["boot_order"]))
+        env_text.write_text("".join(f"{key}={value}\n" for key, value in rows.items()))
+        env_image = base / "u-boot.env.bin"
+        subprocess.run(["mkenvimage", "-r", "-s", str(env_size), "-o", env_image, env_text], check=True)
         with loader.open("rb") as src, image.open("r+b") as disk:
-            disk.seek(LOADER_OFFSET)
+            disk.seek(loader_offset)
             shutil.copyfileobj(src, disk)
+            for offset in offsets:
+                disk.seek(offset)
+                disk.write(env_image.read_bytes())
         for path, start in [(boot_image, BOOT_START), (rootfs, root_start)]:
             subprocess.run(["dd", f"if={path}", f"of={image}", "bs=1M", f"seek={start}",
                             "conv=sparse,notrunc", "status=none"], check=True)
@@ -89,6 +107,6 @@ def build(output, kernel, dtb, rootfs, loader, boot_mib, root_mib):
 
 
 if __name__ == "__main__":
-    out, kernel, dtb, rootfs, loader, boot_size, root_size = sys.argv[1:]
-    build(Path(out), Path(kernel), Path(dtb), Path(rootfs), Path(loader),
+    out, kernel, dtb, rootfs, boot_files, boot_size, root_size = sys.argv[1:]
+    build(Path(out), Path(kernel), Path(dtb), Path(rootfs), Path(boot_files),
           int(boot_size), int(root_size))

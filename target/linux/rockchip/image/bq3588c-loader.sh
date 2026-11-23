@@ -3,10 +3,9 @@
 set -eu
 
 work="$1"
-downloads="$2"
-cross="$3"
-core=b728ca09e6243479aff39a1b4e85dc03645b606d
-boards=948c3f13d4147a428180016de490ae4be66663dc
+cross="$2"
+core=82267d695dfd61ef2be9a4326622d39d49fa1eae
+boards=8a4d326fef4082a62cbcfbf2d8de73ef9839667b
 
 mkdir -p "$work"
 exec 9>"$work/build.lock"
@@ -29,8 +28,10 @@ fetch() (
 
 core_dir="$(fetch RKdev "$core")"
 boards_dir="$(fetch RKdev-boards "$boards")"
+python3 "$core_dir/tools/rkdev.py" prepare --profile emmc \
+	--board "$boards_dir/boards/bq3588c/v1" --out "$work/out"
 jobs="$(nproc)"
 [ "$jobs" -le 256 ] || jobs=256
 python3 "$core_dir/tools/rkdev.py" boot --locked --profile emmc \
 	--board "$boards_dir/boards/bq3588c/v1" --cross-compile="$cross" \
-	--cache "$downloads/rkdev-bq3588c" --out "$work/out" --jobs "$jobs"
+	--cache "$work/build-cache" --out "$work/out" --jobs "$jobs"

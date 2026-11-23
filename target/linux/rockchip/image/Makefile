@@ -65,10 +65,10 @@ endef
 
 # Both flash paths share the same RKdev board package and U-Boot sources.
 define Build/bq3588c-gpt
-	+MAKEFLAGS= sh ./bq3588c-loader.sh "$(KDIR)/rkdev-bq3588c" "$(DL_DIR)" "$(TARGET_CROSS)"
+	+MAKEFLAGS= sh ./bq3588c-loader.sh "$(KDIR)/rkdev-bq3588c" aarch64-linux-gnu-
 	python3 ./bq3588c-image.py "$@" "$(IMAGE_KERNEL)" \
 		"$(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb" "$(IMAGE_ROOTFS)" \
-		"$(KDIR)/rkdev-bq3588c/out/u-boot-rockchip.bin" \
+		"$(KDIR)/rkdev-bq3588c/out" \
 		"$(CONFIG_TARGET_KERNEL_PARTSIZE)" "$(CONFIG_TARGET_ROOTFS_PARTSIZE)"
 endef
 
