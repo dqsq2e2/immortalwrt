@@ -4,8 +4,8 @@ set -eu
 
 work="$1"
 cross="$2"
-core=82267d695dfd61ef2be9a4326622d39d49fa1eae
-boards=8a4d326fef4082a62cbcfbf2d8de73ef9839667b
+core=dcf9bdb9c1fccc0889c4250616da3ab3b7b2b7e4
+boards=b3010bfd237137d545fd056dc8944491b5e67fc9
 
 mkdir -p "$work"
 exec 9>"$work/build.lock"
