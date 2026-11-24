@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 import hashlib
-import json
 import os
 from pathlib import Path
 import shutil
@@ -11,9 +10,8 @@ import sys
 import tempfile
 import uuid
 
-MIB = 1024 * 1024
-SECTOR = 512
-BOOT_START = 32  # MiB; clear of the loader and both redundant environment slots
+from bq3588c_loader import BOOT_START, LOADER, MIB, SECTOR, fetch_bundle, load_layout
+
 NAMESPACE = uuid.UUID("57ec6628-22b4-413e-981a-4a274c56cc94")
 
 
@@ -33,20 +31,9 @@ def check_ext4(image):
     subprocess.run(["e2fsck", "-f", "-n", image], check=True, env=env)
 
 
-def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
+def build(output, kernel, dtb, rootfs, boot_mib, root_mib):
     if boot_mib <= 0 or root_mib <= 0:
         raise ValueError("Invalid partition size")
-    layout = json.loads((boot_files / "layout.json").read_text())
-    loader = boot_files / "u-boot-rockchip.bin"
-    offsets = layout["environment"]["offsets"]
-    env_size = layout["environment"]["size"]
-    loader_offset = layout["loader"]["offset"]
-    if (layout["board_id"], layout["profile"]) != ("bq3588c", "emmc"):
-        raise ValueError("Expected the BQ3588C eMMC layout")
-    if not 34 * SECTOR <= loader_offset < loader_offset + loader.stat().st_size <= offsets[0]:
-        raise ValueError("RKdev U-Boot overlaps GPT or the eMMC environment")
-    if len(offsets) != 2 or offsets[0] + env_size > offsets[1] or offsets[1] + env_size > BOOT_START * MIB:
-        raise ValueError("Incorrect redundant environment geometry")
     with kernel.open("rb") as src:
         if src.read(64)[56:60] != b"ARM\x64":
             raise ValueError("Expected a raw ARM64 Linux Image")
@@ -55,6 +42,17 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
 
     with tempfile.TemporaryDirectory(dir=output.parent, prefix=".bq3588c-") as tmp:
         base = Path(tmp)
+        if bundle := os.environ.get("BQ3588C_RKDEV_BUNDLE"):
+            boot_files = Path(bundle)
+        else:
+            boot_files = base / "rkdev"
+            fetch_bundle(boot_files)
+        layout = load_layout(boot_files)
+        loader = boot_files / LOADER
+        offsets = layout["environment"]["offsets"]
+        env_size = layout["environment"]["size"]
+        loader_offset = layout["loader"]["offset"]
+
         root_image = base / "rootfs.ext4"
         subprocess.run(["cp", "--reflink=auto", "--sparse=always", rootfs, root_image], check=True)
         check_ext4(root_image)
@@ -103,7 +101,8 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
             check=True,
         )
         env_text = base / "u-boot.env"
-        rows = dict(row.split("=", 1) for row in (boot_files / "u-boot-initial-env").read_text().splitlines() if row)
+        env_defaults = Path(__file__).with_name("bq3588c-boot.env")
+        rows = dict(row.split("=", 1) for row in env_defaults.read_text().splitlines() if row)
         rows.update(bootcmd="rkdevboot", stdin="serial", rkdev_layout=layout["layout_id"],
                     rkdev_targets=" ".join(layout["boot_order"]))
         env_text.write_text("".join(f"{key}={value}\n" for key, value in rows.items()))
@@ -122,6 +121,6 @@ def build(output, kernel, dtb, rootfs, boot_files, boot_mib, root_mib):
 
 
 if __name__ == "__main__":
-    out, kernel, dtb, rootfs, boot_files, boot_size, root_size = sys.argv[1:]
-    build(Path(out), Path(kernel), Path(dtb), Path(rootfs), Path(boot_files),
+    out, kernel, dtb, rootfs, boot_size, root_size = sys.argv[1:]
+    build(Path(out), Path(kernel), Path(dtb), Path(rootfs),
           int(boot_size), int(root_size))

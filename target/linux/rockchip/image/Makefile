@@ -65,10 +65,8 @@ endef
 
 # Both flash paths share the published RKdev U-Boot loader.
 define Build/bq3588c-gpt
-	sh ./bq3588c-loader.sh "$(KDIR)/rkdev-bq3588c"
-	python3 ./bq3588c-image.py "$@" "$(IMAGE_KERNEL)" \
+	python3 -B ./bq3588c-image.py "$@" "$(IMAGE_KERNEL)" \
 		"$(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb" "$(IMAGE_ROOTFS)" \
-		"$(KDIR)/rkdev-bq3588c/out" \
 		"$(CONFIG_TARGET_KERNEL_PARTSIZE)" "$(CONFIG_TARGET_ROOTFS_PARTSIZE)"
 endef
 
