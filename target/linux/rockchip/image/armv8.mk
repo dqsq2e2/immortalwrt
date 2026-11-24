@@ -135,7 +135,8 @@ define Device/bearkey_bq3588c
   IMAGES := combined.img.gz
   IMAGE/combined.img.gz = bq3588c-gpt | gzip
   DEVICE_PACKAGES += kmod-brcmfmac brcmfmac-firmware-43752-sdio brcmfmac-nvram-43752-sdio \
-	wpad-openssl comgt-ncm luci-proto-ncm kmod-usb-net-cdc-ncm kmod-usb-serial-option \
+	wpad-openssl comgt-ncm luci-proto-ncm modemmanager luci-proto-modemmanager \
+	kmod-usb-net-cdc-ncm kmod-usb-serial-option \
 	kmod-ata-ahci-dwc kmod-nvme
 endef
 TARGET_DEVICES += bearkey_bq3588c

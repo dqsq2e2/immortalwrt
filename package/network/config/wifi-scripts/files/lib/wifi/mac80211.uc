@@ -127,7 +127,7 @@ function generate() {
 
 	for (let phy_name, phy in wlan) {
 		let info = phy.info;
-		if (!info || !length(info.bands))
+		if (!info || !length(info.bands) || !phy.path)
 			continue;
 
 		let radios = length(info.radios) > 0 ? info.radios : [{ bands: info.bands }];
@@ -138,13 +138,15 @@ function generate() {
 
 			let iface = "default_" + name;
 
-			let band_name = filter(bands_order, (b) => radio.bands[b])[0];
+			let bq3588c_sdio_ap = board.model?.id == 'bearkey,bq3588c' &&
+				index(phy.path, 'platform/fe2d0000.mmc/') == 0 && radio.bands['2G'];
+			let band_name = bq3588c_sdio_ap ? '2G' : filter(bands_order, (b) => radio.bands[b])[0];
 			if (!band_name)
 				continue;
 
 			let band = info.bands[band_name];
 			let rband = radio.bands[band_name];
-			let channel = rband.default_channel ?? "auto";
+			let channel = bq3588c_sdio_ap ? 6 : (rband.default_channel ?? 'auto');
 			let lower_band = lc(band_name);
 
 			let width = band.max_width;
@@ -159,16 +161,14 @@ function generate() {
 			else
 				htmode = "NOHT";
 
-			if (!phy.path)
-				continue;
-
 			let macaddr = trim(readfile(`/sys/class/ieee80211/${phy_name}/macaddress`));
 			if (radio_exists(phy.path, macaddr, phy_name, radio.index))
 				continue;
 
 			let id = match(phy_name, /^phy[0-9]/) ? { path: phy.path } : { phy: phy_name };
 			let configured_country = provision_country || wlan.defaults?.country;
-			let country = uc(configured_country || 'US');
+			// BCM43752 reports its own regdomain. Only apply an explicit country.
+			let country = configured_country ? uc(configured_country) : (bq3588c_sdio_ap ? null : 'US');
 			let ssids = wlan.defaults?.ssids;
 			let defaults = ssids?.[lower_band]?.ssid ? ssids[lower_band] : ssids?.all;
 
@@ -178,7 +178,7 @@ function generate() {
 			let needs_country = band_name == '6G' && !match(country, /^[A-Z]{2}$/);
 			let ap_defaults = !defaults?.ssid && band_name in [ '2G', '5G', '6G' ];
 			let plan, auto_htmode, channels;
-			if (ap_defaults) {
+			if (ap_defaults && !bq3588c_sdio_ap) {
 				let ap = band.ap ?? band;
 				let blocks = radio.index == null ? ap.channel_blocks : (rband.ap_channel_blocks ?? rband.channel_blocks);
 				plan = maximum_channel_plan(ap.modes, blocks, {});
@@ -191,6 +191,9 @@ function generate() {
 				}
 			}
 			let sae = ap_defaults && band_name == '6G';
+			let ssid = defaults?.ssid;
+			if (!ssid && bq3588c_sdio_ap && !preset)
+				ssid = 'BQ3588C';
 			set_section(name, 'wifi-device', {
 				type: 'mac80211', ...id, band: lower_band, channel: '' + channel,
 				htmode, auto_htmode, channels, country,
@@ -199,7 +202,7 @@ function generate() {
 			});
 			set_section(iface, 'wifi-iface', {
 				device: name, network: 'lan', mode: 'ap',
-				ssid: defaults?.ssid || (ap_defaults ? default_ssid(band_name, rband.default_channel ?? band.default_channel) : 'OWRT'),
+				ssid: ssid || (ap_defaults ? default_ssid(band_name, rband.default_channel ?? band.default_channel) : 'OWRT'),
 				encryption: defaults?.encryption || (sae ? 'sae+ccmp' : 'psk2+ccmp'),
 				ieee80211w: sae ? '2' : null,
 				key: defaults?.key || (ap_defaults && preset ? preset.key : '12345678'), disabled: needs_country ? '1' : '0'
