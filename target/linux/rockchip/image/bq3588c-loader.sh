@@ -8,6 +8,9 @@ export PATH="${ORIG_PATH:-$PATH}"
 unset PKG_CONFIG PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
 unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH LD_LIBRARY_PATH
 
+# Use the pinned RKdev build timestamp for the shared loader.
+unset SOURCE_DATE_EPOCH
+
 work="$1"
 cross="$2"
 core=dcf9bdb9c1fccc0889c4250616da3ab3b7b2b7e4
