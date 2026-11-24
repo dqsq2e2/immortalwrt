@@ -215,6 +215,12 @@ generate_network() {
 			}
 		;;
 
+		modemmanager)
+			uci -q batch <<-EOF
+				set network.$1.proto='modemmanager'
+				set network.$1.iptype='ipv4'
+			EOF
+		;;
 		ncm|\
 		qmi|\
 		mbim)

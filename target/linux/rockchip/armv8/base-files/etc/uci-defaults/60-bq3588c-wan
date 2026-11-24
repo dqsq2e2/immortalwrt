@@ -3,7 +3,15 @@
 
 . /lib/functions.sh
 [ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
-[ "$(uci -q get network.wan.proto)" = ncm ] || exit 0
+case "$(uci -q get network.wan.proto)" in
+	modemmanager)
+		# The module may already have appeared before network generation.
+		ACTION=add INTERFACE=fm650 /bin/sh /etc/hotplug.d/net/30-bq3588c-wwan
+		exit $?
+		;;
+	ncm) ;;
+	*) exit 0 ;;
+esac
 [ "$(uci -q get network.wan.device)" = fm650 ] || exit 0
 
 uci set network.wan.device=/dev/fm650-at
