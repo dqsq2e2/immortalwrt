@@ -2,6 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-only
 set -eu
 
+# RKdev uses the distro toolchain and OpenSSL. Keep OpenWrt's staged
+# pkg-config and LibreSSL headers and libraries out of this build.
+export PATH="${ORIG_PATH:-$PATH}"
+unset PKG_CONFIG PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
+unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH LD_LIBRARY_PATH
+
 work="$1"
 cross="$2"
 core=dcf9bdb9c1fccc0889c4250616da3ab3b7b2b7e4
