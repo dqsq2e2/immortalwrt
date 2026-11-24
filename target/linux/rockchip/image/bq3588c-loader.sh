@@ -2,45 +2,49 @@
 # SPDX-License-Identifier: GPL-2.0-only
 set -eu
 
-# RKdev uses the distro toolchain and OpenSSL. Keep OpenWrt's staged
-# pkg-config and LibreSSL headers and libraries out of this build.
-export PATH="${ORIG_PATH:-$PATH}"
-unset PKG_CONFIG PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR
-unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH LIBRARY_PATH LD_LIBRARY_PATH
+work=$1
+release=https://github.com/dqsq2e2/RKdev-boards/releases/download/bq3588c-emmc-v0.1-bq.4
+loader_sha=dab12953ba49ddb58e036bd269948d42ed778ca5bb7e8c5a8d0290ed1b24e9c4
+manifest_sha=f4b7161e6eb32954a5a06b45616acdc25e6a297e9c2617656b7fd6140de5a8af
 
-# Use the pinned RKdev build timestamp for the shared loader.
-unset SOURCE_DATE_EPOCH
-
-work="$1"
-cross="$2"
-core=dcf9bdb9c1fccc0889c4250616da3ab3b7b2b7e4
-boards=b3010bfd237137d545fd056dc8944491b5e67fc9
-
-mkdir -p "$work"
+mkdir -p "$work/out"
 exec 9>"$work/build.lock"
 flock 9
 
-fetch() (
-	name="$1"
-	rev="$2"
-	dst="$work/$name-$rev"
-	if [ "$(git -C "$dst" rev-parse HEAD 2>/dev/null || :)" != "$rev" ]; then
-		mkdir -p "$dst"
-		git -C "$dst" init --quiet
-		git -C "$dst" -c http.version=HTTP/1.1 fetch --no-tags --depth=1 \
-			"https://github.com/dqsq2e2/$name.git" "$rev" >&2
-		git -C "$dst" checkout --quiet --detach FETCH_HEAD
-		test "$(git -C "$dst" rev-parse HEAD)" = "$rev"
+fetch() {
+	name=$1
+	hash=$2
+	file=$work/$name
+	if [ ! -f "$file" ] || ! printf '%s  %s\n' "$hash" "$file" | sha256sum --check --status; then
+		curl --fail --location --silent --show-error --retry 3 --connect-timeout 20 \
+			--output "$file.tmp" "$release/$name"
+		printf '%s  %s\n' "$hash" "$file.tmp" | sha256sum --check
+		mv -f "$file.tmp" "$file"
 	fi
-	printf '%s\n' "$dst"
-)
+}
 
-core_dir="$(fetch RKdev "$core")"
-boards_dir="$(fetch RKdev-boards "$boards")"
-python3 "$core_dir/tools/rkdev.py" prepare --profile emmc \
-	--board "$boards_dir/boards/bq3588c/v1" --out "$work/out"
-jobs="$(nproc)"
-[ "$jobs" -le 256 ] || jobs=256
-python3 "$core_dir/tools/rkdev.py" boot --locked --profile emmc \
-	--board "$boards_dir/boards/bq3588c/v1" --cross-compile="$cross" \
-	--cache "$work/build-cache" --out "$work/out" --jobs "$jobs"
+# The published and hardware-tested loader is shared with RKdev on both hosts.
+fetch u-boot-rockchip.bin "$loader_sha"
+fetch bq3588c-v1-emmc-0.1-bq.4.json "$manifest_sha"
+
+python3 - "$work" "$loader_sha" <<'PY'
+import json
+from pathlib import Path
+import shutil
+import sys
+
+work = Path(sys.argv[1])
+manifest = json.loads((work / "bq3588c-v1-emmc-0.1-bq.4.json").read_text())
+layout = manifest["layout"]
+loader = work / "u-boot-rockchip.bin"
+[extent] = (item for item in manifest["extents"] if item["kind"] == "loader")
+if ((layout["board_id"], layout["profile"]) != ("bq3588c", "emmc")
+        or (extent["sha256"], extent["length"], extent["offset"]) !=
+           (sys.argv[2], loader.stat().st_size, layout["loader"]["offset"])):
+    raise ValueError("The RKdev release does not match the BQ3588C loader and layout")
+out = work / "out"
+(out / "layout.json").write_text(json.dumps(layout) + "\n")
+shutil.copyfile(loader, out / loader.name)
+PY
+
+cp "$(dirname "$0")/bq3588c-boot.env" "$work/out/u-boot-initial-env"

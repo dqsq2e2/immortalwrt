@@ -63,9 +63,9 @@ define Build/pine64-bin
 	dd if="$(STAGING_DIR_IMAGE)"/$(SOC)-trust.bin of="$@" seek=24576 conv=notrunc
 endef
 
-# Both flash paths share the same RKdev board package and U-Boot sources.
+# Both flash paths share the published RKdev U-Boot loader.
 define Build/bq3588c-gpt
-	+MAKEFLAGS= sh ./bq3588c-loader.sh "$(KDIR)/rkdev-bq3588c" aarch64-linux-gnu-
+	sh ./bq3588c-loader.sh "$(KDIR)/rkdev-bq3588c"
 	python3 ./bq3588c-image.py "$@" "$(IMAGE_KERNEL)" \
 		"$(KDIR)/image-$(firstword $(DEVICE_DTS)).dtb" "$(IMAGE_ROOTFS)" \
 		"$(KDIR)/rkdev-bq3588c/out" \
