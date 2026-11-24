@@ -1,0 +1,204 @@
+{
+  "extents": [
+    {
+      "kind": "loader",
+      "length": 10032640,
+      "offset": 32768,
+      "sha256": "dab12953ba49ddb58e036bd269948d42ed778ca5bb7e8c5a8d0290ed1b24e9c4"
+    },
+    {
+      "kind": "environment",
+      "length": 131072,
+      "offset": 16777216,
+      "sha256": "cad8bd4745ee4a24429fe172ca8714654e7828d9df075db3d45ac7e77518eccc"
+    },
+    {
+      "kind": "environment",
+      "length": 131072,
+      "offset": 16908288,
+      "sha256": "cad8bd4745ee4a24429fe172ca8714654e7828d9df075db3d45ac7e77518eccc"
+    },
+    {
+      "kind": "recovery",
+      "length": 234863616,
+      "offset": 33554432,
+      "sha256": "df3fd1c8f34491d0be09d12783710f36877d4d863f58cd2ed9f77fd814e99477"
+    }
+  ],
+  "image": {
+    "bytes": 536870912,
+    "name": "bq3588c-v1-emmc-0.1-bq.4.img",
+    "sha256": "7900692e30c3e5984ab0ddcf154d09c2b1278f6c9b3564c18cc24277c1d30343"
+  },
+  "kind": "recovery-image",
+  "layout": {
+    "board_id": "bq3588c",
+    "boot_order": [
+      "usb",
+      "sd",
+      "nvme",
+      "sata",
+      "emmc"
+    ],
+    "capacity": 536870912,
+    "compatible": "bearkey,bq3588c",
+    "device": "/dev/mmcblk0",
+    "environment": {
+      "offsets": [
+        16777216,
+        16908288
+      ],
+      "size": 131072
+    },
+    "layout_id": "790f98b78b20fd7571236d92c32132b71c13eeff186e11a15ddf5b1f4d9d10b2",
+    "loader": {
+      "format": "rockchip-sd",
+      "length": 16744448,
+      "offset": 32768
+    },
+    "name": "Bearkey BQ3588C",
+    "profile": "emmc",
+    "recovery": {
+      "label": "BQ3588C_RECOVERY",
+      "length": 234863616,
+      "offset": 33554432,
+      "partition": 1
+    },
+    "release_url": "",
+    "revision": "v1",
+    "schema": 1,
+    "soc": "rk3588",
+    "system": {
+      "label": "BQ3588C_SYSTEM",
+      "offset": 268435456
+    },
+    "system_targets": [
+      "usb",
+      "sd",
+      "nvme",
+      "sata",
+      "emmc"
+    ]
+  },
+  "schema": 1,
+  "sources": {
+    "cc": "aarch64-linux-gnu-gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "firmware": {
+      "bl31": "4d111f0c793035dba84b65cfa741665814ae134af8243c3bb8a87d55a0937bc3",
+      "ddr": "ae96f7ddbc6ffa891ab24708e71930cb2968cfa7a2a0972fdc0cacd6891e4f95"
+    },
+    "kernel_release": "6.18.48-rkdev",
+    "linux": {
+      "archive": {
+        "sha256": "25083f645997a0c33cbf7ccf082b132ed12d88790aced534e7aa704255263186",
+        "url": "https://codeload.github.com/ophub/linux-6.18.y/tar.gz/ce7e47209ac3bbb093d5530e02e593108cab4d3b"
+      },
+      "commit": "ce7e47209ac3bbb093d5530e02e593108cab4d3b",
+      "url": "https://github.com/ophub/linux-6.18.y.git"
+    },
+    "rootfs": {
+      "apk": [
+        "agetty-2.42.3-r1",
+        "alpine-baselayout-3.7.2-r1",
+        "alpine-baselayout-data-3.7.2-r1",
+        "alpine-keys-2.6-r0",
+        "alpine-release-3.24.1-r0",
+        "apk-tools-3.0.6-r0",
+        "blkid-2.42.3-r1",
+        "busybox-1.37.0-r31",
+        "busybox-binsh-1.37.0-r31",
+        "ca-certificates-20261020-r0",
+        "ca-certificates-bundle-20260611-r0",
+        "cfdisk-2.42.3-r1",
+        "dbus-libs-1.16.2-r2",
+        "device-mapper-libs-2.03.35-r3",
+        "dmesg-2.42.3-r1",
+        "dnsmasq-2.92_p2-r0",
+        "dnsmasq-common-2.92_p2-r0",
+        "e2fsprogs-1.47.4-r0",
+        "e2fsprogs-extra-1.47.4-r0",
+        "e2fsprogs-libs-1.47.4-r0",
+        "findmnt-2.42.3-r1",
+        "flock-2.42.3-r1",
+        "fstrim-2.42.3-r1",
+        "gptfdisk-1.0.10-r1",
+        "hexdump-2.42.3-r1",
+        "hostapd-2.11-r4",
+        "iproute2-7.0.0-r0",
+        "iproute2-minimal-7.0.0-r0",
+        "iproute2-ss-7.0.0-r0",
+        "iproute2-tc-7.0.0-r0",
+        "iptables-1.8.13-r0",
+        "iptables-legacy-1.8.13-r0",
+        "iw-6.17-r0",
+        "libapk-3.0.6-r0",
+        "libblkid-2.42.3-r1",
+        "libcap-ng-0.8.5-r2",
+        "libcap2-2.78-r0",
+        "libcom_err-1.47.4-r0",
+        "libcrypto3-3.5.7-r0",
+        "libeconf-0.8.3-r0",
+        "libelf-0.195-r0",
+        "libfdisk-2.42.3-r1",
+        "libgcc-15.2.0-r5",
+        "libip4tc-1.8.13-r0",
+        "libip6tc-1.8.13-r0",
+        "libmnl-1.0.5-r2",
+        "libmount-2.42.3-r1",
+        "libncursesw-6.6_p20260516-r0",
+        "libnftnl-1.3.1-r0",
+        "libnl3-3.11.0-r0",
+        "libsmartcols-2.42.3-r1",
+        "libssl3-3.5.7-r0",
+        "libstdc++-15.2.0-r5",
+        "libuuid-2.42.3-r1",
+        "libxtables-1.8.13-r0",
+        "linux-pam-1.7.1-r2",
+        "logger-2.42.3-r1",
+        "losetup-2.42.3-r1",
+        "lsblk-2.42.3-r1",
+        "lscpu-2.42.3-r1",
+        "mcookie-2.42.3-r1",
+        "mount-2.42.3-r1",
+        "musl-1.2.6-r2",
+        "musl-utils-1.2.6-r2",
+        "ncurses-terminfo-base-6.6_p20260516-r0",
+        "openssh-keygen-10.3_p1-r2",
+        "openssh-server-10.3_p1-r2",
+        "openssh-server-common-10.3_p1-r2",
+        "openssh-sftp-server-10.3_p1-r2",
+        "parted-3.7-r0",
+        "partx-2.42.3-r1",
+        "pcsc-lite-libs-2.4.0-r4",
+        "popt-1.19-r4",
+        "readline-8.3.3-r1",
+        "runuser-2.42.3-r1",
+        "scanelf-1.3.9-r1",
+        "setarch-2.42.3-r1",
+        "setpriv-2.42.3-r1",
+        "sfdisk-2.42.3-r1",
+        "sgdisk-1.0.10-r1",
+        "skalibs-libs-2.15.0.0-r0",
+        "smartmontools-7.5-r0",
+        "ssl_client-1.37.0-r31",
+        "umount-2.42.3-r1",
+        "util-linux-2.42.3-r1",
+        "util-linux-misc-2.42.3-r1",
+        "utmps-libs-0.1.3.3-r0",
+        "uuidgen-2.42.3-r1",
+        "wipefs-2.42.3-r1",
+        "wireless-regdb-2025.10.07-r0",
+        "wpa_supplicant-2.11-r4",
+        "zlib-1.3.2-r0",
+        "zstd-libs-1.5.7-r2"
+      ],
+      "sha256": "f55a90f69052c5bd6f92cb09a8f47065970830b194c917a006fb94028e721259",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/alpine-minirootfs-3.24.1-aarch64.tar.gz"
+    },
+    "uboot": {
+      "commit": "5e3b01c8466dbe45cd6a06299f8f4c7e8c1c2363",
+      "url": "https://github.com/u-boot/u-boot.git"
+    },
+    "version": "0.1-bq.4"
+  }
+}
