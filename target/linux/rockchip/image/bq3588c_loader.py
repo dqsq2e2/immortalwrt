@@ -12,7 +12,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 REPOSITORY = "dqsq2e2/RKdev-boards"
-TAG = re.compile(r"bq3588c-emmc-v(0\.1-dev\.(0|[1-9][0-9]*))")
+TAG = re.compile(r"bq3588c-emmc-v([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?)")
 LOADER = "u-boot-rockchip.bin"
 SUMS = "SHA256SUMS"
 RELEASE_INFO = "rkdev-release.json"
@@ -55,12 +55,11 @@ def published_releases():
 def select_release(releases):
     matches = []
     for release in releases:
-        match = TAG.fullmatch(release["tag_name"])
-        if match and not release["draft"] and release["published_at"]:
-            matches.append((int(match[2]), release))
+        if TAG.fullmatch(release["tag_name"]) and not release["draft"] and release["published_at"]:
+            matches.append(release)
     if not matches:
-        raise ValueError(f"No published BQ3588C eMMC 0.1-dev release in {REPOSITORY}")
-    return max(matches, key=lambda item: item[0])[1]
+        raise ValueError(f"No published BQ3588C eMMC release in {REPOSITORY}")
+    return max(matches, key=lambda release: (release["published_at"], release["id"]))
 
 
 def download_asset(asset):
