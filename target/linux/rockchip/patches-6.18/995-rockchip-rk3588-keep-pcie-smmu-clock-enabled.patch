@@ -1,0 +1,78 @@
+From: dqsq2e2 <192683602+dqsq2e2@users.noreply.github.com>
+Subject: [PATCH] rockchip: keep the RK3588 PCIe SMMU clock enabled
+
+When both of the BQ3588C PCIe ports fail link training, the last
+consumer can gate the SMMU clock before arm_smmu_v3 probes. Accessing
+the registers then stalls the boot. Enable the optional clock for the
+lifetime of the driver, release the optional reset, and describe the
+resources in the RK3588 DT.
+
+Based on the patch series by Arun Iyengar.
+Link: https://lore.kernel.org/r/20261113-smmu-v3-pcie-pd-v3-0-39eb4f919529@gmail.com
+
+--- a/Documentation/devicetree/bindings/iommu/arm,smmu-v3.yaml
++++ b/Documentation/devicetree/bindings/iommu/arm,smmu-v3.yaml
+@@ -58,6 +58,12 @@
+ 
+   msi-parent: true
+ 
++  clocks:
++    maxItems: 1
++
++  resets:
++    maxItems: 1
++
+   hisilicon,broken-prefetch-cmd:
+     type: boolean
+     description: Avoid sending CMD_PREFETCH_* commands to the SMMU.
+--- a/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3588-base.dtsi
+@@ -565,6 +565,8 @@
+ 			     <GIC_SPI 374 IRQ_TYPE_EDGE_RISING 0>,
+ 			     <GIC_SPI 367 IRQ_TYPE_EDGE_RISING 0>;
+ 		interrupt-names = "eventq", "gerror", "priq", "cmdq-sync";
++		clocks = <&cru ACLK_MMU_PCIE>;
++		resets = <&cru SRST_A_MMU_PCIE>;
+ 		#iommu-cells = <1>;
+ 	};
+ 
+--- a/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
++++ b/drivers/iommu/arm/arm-smmu-v3/arm-smmu-v3.c
+@@ -12,6 +12,7 @@
+ #include <linux/acpi.h>
+ #include <linux/acpi_iort.h>
+ #include <linux/bitops.h>
++#include <linux/clk.h>
+ #include <linux/crash_dump.h>
+ #include <linux/delay.h>
+ #include <linux/err.h>
+@@ -26,6 +27,7 @@
+ #include <linux/pci.h>
+ #include <linux/pci-ats.h>
+ #include <linux/platform_device.h>
++#include <linux/reset.h>
+ #include <linux/string_choices.h>
+ #include <kunit/visibility.h>
+ #include <uapi/linux/iommufd.h>
+@@ -4853,11 +4855,21 @@
+ 	resource_size_t ioaddr;
+ 	struct arm_smmu_device *smmu;
+ 	struct device *dev = &pdev->dev;
++	struct reset_control *rst;
++	struct clk *clk;
+ 
+ 	smmu = devm_kzalloc(dev, sizeof(*smmu), GFP_KERNEL);
+ 	if (!smmu)
+ 		return -ENOMEM;
+ 	smmu->dev = dev;
++
++	clk = devm_clk_get_optional_enabled(dev, NULL);
++	if (IS_ERR(clk))
++		return dev_err_probe(dev, PTR_ERR(clk), "failed to enable clock\n");
++
++	rst = devm_reset_control_get_optional_exclusive_deasserted(dev, NULL);
++	if (IS_ERR(rst))
++		return dev_err_probe(dev, PTR_ERR(rst), "failed to deassert reset\n");
+ 
+ 	if (dev->of_node) {
+ 		ret = arm_smmu_device_dt_probe(pdev, smmu);
