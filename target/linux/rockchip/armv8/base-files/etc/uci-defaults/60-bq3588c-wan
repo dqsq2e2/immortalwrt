@@ -3,18 +3,37 @@
 
 . /lib/functions.sh
 [ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
-case "$(uci -q get network.wan.proto)" in
-	modemmanager)
-		# The module may already have appeared before network generation.
-		ACTION=add INTERFACE=fm650 /bin/sh /etc/hotplug.d/net/30-bq3588c-wwan
-		exit $?
-		;;
-	ncm) ;;
+
+proto="$(uci -q get network.wan.proto)"
+device="$(uci -q get network.wan.device)"
+case "$proto:$device" in
+	ncm:fm650|modemmanager:fm650|modemmanager:/sys/devices/platform/fcd00000.usb/*) ;;
 	*) exit 0 ;;
 esac
-[ "$(uci -q get network.wan.device)" = fm650 ] || exit 0
 
-uci set network.wan.device=/dev/fm650-at
-uci set network.wan.ifname=fm650
-uci set network.wan.delay=30
-uci commit network
+uci -q batch <<'EOF'
+set network.wan.proto=ncm
+set network.wan.device=/dev/fm650-at
+set network.wan.ifname=fm650
+delete network.wan.iptype
+set network.wan.pdptype=IPV4V6
+EOF
+[ -n "$(uci -q get network.wan.delay)" ] || uci set network.wan.delay=90
+[ -n "$(uci -q get network.wan.sourcefilter)" ] || uci set network.wan.sourcefilter=0
+uci commit network || exit 1
+
+# Relay the FM650's on-link /64 to the LAN, with NDP proxy for LAN clients.
+[ "$(uci -q get dhcp.lan)" = dhcp ] || exit 0
+[ "$(uci -q get dhcp.wan6)" != dhcp ] || exit 0
+uci -q batch <<'EOF'
+set dhcp.lan.ra=relay
+set dhcp.lan.dhcpv6=relay
+set dhcp.lan.ndp=relay
+set dhcp.wan6=dhcp
+set dhcp.wan6.interface=wan_6
+set dhcp.wan6.master=1
+set dhcp.wan6.ra=relay
+set dhcp.wan6.dhcpv6=relay
+set dhcp.wan6.ndp=relay
+commit dhcp
+EOF

@@ -100,130 +100,154 @@ proto_ncm_setup() {
 		return 1
 	}
 
-	device="$(readlink -f $device)"
-	[ -e "$device" ] || {
-		echo "Control device not valid"
-		proto_set_available "$interface" 0
-		return 1
-	}
-
-	[ -z "$ifname" ] && {
-		devname="$(basename "$device")"
-		case "$devname" in
-		'ttyACM'*)
-			devpath="$(readlink -f /sys/class/tty/$devname/device)"
-			ifpath="$devpath/../*/net"
-			;;
-		'tty'*)
-			devpath="$(readlink -f /sys/class/tty/$devname/device)"
-			ifpath="$devpath/../../*/net"
-			;;
-		*)
-			devpath="$(readlink -f /sys/class/usbmisc/$devname/device/)"
-			ifpath="$devpath/net"
-			;;
+	if [ "$device" = /dev/fm650-at ] && [ -x /usr/libexec/bq3588c-fm650 ]; then
+		local result=0
+		ifname=fm650
+		PINCODE="$pincode" /usr/libexec/bq3588c-fm650 connect \
+			"$profile" "$pdptype" "$apn" "${delay:-90}" "$mode" || result=$?
+		case "$result" in
+			0) manufacturer=fibocom; model=fm650 ;;
+			2)
+				proto_set_available "$interface" 0
+				/usr/libexec/bq3588c-fm650 refresh
+				return 1
+				;;
+			3) proto_notify_error "$interface" SIM_NOT_READY; return 1 ;;
+			4) proto_notify_error "$interface" CONFIGURE_FAILED; return 1 ;;
+			5)
+				proto_notify_error "$interface" PIN_FAILED
+				proto_block_restart "$interface"
+				return 1
+				;;
+			6) proto_notify_error "$interface" GETINFO_FAILED; return 1 ;;
+			*) proto_notify_error "$interface" CONNECT_FAILED; return 1 ;;
 		esac
-		ifname="$(ls $(ls -1 -d $ifpath | head -n 1))"
-	}
-
-	[ -n "$ifname" ] || {
-		echo "The interface could not be found."
-		proto_notify_error "$interface" NO_IFACE
-		proto_set_available "$interface" 0
-		return 1
-	}
-
-	start=$(date +%s)
-	while true; do
-		manufacturer=$(gcom -d "$device" -s /etc/gcom/getcardinfo.gcom | awk -v RS='\r?\n' 'NF && $0 !~ /AT\+CGMI/ { sub(/\+CGMI: /,""); print tolower($1); exit; }')
-		[ "$manufacturer" = "error" ] && {
-			manufacturer=""
-		}
-		[ -n "$manufacturer" ] && {
-			break
-		}
-		[ -z "$delay" ] && {
-			break
-		}
-		sleep 1
-		elapsed=$(($(date +%s) - start))
-		[ "$elapsed" -gt "$delay" ] && {
-			break
-		}
-	done
-	[ -z "$manufacturer" ] && {
-		echo "Failed to get modem information"
-		proto_notify_error "$interface" GETINFO_FAILED
-		return 1
-	}
-
-	model=$(gcom -d "$device" -s /etc/gcom/getmodel.gcom | awk -v RS='\r?\n' 'NF && $0 !~ /AT\+CGMM/ { sub(/\+CGMM: /,""); print tolower($1); exit; }')
-	[ "$model" = "error" ] && model=""
-	# drop the region/SKU suffix: EG060W-EAAA -> eg060w
-	model=${model%%-*}
-
-	json_load "$(cat /etc/gcom/ncm.json)"
-	ncm_select_modem "$manufacturer" "$model" || {
-		echo "Unsupported modem"
-		proto_notify_error "$interface" UNSUPPORTED_MODEM
-		proto_set_available "$interface" 0
-		return 1
-	}
-
-	json_get_values initialize initialize
-	for i in $initialize; do
-		eval COMMAND="$i" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
-			echo "Failed to initialize modem"
-			proto_notify_error "$interface" INITIALIZE_FAILED
+	else
+		device="$(readlink -f $device)"
+		[ -e "$device" ] || {
+			echo "Control device not valid"
+			proto_set_available "$interface" 0
 			return 1
 		}
-	done
 
-	[ -n "$pincode" ] && {
-		PINCODE="$pincode" gcom -d "$device" -s /etc/gcom/setpin.gcom || {
-			echo "Unable to verify PIN"
-			proto_notify_error "$interface" PIN_FAILED
-			proto_block_restart "$interface"
+		[ -z "$ifname" ] && {
+			devname="$(basename "$device")"
+			case "$devname" in
+			'ttyACM'*)
+				devpath="$(readlink -f /sys/class/tty/$devname/device)"
+				ifpath="$devpath/../*/net"
+				;;
+			'tty'*)
+				devpath="$(readlink -f /sys/class/tty/$devname/device)"
+				ifpath="$devpath/../../*/net"
+				;;
+			*)
+				devpath="$(readlink -f /sys/class/usbmisc/$devname/device/)"
+				ifpath="$devpath/net"
+				;;
+			esac
+			ifname="$(ls $(ls -1 -d $ifpath | head -n 1))"
+		}
+
+		[ -n "$ifname" ] || {
+			echo "The interface could not be found."
+			proto_notify_error "$interface" NO_IFACE
+			proto_set_available "$interface" 0
 			return 1
 		}
-	}
 
-	json_get_values configure configure
-	echo "Configuring modem"
-	for i in $configure; do
-		eval COMMAND="$i" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
-			echo "Failed to configure modem"
-			proto_notify_error "$interface" CONFIGURE_FAILED
+		start=$(date +%s)
+		while true; do
+			manufacturer=$(gcom -d "$device" -s /etc/gcom/getcardinfo.gcom | awk -v RS='\r?\n' 'NF && $0 !~ /AT\+CGMI/ { sub(/\+CGMI: /,""); print tolower($1); exit; }')
+			[ "$manufacturer" = "error" ] && {
+				manufacturer=""
+			}
+			[ -n "$manufacturer" ] && {
+				break
+			}
+			[ -z "$delay" ] && {
+				break
+			}
+			sleep 1
+			elapsed=$(($(date +%s) - start))
+			[ "$elapsed" -gt "$delay" ] && {
+				break
+			}
+		done
+		[ -z "$manufacturer" ] && {
+			echo "Failed to get modem information"
+			proto_notify_error "$interface" GETINFO_FAILED
 			return 1
 		}
-	done
 
-	[ -n "$mode" ] && {
-		json_select modes
-		json_get_var setmode "$mode"
-		[ -n "$setmode" ] && {
-			echo "Setting mode"
-			eval COMMAND="$setmode" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
-				echo "Failed to set operating mode"
-				proto_notify_error "$interface" SETMODE_FAILED
+		model=$(gcom -d "$device" -s /etc/gcom/getmodel.gcom | awk -v RS='\r?\n' 'NF && $0 !~ /AT\+CGMM/ { sub(/\+CGMM: /,""); print tolower($1); exit; }')
+		[ "$model" = "error" ] && model=""
+		# drop the region/SKU suffix: EG060W-EAAA -> eg060w
+		model=${model%%-*}
+
+		json_load "$(cat /etc/gcom/ncm.json)"
+		ncm_select_modem "$manufacturer" "$model" || {
+			echo "Unsupported modem"
+			proto_notify_error "$interface" UNSUPPORTED_MODEM
+			proto_set_available "$interface" 0
+			return 1
+		}
+
+		json_get_values initialize initialize
+		for i in $initialize; do
+			eval COMMAND="$i" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
+				echo "Failed to initialize modem"
+				proto_notify_error "$interface" INITIALIZE_FAILED
+				return 1
+			}
+		done
+
+		[ -n "$pincode" ] && {
+			PINCODE="$pincode" gcom -d "$device" -s /etc/gcom/setpin.gcom || {
+				echo "Unable to verify PIN"
+				proto_notify_error "$interface" PIN_FAILED
+				proto_block_restart "$interface"
 				return 1
 			}
 		}
-		json_select ..
-	}
 
-	echo "Starting network $interface"
-	json_get_vars connect
-	[ -n "$connect" ] && {
-		echo "Connecting modem"
-		eval COMMAND="$connect" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
-			echo "Failed to connect"
-			proto_notify_error "$interface" CONNECT_FAILED
-			return 1
+		json_get_values configure configure
+		echo "Configuring modem"
+		for i in $configure; do
+			eval COMMAND="$i" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
+				echo "Failed to configure modem"
+				proto_notify_error "$interface" CONFIGURE_FAILED
+				return 1
+			}
+		done
+
+		[ -n "$mode" ] && {
+			json_select modes
+			json_get_var setmode "$mode"
+			[ -n "$setmode" ] && {
+				echo "Setting mode"
+				eval COMMAND="$setmode" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
+					echo "Failed to set operating mode"
+					proto_notify_error "$interface" SETMODE_FAILED
+					return 1
+				}
+			}
+			json_select ..
 		}
-	}
 
-	json_get_vars finalize linkatfinalize
+		echo "Starting network $interface"
+		json_get_vars connect
+		[ -n "$connect" ] && {
+			echo "Connecting modem"
+			eval COMMAND="$connect" gcom -d "$device" -s /etc/gcom/runcommand.gcom || {
+				echo "Failed to connect"
+				proto_notify_error "$interface" CONNECT_FAILED
+				return 1
+			}
+		}
+
+		json_get_vars finalize linkatfinalize
+	fi
 
 	# nothing to wait for yet when the profile only enters data state at
 	# finalize, further down
@@ -302,6 +326,13 @@ proto_ncm_teardown() {
 		proto_set_available "$interface" 0
 		return 1
 	}
+
+	if [ "$device" = /dev/fm650-at ] && [ -x /usr/libexec/bq3588c-fm650 ]; then
+		/usr/libexec/bq3588c-fm650 disconnect "${profile:-1}" || :
+		proto_init_update "*" 0
+		proto_send_update "$interface"
+		return 0
+	fi
 
 	device="$(readlink -f $device)"
 	[ -e "$device" ] || {

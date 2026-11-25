@@ -11,7 +11,7 @@ rockchip_setup_interfaces()
 		ucidef_set_network_device_path 'lan0' 'platform/fe1c0000.ethernet'
 		ucidef_set_interface 'lan' device 'lan0' protocol 'static' \
 			ipaddr '192.168.88.1' netmask '255.255.255.0'
-		ucidef_set_interface_wan 'fm650' 'modemmanager'
+		ucidef_set_interface_wan 'fm650' 'ncm'
 		;;
 	9tripod,x3568-v4|\
 	ariaboard,photonicat|\

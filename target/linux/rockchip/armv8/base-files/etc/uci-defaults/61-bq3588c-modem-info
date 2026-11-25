@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions.sh
+[ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
+[ "$(uci -q get '3ginfo.@3ginfo[0]')" = 3ginfo ] || exit 0
+[ -z "$(uci -q get '3ginfo.@3ginfo[0].device')" ] || exit 0
+
+uci set '3ginfo.@3ginfo[0].device=/dev/fm650-info'
+uci set '3ginfo.@3ginfo[0].network=wan'
+uci commit 3ginfo

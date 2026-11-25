@@ -1,0 +1,133 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+
+at=/dev/fm650-at
+net=fm650
+
+# Both aliases must belong to the same USB device. Interface numbers are stable,
+# unlike the ttyUSB and USB bus numbers assigned by Linux.
+present() {
+	local tty serial data
+	[ -c "$at" ] && [ -d "/sys/class/net/$net" ] || return 1
+	tty="$(readlink -f "$at")"
+	serial="$(readlink -f "/sys/class/tty/${tty##*/}/device/..")"
+	data="$(readlink -f "/sys/class/net/$net/device")"
+	[ -n "$serial" ] && [ -n "$data" ] && [ "${serial%/*}" = "${data%/*}" ]
+}
+
+refresh() {
+	. /lib/functions.sh
+	. /lib/netifd/netifd-proto.sh
+	config_load network
+	local available=0
+	present && available=1
+	config_foreach refresh_interface interface "$available"
+}
+
+refresh_interface() {
+	local name="$1" available="$2" device proto
+	config_get proto "$name" proto
+	device="$(uci_get network "$name" device)"
+	[ "$proto" = ncm ] && [ "$device" = "$at" ] || return 0
+	proto_set_available "$name" "$available" >/dev/null 2>&1 || :
+}
+
+at_command() {
+	at_query "$1" 28 | grep -qx OK
+}
+
+at_query() {
+	timeout -k 1 "${2:-8}" sms_tool -D -d "$port" at "$1" 2>/dev/null | tr -d '\r'
+}
+
+data_cid() {
+	at_query 'AT+GTRNDIS?' | sed -n 's/^+GTRNDIS: 1,\([0-9][0-9]*\),.*/\1/p' | head -n1
+}
+
+wait_for_sim() {
+	local start attempt pin_sent sim
+	start="$(date +%s)"
+	while :; do
+		sim="$(at_query 'AT+CPIN?')"
+		case "$sim" in
+			*'+CPIN: READY'*) return 0 ;;
+			*'+CPIN: SIM PIN'*)
+				[ -n "$PINCODE" ] && [ -z "$pin_sent" ] || return 5
+				case "$PINCODE" in *[!0-9]*) return 5 ;; esac
+				pin_sent=1
+				at_command "AT+CPIN=\"$PINCODE\"" || return 5
+				;;
+			*'SIM not inserted'*|*'CME ERROR: 10'*|*'+CPIN: SIM PUK'*) return 3 ;;
+		esac
+		present || return 2
+		attempt="$(date +%s)"
+		[ "$((attempt - start))" -lt "$delay" ] || return 6
+		sleep 1
+	done
+}
+
+connect() {
+	local profile="$1" pdptype="$2" apn="$3" delay="$4" mode="$5"
+	local active attempt context rat
+	case "$profile" in [1-9]|1[0-6]) ;; *) return 4 ;; esac
+	case "$pdptype" in IP|IPV6|IPV4V6) ;; *) return 4 ;; esac
+	case "$apn" in *[!a-zA-Z0-9.-]*) return 4 ;; esac
+	case "$delay" in ''|*[!0-9]*) delay=90 ;; esac
+
+	wait_for_sim || return "$?"
+	[ -n "$apn" ] || apn="$(at_query 'AT+CGDCONT?' | awk -F\" -v cid="$profile" '
+		$1 == "+CGDCONT: " cid "," && $4 ~ /^[[:alnum:].-]+$/ { print $4; exit }
+	')"
+	# Retire the old binding before changing the PDP type. A second GTRNDIS=1
+	# on an already connected CID returns ERROR even if the SIM is registered.
+	active="$(data_cid)"
+	[ -z "$active" ] || at_command "AT+GTRNDIS=0,$active" || return 1
+	if at_query 'AT+CGACT?' | grep -Eq "^[+]CGACT: $profile,1([[:space:]]|$)"; then
+		at_command "AT+CGACT=0,$profile" || return 1
+	fi
+	context="AT+CGDCONT=$profile,\"$pdptype\""
+	[ -z "$apn" ] || context="$context,\"$apn\""
+	at_command "$context" || return 4
+	case "$mode" in
+		lte) rat=3 ;;
+		umts) rat=2 ;;
+		auto) rat=10 ;;
+	esac
+	[ -z "$rat" ] || at_command "AT+GTRAT=$rat" || return 4
+	at_query 'AT+CFUN?' | grep -q '^+CFUN: 1\([[:space:]]\|$\)' || at_command 'AT+CFUN=1' || return 1
+
+	# CGACT also allows the radio time to attach after boot. Confirm the data
+	# binding on an ambiguous AT result before sending a second connect.
+	for attempt in 1 2 3; do
+		present || return 2
+		if at_command "AT+CGACT=1,$profile"; then
+			if at_command "AT+GTRNDIS=1,$profile" || [ "$(data_cid)" = "$profile" ]; then
+				return 0
+			fi
+		fi
+		sleep 2
+	done
+	return 1
+}
+
+disconnect() {
+	local profile="$1" active
+	case "$profile" in [1-9]|1[0-6]) ;; *) return 4 ;; esac
+	active="$(data_cid)"
+	[ "$active" != "$profile" ] || at_command "AT+GTRNDIS=0,$profile"
+}
+
+case "$1" in
+	refresh) refresh; exit ;;
+	present) present; exit ;;
+	connect|disconnect) operation="$1"; shift ;;
+	*) exit 4 ;;
+esac
+
+# Lock the whole sequence, not just each AT command. LuCI uses a different AT
+# port to collect status, so it does not open this device while netifd dials.
+exec 9>/var/lock/bq3588c-fm650.lock
+flock -w 40 9 || exit 1
+present || exit 2
+port="$(readlink -f "$at")"
+"$operation" "$@"

@@ -1,55 +1,25 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-only
 
-[ "$ACTION" = add ] && [ -n "$INTERFACE" ] || exit 0
-
+[ -n "$INTERFACE" ] || exit 0
 . /lib/functions.sh
 [ "$(board_name)" = 'bearkey,bq3588c' ] || exit 0
 
+if [ "$ACTION" = remove ] && [ "$INTERFACE" = fm650 ]; then
+	/usr/libexec/bq3588c-fm650 refresh
+	exit 0
+fi
+
+[ "$ACTION" = add ] || exit 0
 iface="$(readlink -f "/sys/class/net/$INTERFACE/device")"
 case "$iface" in
 	/sys/devices/platform/fcd00000.usb/*/usb[0-9]*/*-1/*-1:1.*) ;;
 	*) exit 0 ;;
 esac
-
 usb="${iface%/*}"
 [ "$(cat "$usb/idVendor" 2>/dev/null)" = 2cb7 ] || exit 0
 [ "$(cat "$usb/idProduct" 2>/dev/null)" = 0a05 ] || exit 0
 [ "$(basename "$(readlink "$iface/driver")")" = cdc_ncm ] || exit 0
 
-if [ "$INTERFACE" != fm650 ]; then
-	ip link set dev "$INTERFACE" name fm650 || exit 1
-
-	# The ModemManager hook sees the original name before this rename.
-	# Replace that event so its bearer uses the actual network interface.
-	mm_hotplug=/etc/hotplug.d/net/25-modemmanager-net
-	if [ -r "$mm_hotplug" ]; then
-		ACTION=remove /bin/sh "$mm_hotplug"
-		ACTION=add INTERFACE=fm650 DEVPATH="${DEVPATH%/*}/fm650" /bin/sh "$mm_hotplug"
-	fi
-fi
-
-device="$(uci -q get network.wan.device)"
-case "$(uci -q get network.wan.proto)" in
-	modemmanager)
-		# Bind the factory WAN to this slot. USB bus numbers may change.
-		# A modem selected on another port is an explicit override.
-		case "$device" in
-			fm650|/sys/devices/platform/fcd00000.usb/*/usb[0-9]*/*-1) ;;
-			*) exit 0 ;;
-		esac
-
-		[ "$device" != "$usb" ] || exit 0
-		[ -z "$(uci changes network)" ] || exit 0
-		uci set "network.wan.device=$usb" || exit 1
-		uci commit network || {
-			uci -q revert network.wan.device
-			exit 1
-		}
-		ubus call network reload >/dev/null 2>&1 || :
-		;;
-	ncm)
-		[ -c /dev/fm650-at ] && [ "$device" = /dev/fm650-at ] && ifup wan
-		;;
-esac
-exit 0
+[ "$INTERFACE" = fm650 ] || ip link set dev "$INTERFACE" name fm650 || exit 1
+/usr/libexec/bq3588c-fm650 refresh
