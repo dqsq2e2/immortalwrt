@@ -68,7 +68,7 @@ wait_for_sim() {
 
 connect() {
 	local profile="$1" pdptype="$2" apn="$3" delay="$4" mode="$5"
-	local active attempt context rat
+	local active attempt context rat ncm
 	case "$profile" in [1-9]|1[0-6]) ;; *) return 4 ;; esac
 	case "$pdptype" in IP|IPV6|IPV4V6) ;; *) return 4 ;; esac
 	case "$apn" in *[!a-zA-Z0-9.-]*) return 4 ;; esac
@@ -78,12 +78,21 @@ connect() {
 	[ -n "$apn" ] || apn="$(at_query 'AT+CGDCONT?' | awk -F\" -v cid="$profile" '
 		$1 == "+CGDCONT: " cid "," && $4 ~ /^[[:alnum:].-]+$/ { print $4; exit }
 	')"
+	ncm=0
+	case "$(at_query 'AT+GTUSBMODE?')" in
+		*'+GTUSBMODE: 36'*) ncm=1 ;;
+	esac
 	# Retire the old binding before changing the PDP type. A second GTRNDIS=1
 	# on an already connected CID returns ERROR even if the SIM is registered.
 	active="$(data_cid)"
 	[ -z "$active" ] || at_command "AT+GTRNDIS=0,$active" || return 1
 	if at_query 'AT+CGACT?' | grep -Eq "^[+]CGACT: $profile,1([[:space:]]|$)"; then
 		at_command "AT+CGACT=0,$profile" || return 1
+	fi
+	# FM650 USB profile 36 exposes NCM. Enable Fibocom IP pass-through before
+	# activating the PDP context; GTRNDIS only applies to its RNDIS profiles.
+	if [ "$ncm" = 1 ]; then
+		at_command 'AT+GTIPPASS=1' || return 4
 	fi
 	context="AT+CGDCONT=$profile,\"$pdptype\""
 	[ -z "$apn" ] || context="$context,\"$apn\""
